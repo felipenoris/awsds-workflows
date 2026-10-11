@@ -49,6 +49,21 @@ On 2026-10-11 the user asked for the AWS-DataScience orchestration runbook adapt
 first in the README and then moved to the `pdoc` index, `docs/index.md`, with the README keeping
 only the installation, the requirements and how to run the tests.
 
+On 2026-10-11 the user asked that the documentation read as a self-contained project:
+`docs/index.md`, the README and the docstrings name no external project, and AWS-DataScience's links stay only in
+`REFERENCES.md` and in this memory. The documentation calls the lab "o laboratório, uma conta de
+testes em `us-west-2`" and its image "a imagem do laboratório". What it no longer says:
+
+- `docs/index.md` is adapted from AWS-DataScience's runbook
+  <https://github.com/felipenoris/AWS-DataScience/blob/main/docs/plan/runbooks/serverless-workflows.md>.
+- "O laboratório" is AWS-DataScience's Sandbox account (`us-west-2`), and "a imagem do
+  laboratório" is its house image `awsds-sandbox-dev-env`.
+- The project role's policy of "A permissão do projeto" is, in the lab, AWS-DataScience's slice
+  `terraform-live/sandbox/workflows/`.
+- `package_task` was ported from `package-uv.sh` and `package_job` from `package-uv-job.py`, both in
+  AWS-DataScience's `examples/sandbox-orchestration/`; the measurements of 2026-10-11 in their
+  docstrings were taken with those scripts (`.claude/memory/packaging.md`).
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

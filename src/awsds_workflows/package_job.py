@@ -29,16 +29,16 @@ próprio (o do PyTorch) ou sem wheel para todo Python, que um resolvedor recusar
 é ``nome==versão``, como o ``nome @ file:///...`` que o ``pip freeze`` escreve para um pacote do
 conda, é recusada: ignorada, ela faria o pacote parecer ausente da imagem e entrar na pasta.
 
-A plataforma padrão, ``x86_64-manylinux_2_28``, pede glibc 2.28 ou mais nova na imagem. A imagem da
-casa do AWS-DataScience tem o ``onnxruntime`` 1.30.0, que não publica wheel anterior a
-``manylinux_2_28`` (medido em 2026-10-11), então ``manylinux2014`` não a descreve; numa outra
-imagem, ``ldd --version`` no space diz a glibc.
+A plataforma padrão, ``x86_64-manylinux_2_28``, pede glibc 2.28 ou mais nova na imagem. A imagem do
+laboratório tem o ``onnxruntime`` 1.30.0, que não publica wheel anterior a ``manylinux_2_28``
+(medido em 2026-10-11), então ``manylinux2014`` não a descreve; numa outra imagem, ``ldd --version``
+no space diz a glibc.
 
-Medido em 2026-10-11 com o ``package-uv-job.py`` do AWS-DataScience, de que este módulo saiu, sobre
-a imagem da casa e um projeto que dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock
-novo discordou da imagem em ``boto3``, ``botocore``, ``charset-normalizer``, ``idna`` e ``urllib3``;
-com o bloco de restrições impresso e um novo ``uv lock``, 12 pacotes vieram da imagem e só o
-``petl`` entrou na pasta, de 1,2 MB.
+Medido em 2026-10-11 sobre a imagem do laboratório, ``awsds-sandbox-dev-env``, e um projeto que
+dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock novo discordou da imagem em
+``boto3``, ``botocore``, ``charset-normalizer``, ``idna`` e ``urllib3``; com o bloco de restrições
+impresso e um novo ``uv lock``, 12 pacotes vieram da imagem e só o ``petl`` entrou na pasta,
+de 1,2 MB.
 
 Exemplo:
 

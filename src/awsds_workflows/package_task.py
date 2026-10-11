@@ -26,15 +26,14 @@ Os passos, cada um com a regra do worker que cumpre:
 5. O arquivo de trava do ``uv``, os scripts de ``bin/`` e o bytecode saem, e o ``.zip`` é gravado
    pelo Python; um conteúdo acima de 250 MB descompactado é recusado antes de gravar.
 
-Medido em 2026-10-11 com o ``package-uv.sh`` do AWS-DataScience, de que este módulo saiu, num
-projeto que dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: cerca de 0,9 MB, com o
-projeto, ``tasks.py``, o ``petl`` e o ``requests`` com ``certifi``, ``charset_normalizer``,
-``idna`` e ``urllib3``; sem ``boto3``, ``botocore``, ``s3transfer``, ``jmespath`` ou ``yaml``; os
-módulos compilados do ``charset_normalizer`` com a etiqueta ``cp312-cp312-manylinux2014_x86_64``,
-e ``cpython-313`` com ``python="3.13"``. Nenhum ``.zip`` construído assim rodou num worker até
-2026-10-11: o worker do laboratório parou antes da primeira task, ao preparar o ambiente, e a
-leitura, ainda não medida, é que a política do endpoint de gateway do S3 recusa o bucket em que o
-serviço guarda a cópia do código.
+Medido em 2026-10-11 num projeto que dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``:
+cerca de 0,9 MB, com o projeto, ``tasks.py``, o ``petl`` e o ``requests`` com ``certifi``,
+``charset_normalizer``, ``idna`` e ``urllib3``; sem ``boto3``, ``botocore``, ``s3transfer``,
+``jmespath`` ou ``yaml``; os módulos compilados do ``charset_normalizer`` com a etiqueta
+``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. Nenhum ``.zip``
+construído assim rodou num worker até 2026-10-11: o worker do laboratório parou antes da primeira
+task, ao preparar o ambiente, e a leitura, ainda não medida, é que a política do endpoint de gateway
+do S3 recusa o bucket em que o serviço guarda a cópia do código.
 
 Exemplo:
 

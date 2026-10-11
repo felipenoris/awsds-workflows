@@ -4,9 +4,8 @@ do SageMaker e a definição do workflow com os valores do projeto. As ferrament
 Linux com internet, onde o `uv` alcança o PyPI. O que elas gravam é copiado para o ambiente do
 SageMaker, que não tem internet, e nada é instalado onde o código roda.
 
-Esta página é o procedimento, adaptado do runbook
-[`serverless-workflows.md`](https://github.com/felipenoris/AWS-DataScience/blob/main/docs/plan/runbooks/serverless-workflows.md)
-do AWS-DataScience, o laboratório em que cada passo foi medido em outubro de 2026. A referência de
+Esta página é o procedimento. Cada passo foi medido em outubro de 2026 no laboratório, uma conta
+de testes em `us-west-2` com uma imagem customizada, `awsds-sandbox-dev-env`. A referência de
 cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.package_job`,
 `awsds_workflows.render`, `awsds_workflows.errors` e `awsds_workflows.cli`.
 
@@ -29,8 +28,8 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 
 Medido no laboratório em 2026-10-11:
 
-- **A task de processamento funciona de ponta a ponta**: um sensor, um job na imagem da casa que
-  resume a amostra e a remoção da origem depois que o resultado chegou, sob a chave do projeto
+- **A task de processamento funciona de ponta a ponta**: um sensor, um job na imagem do laboratório
+  que resume a amostra e a remoção da origem depois que o resultado chegou, sob a chave do projeto
   (execução `f9L7CKQzmUQWQTR`).
 - **Um workflow com `.zip` de código não roda no laboratório.** O worker falha ao preparar o
   ambiente, antes de qualquer task, com `Execution environment preparation failed due to an internal
@@ -82,10 +81,10 @@ imagem decide o interpretador, a versão do Python e o ambiente de pacotes, e ca
 
 | | A imagem padrão do SageMaker | Uma imagem customizada |
 |---|---|---|
-| exemplo | a SageMaker Distribution 4.15, a imagem inicial do alvo | a imagem da casa do AWS-DataScience, `awsds-sandbox-dev-env` |
+| exemplo | a SageMaker Distribution 4.15, a imagem inicial do alvo | a imagem do laboratório, `awsds-sandbox-dev-env` |
 | `JOB_IMAGE_URI` | o URI da distribuição na região do projeto, no arquivo de valores | lido da imagem registrada no SageMaker (`values --image-name`) ou no arquivo de valores |
-| `JOB_PYTHON`, o interpretador que o job chama | `/opt/conda/bin/python` | o do ambiente da imagem; na da casa, `/opt/awsds/venv/bin/python` |
-| `--python` | a versão desse interpretador, lida com `/opt/conda/bin/python --version` num space com a imagem | na da casa, 3.13 |
+| `JOB_PYTHON`, o interpretador que o job chama | `/opt/conda/bin/python` | o do ambiente da imagem; na do laboratório, `/opt/awsds/venv/bin/python` |
+| `--python` | a versão desse interpretador, lida com `/opt/conda/bin/python --version` num space com a imagem | na do laboratório, 3.13 |
 | o arquivo de ambiente | `uv pip list --format freeze --python /opt/conda/bin/python` num space com a imagem | o mesmo comando com o interpretador da imagem, ou o `uv export` do projeto que constrói a imagem |
 
 O arquivo de ambiente é gerado num space que roda a imagem do job, sem internet, e copiado para a
@@ -95,10 +94,10 @@ e uma pasta de código nova. O `uv pip list --format freeze` escreve só linhas 
 recusa essa linha, porque ignorada ela faria o pacote parecer ausente da imagem e entrar na pasta.
 
 Ainda não medido na SageMaker Distribution 4.15: o URI da imagem para um job no alvo, a versão do
-Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem da casa roda como
+Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem do laboratório roda como
 `sagemaker-user` (uid 1000), e o `sudo` dela funciona dentro de um job (medido em 2026-10-11); a
-distribuição, de que a imagem da casa deriva, deve ter o mesmo usuário, e o primeiro job no alvo é
-a medida.
+distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário, e o primeiro job no
+alvo é a medida.
 
 ## A permissão do projeto
 
@@ -115,7 +114,6 @@ por dois motivos medidos no laboratório em 2026-10-10:
 A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois. Ela permite o
 `DescribeProcessingJob` de um job sem etiqueta de projeto e o `AddTags` só da etiqueta do próprio
 projeto, num job sem etiqueta ou com a do chamador; os jobs de outro projeto ficam fora de alcance.
-No laboratório ela é o slice `terraform-live/sandbox/workflows/` do AWS-DataScience.
 
 ```json
 {
@@ -242,7 +240,7 @@ e o `KmsKeyId` da saída, a chave do projeto. Outro ambiente pode exigir outra l
 como o papel do projeto. O código é mais uma entrada: a pasta que o `package-job` grava, copiada
 para o S3 do projeto.
 
-**O usuário do contêiner não grava na pasta de saída.** A imagem da casa roda como
+**O usuário do contêiner não grava na pasta de saída.** A imagem do laboratório roda como
 `sagemaker-user` (uid 1000), e a plataforma cria cada pasta montada como root com modo 755; uma
 gravação falha com `Permission denied`, e o job termina com `AlgorithmError: , exit code: 1`. O
 `sudo` da imagem funciona dentro de um job, então o comando abre com um `chown`:
@@ -350,8 +348,8 @@ task:
 | `não é Python puro` | o projeto tem módulos de extensão | construa o wheel dele na plataforma do alvo |
 | `no wheels with a matching platform tag` | uma dependência da pasta não publica wheel para o alvo | outra versão, outro pacote ou outra imagem |
 
-**Medido em 2026-10-11** com a imagem da casa, num projeto descartável que dependia de `petl`,
-`requests`, `boto3` e `pyyaml`: o lock novo discordou da imagem em `boto3`, `botocore`,
+**Medido em 2026-10-11** com a imagem do laboratório, num projeto descartável que dependia de
+`petl`, `requests`, `boto3` e `pyyaml`: o lock novo discordou da imagem em `boto3`, `botocore`,
 `charset-normalizer`, `idna` e `urllib3`; com o bloco impresso e um novo `uv lock`, 12 pacotes
 vieram da imagem e só o `petl` entrou na pasta, de 1,2 MB.
 
@@ -361,8 +359,8 @@ vieram da imagem e só o `petl` entrou na pasta, de 1,2 MB.
 **Imprima contagens e caminhos, nunca dados.** A saída do contêiner vai para um grupo de logs da
 conta inteira ([As peças](#as-pecas)).
 
-**O custo e a duração de uma execução** (medido no laboratório em 2026-10-11): cerca de 15 minutos
-e 0,03 USD. O job passou cerca de 7,5 dos seus 8 minutos baixando a imagem da casa, de 6,97 GB,
+**O custo e a duração de uma execução** (medido no laboratório em 2026-10-11): cerca de 15 minutos e
+0,03 USD. O job passou cerca de 7,5 dos seus 8 minutos baixando a imagem do laboratório, de 6,97 GB,
 antes de o contêiner começar, e a task de processamento ocupa o worker durante o job inteiro.
 
 ### Uma definição de exemplo
