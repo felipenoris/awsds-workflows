@@ -88,13 +88,26 @@ alvo para um workflow"): they were taken from a space, and the worker's network 
 ## The project space
 
 What `scripts/space_values.py` relies on, read on 2026-10-11 from a cloud container in the code of
-the SDK `sagemaker-studio` 1.1.35 (PyPI wheel; 1.1.32 holds the same code on these points). No
-space of the lab or the target has run the script yet.
+the SDK `sagemaker-studio` 1.1.35 (PyPI wheel; 1.1.32 holds the same code on these points). A lab
+space ran the script on 2026-10-11; no target space has.
 
 - **`Project()` works in the target** (user statement of 2026-10-11, 21:39 UTC). On 2026-09-21,
   when the target had no `~/.aws/config`, 1.1.32's `Project()` failed there with
   `ProfileNotFound (DomainExecutionRoleCreds)`; the `DomainExecutionRoleCreds` profile is in the
   lab space's `~/.aws/config` (serialize-db, 2026-09-19).
+- **The script in a lab space** (the user, 2026-10-11, 22:21 UTC): `python space_values.py >
+  valores.json`, in `~/awsds-workflows/scripts` of a space of the lab's project, printed the ten
+  values, `REGION` `us-west-2`. The reading is in the Claude project's library,
+  `valores/valores-lab.json`, kept out of git for its ids; the space's SDK version was not read.
+  AWS-DataScience's stage logs hold nine of the ten, all but the account id, which they mask, and
+  each is the value `values` reads: the project and the domain (06i, 2026-10-10, 0.1); the project
+  role, the account's only one, and its group `datazone-<project>-dev` (06h, 2026-09-21); the
+  private subnets of `usw2-az1` and `usw2-az2` (`10.20.0.0/18` and `10.20.64.0/18`, 05b,
+  2026-09-20, from the EC2 API) in the script's order, the zone order `values` sorts by; the
+  project key, which 06i's 0.1 names by the role's `KmsKeyId` tag and its pass 2 (2026-10-11) by
+  its id; the bucket `awsds-sandbox-smus-projects` (06i's 0.1, and the `DomainBucketName` tag of
+  the domain's first project role, 06a, 2026-08-22). In this lab the environment's subnet order is
+  the zone order.
 - **The metadata file** `/opt/ml/metadata/resource-metadata.json` is where a space writes the
   project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`. The SDK reads
   a field at the file's root, then in `AdditionalMetadata`

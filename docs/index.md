@@ -779,8 +779,10 @@ python space_values.py > valores.json
   rastro do Python na saída de erro.
 
 Os nomes dos recursos vêm do código do SDK `sagemaker-studio` 1.1.35, igual ao da 1.1.32 nesse
-ponto (lidos em 2026-10-11). O `Project()` funciona no ambiente alvo (2026-10-11), e o script
-ainda não rodou num espaço.
+ponto (lidos em 2026-10-11). Num espaço do laboratório, em 2026-10-11, o script deu os dez valores,
+e as leituras da conta do laboratório, que guardam todos menos o id da conta, dão os mesmos, as
+sub-redes na ordem das zonas inclusive. No ambiente alvo, onde o `Project()` funciona
+(2026-10-11), o script ainda não rodou.
 
 ## Como ler uma execução
 

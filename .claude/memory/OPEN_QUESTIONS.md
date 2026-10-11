@@ -24,14 +24,13 @@ nomeia esse lugar.
   do alvo leu 3.12.14 em `/opt/conda` em 2026-09-21, antes da 4.15), o usuário do contêiner e o
   `sudo` que o `chown` da pasta de saída usa. Fecha com um space na imagem (`--version`, `id`,
   `ldd --version`) e o primeiro job.
-- **O `scripts/space_values.py` num espaço do alvo.** O script não rodou num espaço; o `Project()`
-  funciona no alvo (o usuário, 2026-10-11). Não lidos lá: o ambiente Tooling padrão que o SDK
-  `sagemaker-studio` acha (o blueprint `Tooling` ou `ToolingLite`, ou a conexão IAM), os recursos
-  `userRoleArn`, `securityGroup`, `privateSubnets`, `kmsKeyArn` e `s3BucketPath` dele. Também não
-  lido: se esses valores coincidem com os que o `values` lê da conta (o papel `datazone_usr_role_`,
-  as etiquetas `DomainBucketName` e `KmsKeyId` e o grupo `datazone-<projeto>-<escopo>`). Fecha com o
-  que o script imprime num espaço do alvo; a comparação com o `values` cabe no laboratório, onde os
-  dois rodam.
+- **O `scripts/space_values.py` num espaço do alvo.** O script rodou num espaço do laboratório em
+  2026-10-11, e os valores batem com os registros da conta do laboratório (`environments.md`, "The
+  project space"); no alvo, onde o `Project()` funciona (o usuário, 2026-10-11), não rodou. Não
+  lidos lá: o ambiente Tooling padrão que o SDK `sagemaker-studio` acha (o blueprint `Tooling` ou
+  `ToolingLite`, ou a conexão IAM), os recursos `userRoleArn`, `securityGroup`, `privateSubnets`,
+  `kmsKeyArn` e `s3BucketPath` dele, e a ordem das sub-redes, que no laboratório é a das zonas.
+  Fecha com o que o script imprime num espaço do alvo.
 - **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, um `.zip` montado pela
   receita à mão rodou numa task Python em 2026-10-11, depois que a política do endpoint de gateway
   do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia que o
