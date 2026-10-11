@@ -24,6 +24,14 @@ nomeia esse lugar.
   do alvo leu 3.12.14 em `/opt/conda` em 2026-09-21, antes da 4.15), o usuário do contêiner e o
   `sudo` que o `chown` da pasta de saída usa. Fecha com um space na imagem (`--version`, `id`,
   `ldd --version`) e o primeiro job.
+- **O `scripts/space_values.py` num espaço do alvo.** O script não rodou num espaço. Não lidos: o
+  arquivo de metadados de um espaço real (o separador de `PrivateSubnets` e de `SecurityGroup`, que
+  só aparecem nos dados de teste do SDK `sagemaker-studio`, e a presença de `DataZoneEndpoint`); se
+  o `DataZoneEnvironmentId` do espaço é o ambiente Tooling, o que tem o `kmsKeyArn`; o
+  `GetEnvironment` com as credenciais do espaço no alvo, que não tem `~/.aws/config`; e o nome
+  `datazone.sa-east-1.api.aws`, que o `boto3` chama sem `DataZoneEndpoint`, enquanto o probe do
+  alvo resolveu `datazone.sa-east-1.amazonaws.com`. Fecha com o que o script imprime num espaço do
+  alvo.
 - **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, um `.zip` montado pela
   receita à mão rodou numa task Python em 2026-10-11, depois que a política do endpoint de gateway
   do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia que o

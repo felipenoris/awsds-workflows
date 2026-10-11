@@ -117,6 +117,20 @@ task against a Python task.
 `src/awsds_workflows/package_task.py`, `src/awsds_workflows/cli.py`, `docs/index.md` ("Uma task
 Bash").
 
+## The values read inside a space
+
+On 2026-10-11 at 21:04 UTC the user asked for a Python script, run in a project space, that prints
+the JSON `values` prints, because their user may lack the permissions `values` needs; they expected
+`import boto3` and an instance of the SDK's `Project` to carry what the space knows. At 21:19 UTC,
+on a decision card, the user chose DataZone as the source of `PROJECT_KEY_ID` ("Pede ao DataZone o
+ambiente Tooling do projeto, a fonte que o SDK usa"), over the key of an object in the project's S3
+path and over writing it by hand. Two deviations, named in the PR: the script calls
+`GetEnvironment` on the space's `DataZoneEnvironmentId` instead of the SDK's two listings that find
+the default Tooling environment, and it does not use `Project()`, which failed in the target with
+`ProfileNotFound (DomainExecutionRoleCreds)` (`environments.md`, "The project space").
+
+`scripts/space_values.py`, `tests/test_space_values.py`, `docs/index.md`.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.
