@@ -2,9 +2,10 @@
 
 O worker recebe o código de uma task como um único ``.py``, ``.sh`` ou ``.zip``, extrai o ``.zip``
 em ``/usr/local/airflow/dags``, que está no ``sys.path``, e não tem internet. Por isso o ``.zip``
-leva tudo na raiz: o módulo de entrada que o ``python_callable`` da task nomeia, o pacote do projeto
-e cada dependência que o ``uv.lock`` do projeto fixa, em wheels do interpretador e da plataforma do
-worker. Os pacotes que o worker já traz ficam de fora, com cada dependência que só eles usam.
+leva tudo na raiz: o pacote do projeto e cada dependência que o ``uv.lock`` do projeto fixa, em
+wheels do interpretador e da plataforma do worker, o módulo de entrada que o ``python_callable`` de
+uma task Python nomeia e os arquivos que uma task Bash chama, como um script ou um binário. Os
+pacotes que o worker já traz ficam de fora, com cada dependência que só eles usam.
 
 ``build_archive`` roda na máquina com internet, onde o ``uv`` alcança o PyPI; o ``.zip`` é enviado
 depois ao workflow, em *Settings → Storage → Python/Bash Operator Files*. O alvo é o worker, o
@@ -22,18 +23,21 @@ Os passos, cada um com a regra do worker que cumpre:
    máquina.
 3. ``uv build --wheel`` constrói o projeto, recusado quando não é Python puro, e a mesma instalação
    põe o pacote dele na raiz.
-4. O módulo de entrada é copiado para a raiz.
-5. O arquivo de trava do ``uv``, os scripts de ``bin/`` e o bytecode saem, e o ``.zip`` é gravado
-   pelo Python; um conteúdo acima de 250 MB descompactado é recusado antes de gravar.
+4. O arquivo de trava do ``uv``, os scripts de ``bin/`` e o bytecode saem.
+5. O módulo de entrada e os arquivos de ``include`` são copiados para a raiz com o modo de cada um;
+   um nome que já está na raiz é recusado.
+6. O ``.zip`` é gravado pelo Python, com o modo de cada arquivo, o bit de execução incluído; um
+   conteúdo acima de 250 MB descompactado é recusado antes de gravar.
 
 Medido em 2026-10-11 num projeto que dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``:
 cerca de 0,9 MB, com o projeto, ``tasks.py``, o ``petl`` e o ``requests`` com ``certifi``,
 ``charset_normalizer``, ``idna`` e ``urllib3``; sem ``boto3``, ``botocore``, ``s3transfer``,
 ``jmespath`` ou ``yaml``; os módulos compilados do ``charset_normalizer`` com a etiqueta
-``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. Nenhum ``.zip``
-construído assim rodou num worker até 2026-10-11: o worker do laboratório parou antes da primeira
-task, ao preparar o ambiente, e a leitura, ainda não medida, é que a política do endpoint de gateway
-do S3 recusa o bucket em que o serviço guarda a cópia do código.
+``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. No laboratório, um
+``.zip`` com a mesma forma, montado à mão, rodou numa task Python em 2026-10-11, depois que a
+política do endpoint de gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do
+código: o ``petl`` foi importado de ``/usr/local/airflow/dags``. Nenhum ``.zip`` gravado por
+``build_archive`` rodou num worker até essa data.
 
 Exemplo:
 
@@ -100,9 +104,12 @@ WORKER_PROVIDED = (
 )
 """[public] Os pacotes que o worker já traz, da tabela do guia lida em 2026-10-11.
 
-O guia diz que a cópia do worker vence a do ``.zip``, o que nenhuma execução mediu até 2026-10-11.
-O código da task é escrito contra as versões do worker: o Airflow 3.0.6, o provider da Amazon
-9.32.0 e o ``boto3`` 1.43.1.
+A cópia do worker vence a do ``.zip`` numa task Python, como o guia diz: no laboratório, em
+2026-10-11, o PyYAML 6.0.2 do worker foi importado no lugar do 6.0.1 de um ``.zip``. Numa task
+Bash que roda ``python3 -m`` a partir de ``/usr/local/airflow/dags``, a pasta vem antes no
+``sys.path``, e a cópia do ``.zip`` venceria (não medido); sem esses pacotes no ``.zip``, as duas
+tasks importam os do worker. O código da task é escrito contra as versões do worker: o Airflow
+3.0.6, o provider da Amazon 9.32.0 e o ``boto3`` 1.43.1.
 """
 
 ARCHIVE_LIMIT_BYTES = 250_000_000
@@ -143,22 +150,26 @@ class TaskArchive:
 
 def build_archive(
     project: Path,
-    entry_module: Path,
+    entry_module: Path | None,
     archive: Path,
     python: str = WORKER_PYTHON,
     platform: str = WORKER_PLATFORM,
     omit: Sequence[str] = (),
+    include: Sequence[Path] = (),
 ) -> TaskArchive:
     """[public] Grava o ``.zip`` de uma task Python ou Bash a partir de um projeto uv.
 
     O projeto precisa de um ``pyproject.toml`` e de um ``uv.lock`` em dia, de um
-    ``requires-python`` que admita ``python`` e de código próprio em Python puro. A pasta
-    temporária da construção é apagada ao fim.
+    ``requires-python`` que admita ``python`` e de código próprio em Python puro. O módulo de
+    entrada e os arquivos de ``include`` vão para a raiz com o modo de cada um, e o ``.zip`` guarda
+    o bit de execução de um script ou de um binário. A pasta temporária da construção é apagada ao
+    fim.
 
     Exemplo:
 
     .. code-block:: python
 
+        # Uma task Python, com python_callable: tasks.run
         archive = build_archive(
             Path("meu-projeto"),
             Path("meu-projeto/tasks.py"),
@@ -166,24 +177,38 @@ def build_archive(
             omit=["pandas"],
         )
 
+        # Uma task Bash, que chama python3 -m meu_pacote ou bash run.sh
+        archive = build_archive(
+            Path("meu-projeto"),
+            None,
+            Path("meu-projeto.zip"),
+            include=[Path("meu-projeto/run.sh")],
+        )
+
     :param project: a pasta do projeto uv, com ``pyproject.toml`` e ``uv.lock``.
-    :param entry_module: o arquivo ``.py`` que vai para a raiz do ``.zip``; o ``python_callable``
-        da task o nomeia como ``<módulo>.<função>``.
+    :param entry_module: o arquivo ``.py`` que vai para a raiz do ``.zip`` e que o
+        ``python_callable`` de uma task Python nomeia como ``<módulo>.<função>``; ``None`` quando
+        só tasks Bash usam o ``.zip``.
     :param archive: o caminho do ``.zip``, numa pasta que já existe; um ``.zip`` que já está ali é
         substituído, e uma recusa o deixa como estava.
     :param python: a versão do CPython do worker, como ``3.12``.
     :param platform: a plataforma do worker no formato do ``--python-platform`` do ``uv``.
     :param omit: mais pacotes a deixar de fora, além de ``WORKER_PROVIDED``, pelo nome no PyPI.
+    :param include: mais arquivos a pôr na raiz do ``.zip``, cada um com o próprio nome, como o
+        script ``.sh`` ou o binário que uma task Bash chama; uma pasta não é aceita.
     :return: o ``.zip`` gravado, com o tamanho e os nomes da raiz.
-    :raises awsds_workflows.errors.RefusalError: quando falta o ``uv.lock``, o módulo de entrada ou
-        a pasta do ``.zip``, quando o ``uv`` recusa o lock ou uma dependência sem wheel para o
-        alvo, quando o projeto não é Python puro e quando o conteúdo passa do limite do worker.
+    :raises awsds_workflows.errors.RefusalError: quando falta o ``uv.lock``, o módulo de entrada,
+        um arquivo de ``include`` ou a pasta do ``.zip``, quando o ``uv`` recusa o lock ou uma
+        dependência sem wheel para o alvo, quando o projeto não é Python puro, quando um arquivo
+        tem o nome de outro que já está na raiz e quando o conteúdo passa do limite do worker.
     """
     # Os caminhos absolutos, porque o uv roda dentro da pasta do projeto.
     project = project.resolve()
-    entry_module = entry_module.resolve()
     archive = archive.resolve()
-    _check_inputs(project, entry_module, archive)
+    root_files = [path.resolve() for path in include]
+    if entry_module is not None:
+        root_files.insert(0, entry_module.resolve())
+    _check_inputs(project, root_files, archive)
 
     with tempfile.TemporaryDirectory() as temporary:
         stage = Path(temporary)
@@ -197,10 +222,12 @@ def build_archive(
         # O pacote do projeto, de um wheel construído a partir do pyproject.toml.
         wheels = _uv.build_pure_wheel(project, stage / "dist")
         _uv.install_wheels(wheels, root, python, platform)
-
-        # O módulo que o python_callable nomeia, na raiz, e nada que o worker não importe.
-        shutil.copy2(entry_module, root / entry_module.name)
         _uv.remove_leftovers(root)
+
+        # O módulo de entrada e os arquivos de include vão para a raiz depois da limpeza, que
+        # apagaria um .pyc ou um .lock incluído.
+        for path in root_files:
+            _copy_to_root(path, root)
 
         unzipped_bytes = _write_archive(root, archive)
         top_level = sorted(path.name for path in root.iterdir())
@@ -217,17 +244,30 @@ def build_archive(
 
 def _check_inputs(
     project: Path,
-    entry_module: Path,
+    root_files: list[Path],
     archive: Path,
 ) -> None:
-    """[private] Recusa, antes de qualquer download, o projeto sem ``uv.lock``, o módulo de entrada
-    que não existe e a pasta do ``.zip`` que não existe."""
+    """[private] Recusa, antes de qualquer download, o projeto sem ``uv.lock``, o arquivo da raiz
+    que não existe ou é uma pasta e a pasta do ``.zip`` que não existe."""
     if not (project / "uv.lock").is_file():
         raise RefusalError(f"não há uv.lock em {project}: rode uv lock lá antes")
-    if not entry_module.is_file():
-        raise RefusalError(f"não há módulo de entrada em {entry_module}")
+    for path in root_files:
+        if not path.is_file():
+            raise RefusalError(f"não há arquivo em {path}")
     if not archive.parent.is_dir():
         raise RefusalError(f"a pasta {archive.parent} não existe")
+
+
+def _copy_to_root(
+    path: Path,
+    root: Path,
+) -> None:
+    """[private] Copia ``path`` para a raiz com o modo dele, e recusa um nome que já está lá, de um
+    pacote ou de outro arquivo."""
+    destination = root / path.name
+    if destination.exists():
+        raise RefusalError(f"{path.name} já está na raiz do .zip: renomeie {path}")
+    shutil.copy2(path, destination)
 
 
 def _export_closure(
@@ -251,7 +291,8 @@ def _write_archive(
     """[private] Grava o conteúdo de ``root`` em ``archive``, sem uma pasta de topo, e devolve o
     tamanho descompactado; recusa sem gravar um conteúdo acima de ``ARCHIVE_LIMIT_BYTES``.
 
-    O ``.zip`` é gravado pelo Python, e não pelo ``zip``, que nem todo ambiente traz.
+    O ``.zip`` é gravado pelo Python, e não pelo ``zip``, que nem todo ambiente traz; o
+    ``ZipFile.write`` guarda o modo de cada arquivo, o bit de execução incluído.
     """
     files = sorted(path for path in root.rglob("*") if path.is_file())
     unzipped_bytes = sum(path.stat().st_size for path in files)
