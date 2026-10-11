@@ -30,6 +30,8 @@ docs = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# O script de scripts/, que roda fora do pacote, entra no sys.path dos testes.
+pythonpath = ["scripts"]
 markers = [
     "network: roda o uv sobre projetos de teste gravados em tmp_path e precisa do PyPI; -m 'not network' os pula",
 ]
