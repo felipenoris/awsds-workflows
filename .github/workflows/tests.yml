@@ -1,6 +1,8 @@
-# Os testes do pacote awsds_workflows no Ubuntu, a plataforma em que o pacote roda. Antes dos
-# testes, o pacote é instalado sem o grupo dev e cada módulo dele é importado, porque quem instala
-# o pacote recebe só as dependências de execução. Com o grupo dev instalado, o Ruff confere o código
+# Os testes do pacote awsds_workflows no Ubuntu, a plataforma em que o pacote roda, nos Pythons
+# 3.12, o mínimo do requires-python, 3.13, o do .python-version, e 3.14. O python-version do
+# setup-uv vale para o uv de todos os passos, no lugar do .python-version. Antes dos testes, o
+# pacote é instalado sem o grupo dev e cada módulo dele é importado, porque quem instala o pacote
+# recebe só as dependências de execução. Com o grupo dev instalado, o Ruff confere o código
 # (ruff check) e a formatação (ruff format --check). Os testes marcados network travam e constroem
 # projetos de teste com o uv e baixam do PyPI, que o runner alcança.
 name: Testes do pacote
@@ -16,13 +18,17 @@ permissions:
 
 jobs:
   tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v10.2.0
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - name: Instalar o pacote só com as dependências de execução
         run: uv sync --no-dev

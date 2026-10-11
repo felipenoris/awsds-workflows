@@ -11,6 +11,14 @@ laptop (uv 0.12.13, aarch64), where the whole suite passed, the network tests in
 platform of every build is passed as `--python-platform`, so the host's platform does not leak into
 an archive (the compiled modules carry `x86_64-linux-gnu`).
 
+On 2026-10-11 a cloud container (Linux x86_64, uv 0.11.32) ran the suite with `requires-python`
+`>=3.12` on CPython 3.12.13, 3.13.16 and 3.14.6 (`uv run --isolated --python X.Y pytest`): 67
+passed on each, 8 of them `network`, with pytest 9.1.1 and packaging 26.3. `UV_PYTHON` chose the
+interpreter of `uv sync` and `uv run` over the `.python-version` 3.13. The GitHub workflow of PR #4
+read the same 67 on CPython 3.12.3 (the runner's `/usr/bin/python3.12`), 3.13.16 and 3.14.8,
+with `setup-uv` setting `UV_PYTHON` from the matrix; its uv 0.13.0 warns that the
+`uv-build>=0.12.10,<0.13.0` of `[build-system]` does not contain the current uv version.
+
 ## The AWS-DataScience lab
 
 The Sandbox account of AWS-DataScience, `us-west-2`, a SageMaker Unified Studio project where every

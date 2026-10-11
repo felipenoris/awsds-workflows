@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Felipe Noronha", email = "felipenoris@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 # O packaging avalia os marcadores PEP 508 do ambiente da imagem do job para o interpretador e a
 # plataforma do job (awsds_workflows.package_job). A versão é mínima, e não fixa, para o pacote
 # instalar ao lado de um ambiente que fixa a sua. O uv é chamado como programa e não entra como

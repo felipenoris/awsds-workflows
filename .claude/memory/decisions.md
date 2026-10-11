@@ -70,6 +70,18 @@ in `.claude/memory/environments.md` ("The AWS-DataScience lab") and in
 `.claude/memory/OPEN_QUESTIONS.md`; the section on a Python or Bash task keeps its own warning that
 no `.zip` has run on a worker.
 
+## The supported Python versions
+
+On 2026-10-11 at 20:55 UTC the user asked that the package be compatible with Python 3.12 and that
+the tests run on 3.12, 3.13 and 3.14: `requires-python` is `>=3.12`, and `tests.yml` runs the three
+versions on Ubuntu. The repository's `.python-version`, the project venv and `docs.yml` stay on
+3.13, Claude's default, named in the PR. Only `requires-python` blocked 3.12: with it relaxed, the
+67 tests passed on 3.12, 3.13 and 3.14 (`environments.md`), and vermin 1.8.0 read nothing newer
+than Python 3.9 in `src/` and `tests/`. `requires-python` has no upper bound, so 3.15 installs
+untested.
+
+`pyproject.toml`, `.github/workflows/tests.yml`, `README.md`, `docs/index.md`.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.
