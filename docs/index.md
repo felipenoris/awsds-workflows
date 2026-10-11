@@ -16,7 +16,7 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
-| [Regras de autoria](#regras-de-autoria) | cientista de dados | o editor, a importação, os templates, o sensor |
+| [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os templates, o sensor |
 | [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, e a pasta de código com `package-job` |
 | [O código de uma task Python ou Bash](#o-codigo-de-uma-task-python-ou-bash) | cientista de dados | o `.zip` com `package-task`, e uma task Python |
 | [Uma task Bash](#uma-task-bash) | cientista de dados | o `BashOperator`: o comando, o ambiente do worker e o código que ele chama |
@@ -183,6 +183,17 @@ públicos e não responderam. Se o worker do alvo usar a mesma rede, uma task de
 alcança o `CreateProcessingJob`; a primeira execução no alvo é a medida.
 
 ## Regras de autoria
+
+**O formato do YAML é o da AWS.** A AWS define o formato do arquivo de definição do workflow para o
+MWAA Serverless, que o valida antes de executar. A seção *YAML support* do guia descreve o formato,
+com um exemplo e os templates Jinja2, e não publica um esquema:
+[MWAA Serverless, YAML support](https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/mwaas-concepts.html#yaml-dag-authoring).
+Cada task é um operador do Airflow com os parâmetros dele, nos limites que o serviço impõe. O
+conversor de DAGs Python para YAML da AWS,
+[`python-to-yaml-dag-converter-mwaa-serverless`](https://github.com/awslabs/python-to-yaml-dag-converter-mwaa-serverless),
+escreve DAGs compatíveis com o [dag-factory](https://github.com/astronomer/dag-factory) 1.0, a
+biblioteca da Astronomer que monta DAGs do Airflow a partir de YAML e que o worker traz instalada
+(lido em 2026-10-11).
 
 **Crie vazio, depois importe.** Na página *Workflows*, crie um workflow e use *Actions → Import
 definition file* com a definição preenchida pelo `render`. Os formulários do editor não expressam
