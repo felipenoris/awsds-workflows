@@ -451,8 +451,8 @@ and brought `docs/index.md` to the lab's readings of that day, with a section on
 A session on branch `claude/values-script-sagemaker-jacgnb` (2026-10-11) wrote
 `scripts/space_values.py`, which reads the values inside a project space through the SDK
 `sagemaker-studio`, by the user's choices ("The values read inside a space" in
-`.claude/memory/decisions.md`). It ran in a lab space on 2026-10-11, and its values match the lab's
-records (`.claude/memory/environments.md`, "The project space").
+`.claude/memory/decisions.md`). It ran in a lab space on 2026-10-11 and printed the same JSON as
+`values` on the same account (`.claude/memory/environments.md`, "The project space").
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session"); the GitHub Pages source set to "GitHub Actions" before

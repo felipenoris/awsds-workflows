@@ -25,8 +25,8 @@ nomeia esse lugar.
   `sudo` que o `chown` da pasta de saída usa. Fecha com um space na imagem (`--version`, `id`,
   `ldd --version`) e o primeiro job.
 - **O `scripts/space_values.py` num espaço do alvo.** O script rodou num espaço do laboratório em
-  2026-10-11, e os valores batem com os registros da conta do laboratório (`environments.md`, "The
-  project space"); no alvo, onde o `Project()` funciona (o usuário, 2026-10-11), não rodou. Não
+  2026-10-11 e imprimiu o mesmo JSON que o `values` na mesma conta (`environments.md`, "The project
+  space"); no alvo, onde o `Project()` funciona (o usuário, 2026-10-11), não rodou. Não
   lidos lá: o ambiente Tooling padrão que o SDK `sagemaker-studio` acha (o blueprint `Tooling` ou
   `ToolingLite`, ou a conexão IAM), os recursos `userRoleArn`, `securityGroup`, `privateSubnets`,
   `kmsKeyArn` e `s3BucketPath` dele, e a ordem das sub-redes, que no laboratório é a das zonas.

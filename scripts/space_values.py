@@ -25,7 +25,8 @@ Os valores e de onde vêm:
 
 Os nomes dos recursos vêm do código do SDK ``sagemaker-studio`` 1.1.35, igual ao da 1.1.32 nesse
 ponto (lidos em 2026-10-11). Num espaço do laboratório, em 2026-10-11, o ambiente Tooling trouxe os
-cinco recursos, e os valores foram os das leituras da conta, com as sub-redes na ordem das zonas.
+cinco recursos, e o JSON saiu igual, byte a byte, ao de ``values --profile`` na mesma conta, com as
+sub-redes na ordem das zonas.
 ``JOB_IMAGE_URI`` e ``JOB_PYTHON`` não saem daqui: com a imagem padrão do SageMaker, eles entram
 no arquivo de valores.
 
