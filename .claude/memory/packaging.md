@@ -23,6 +23,13 @@ The portal (*Serverless visual workflows*, re-read 2026-10-11): one uploaded fil
 is, several are zipped into one archive; only `.py`, `.sh` and `.zip`; its dependency recipe
 `pip install --target ./package` carries no platform flag.
 
+The definition's format (read 2026-10-11, `REFERENCES.md`): the guide's *Key concepts* page says
+MWAA Serverless takes a YAML definition, validates it before running and accepts Jinja2, and
+publishes no schema. AWS's converter `python-to-yaml-dag-converter-mwaa-serverless` writes
+"dag-factory compatible Dags" for DagFactory 1.0, and the worker pre-installs dag-factory 1.0.0,
+Astronomer's Apache-2.0 library that builds Airflow DAGs from YAML, outside the Apache Airflow
+project. How the service turns the YAML into a DAG is not documented.
+
 ## The processing job's folder
 
 - A `ProcessingInput` downloads an S3 prefix into a path under `/opt/ml/processing/`, and an

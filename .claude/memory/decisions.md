@@ -50,9 +50,10 @@ first in the README and then moved to the `pdoc` index, `docs/index.md`, with th
 only the installation, the requirements and how to run the tests.
 
 On 2026-10-11 the user asked that the documentation read as a self-contained project:
-`docs/index.md`, the README and the docstrings name no external project, and AWS-DataScience's links stay only in
-`REFERENCES.md` and in this memory. The documentation calls the lab "o laboratório, uma conta de
-testes em `us-west-2`" and its image "a imagem do laboratório". What it no longer says:
+`docs/index.md`, the README and the docstrings name no external project, and AWS-DataScience's
+links stay only in `REFERENCES.md` and in this memory. The documentation calls the lab "o
+laboratório, uma conta de testes em `us-west-2`" and its image "a imagem do laboratório". What it
+no longer says:
 
 - `docs/index.md` is adapted from AWS-DataScience's runbook
   <https://github.com/felipenoris/AWS-DataScience/blob/main/docs/plan/runbooks/serverless-workflows.md>.
@@ -63,6 +64,11 @@ testes em `us-west-2`" and its image "a imagem do laboratório". What it no long
 - `package_task` was ported from `package-uv.sh` and `package_job` from `package-uv-job.py`, both in
   AWS-DataScience's `examples/sandbox-orchestration/`; the measurements of 2026-10-11 in their
   docstrings were taken with those scripts (`.claude/memory/packaging.md`).
+
+On 2026-10-11 the user asked to remove the "O estado" section from `docs/index.md`. Its facts stay
+in `.claude/memory/environments.md` ("The AWS-DataScience lab") and in
+`.claude/memory/OPEN_QUESTIONS.md`; the section on a Python or Bash task keeps its own warning that
+no `.zip` has run on a worker.
 
 ## Design choices of the first session
 

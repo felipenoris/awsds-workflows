@@ -11,9 +11,8 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 
 | Seção | Para quem | O que traz |
 |---|---|---|
-| [O estado](#o-estado) | todos | o que já rodou no laboratório e no alvo |
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota |
-| [As peças](#as-pecas) | todos | onde ficam a definição, o código, os logs e as execuções |
+| [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
@@ -23,22 +22,6 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders e o `render` |
 | [Como ler uma execução](#como-ler-uma-execucao) | todos | uma leitura por pergunta |
 | [Limpeza](#limpeza) | todos | o que fica depois de um workflow |
-
-## O estado
-
-Medido no laboratório em 2026-10-11:
-
-- **A task de processamento funciona de ponta a ponta**: um sensor, um job na imagem do laboratório
-  que resume a amostra e a remoção da origem depois que o resultado chegou, sob a chave do projeto
-  (execução `f9L7CKQzmUQWQTR`).
-- **Um workflow com `.zip` de código não roda no laboratório.** O worker falha ao preparar o
-  ambiente, antes de qualquer task, com `Execution environment preparation failed due to an internal
-  server error`. A leitura, ainda não medida, é que a política do endpoint de gateway do S3 recusa o
-  bucket em que o serviço guarda a cópia do código. O empacotamento foi conferido localmente, e
-  nenhum `.zip` de `package-task` rodou num worker.
-
-No ambiente alvo, nenhum workflow foi exercitado, e a primeira imagem do job lá é a padrão do
-SageMaker.
 
 ## Instalação
 
@@ -59,7 +42,7 @@ O pacote pede o Python 3.13 ou mais novo e chama o `uv` como programa. A única 
 
 | O quê | Onde | Nota |
 |---|---|---|
-| a definição | `s3://<bucket do projeto>/<domínio>/<projeto>/dev/workflows/<nome>.yaml` | gravada pelo portal a cada save; *View code* a mostra |
+| o arquivo de definição do workflow | `s3://<bucket do projeto>/<domínio>/<projeto>/dev/workflows/<nome>.yaml` | gravado pelo portal a cada save; *View code* o mostra |
 | o `.zip` de uma task Python ou Bash | `.../dev/operatorFiles/<arquivo>` | enviado em *Settings → Storage*; um `.zip` é guardado como foi enviado, e o workflow fixa a versão S3 dele |
 | a cópia do código que o serviço guarda | armazenamento do serviço | tirada a cada save e cifrada com a chave do projeto; não é gravada no bucket do projeto, e o bucket dela não foi lido (2026-10-11) |
 | os logs das tasks | `/aws/mwaa-serverless/<domínio>-<projeto>/<workflow>`, um stream por tentativa de task | por projeto, sem retenção; o grupo sobrevive ao workflow |
@@ -445,8 +428,10 @@ meu-job:
 
 ## O código de uma task Python ou Bash
 
-**Estado no laboratório**: bloqueado ([O estado](#o-estado)). Tudo abaixo foi construído e
-conferido localmente; nada disso rodou num worker.
+**Estado no laboratório**: bloqueado. O worker de um workflow com `.zip` de código falhou ao
+preparar o ambiente, antes de qualquer task, com `Execution environment preparation failed due to an
+internal server error` (2026-10-11). Tudo abaixo foi construído e conferido localmente; nada disso
+rodou num worker.
 
 ### O que o worker espera
 
