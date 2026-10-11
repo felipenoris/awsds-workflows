@@ -84,3 +84,77 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
 alvo para um workflow"): they were taken from a space, and the worker's network was never read.
+
+## The project space
+
+What `scripts/space_values.py` relies on, read on 2026-10-11 from a cloud container in the code of
+the SDK `sagemaker-studio` 1.1.35 (PyPI wheel; 1.1.32 holds the same code on these points). A lab
+space ran the script on 2026-10-11; no target space has.
+
+- **`Project()` works in the target** (user statement of 2026-10-11, 21:39 UTC). On 2026-09-21,
+  when the target had no `~/.aws/config`, 1.1.32's `Project()` failed there with
+  `ProfileNotFound (DomainExecutionRoleCreds)`; the `DomainExecutionRoleCreds` profile is in the
+  lab space's `~/.aws/config` (serialize-db, 2026-09-19).
+- **The script in a lab space** (the user, 2026-10-11, 22:21 UTC): `python space_values.py >
+  valores.json`, in `~/awsds-workflows/scripts` of a space of the lab's project, printed the ten
+  values, `REGION` `us-west-2`. The reading is in the Claude project's library,
+  `valores/valores-lab.json`, kept out of git for its ids; the space's SDK version was not read. At
+  22:43 UTC the user ran `awsds-workflows values --profile awsds-infra-sandbox-1 --subnet-name
+  'awsds-sandbox-private-*' --project <project>` on the laptop, from this branch's checkout, and it
+  printed the same JSON byte for byte (an empty `diff`), the account id included. AWS-DataScience's
+  stage logs agree on nine of the ten, all but the account id, which they mask, and each is the
+  value `values` reads: the project and the domain (06i, 2026-10-10, 0.1); the project role, the
+  account's only one, and its group `datazone-<project>-dev` (06h, 2026-09-21); the private subnets
+  of `usw2-az1` and `usw2-az2` (`10.20.0.0/18` and `10.20.64.0/18`, 05b, 2026-09-20, from the EC2
+  API) in the script's order, the zone order `values` sorts by; the project key, which 06i's 0.1
+  names by the role's `KmsKeyId` tag and its pass 2 (2026-10-11) by its id; the bucket
+  `awsds-sandbox-smus-projects` (06i's 0.1, and the `DomainBucketName` tag of the domain's first
+  project role, 06a, 2026-08-22). In this lab the environment's subnet order is the zone order.
+- **The metadata file** `/opt/ml/metadata/resource-metadata.json` is where a space writes the
+  project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`. The SDK reads
+  a field at the file's root, then in `AdditionalMetadata`
+  (`_get_field_from_sagemaker_space_metadata_json`); without the file, from the environment
+  variable of the same name, then from `AIRFLOW__WORKFLOWS__<...>` on MWAA. Its code reads
+  `ExecutionRoleArn` (the account is `split(":")[4]`), `DataZoneDomainId`, `DataZoneDomainRegion`,
+  `DataZoneEndpoint`, `DataZoneEnvironmentId`, `DataZoneProjectId`, `DataZoneStage`,
+  `DataZoneUserId`, `ProjectS3Path`, `NotebookId` and `SpaceName`; `PrivateSubnets` and
+  `SecurityGroup` appear only in its test fixtures, one id each. The root `DomainId` is the
+  SageMaker domain.
+- **`Project()`** takes `DataZoneDomainId` and `DataZoneProjectId` from there, builds the singleton
+  `SageMakerStudioAPI`, whose `__init__` runs again on every call, and calls DataZone's
+  `GetProject` and `ListConnections` (`default.iam`). Each `__init__` also reads the project's S3
+  path from the default Tooling environment, falling back to `ProjectS3Path` in silence.
+- **The SDK's DataZone client** calls `DataZoneEndpoint` when the file has it, else
+  `https://datazone.<region>.api.aws`, and signs with the profile `DomainExecutionRoleCreds` when
+  `/home/sagemaker-user/.aws/config` names it, else with the default chain, with botocore's default
+  timeouts and retries. The SDK loads its own DataZone model (`boto3_models`), where a
+  `ListEnvironments` item carries `provisionedResources` and the internal `deploymentOrder`.
+- **The default Tooling environment** (`ProjectService.get_project_default_environment`) is the
+  project's environment of the managed blueprint `Tooling`, then `ToolingLite`, with the smallest
+  `deploymentOrder` (`ListEnvironmentBlueprints`, `ListEnvironments`), else the environment of the
+  `default.iam` or `project.iam` connection. `project.kms_key_arn` and `project.s3.root` read
+  `kmsKeyArn` and `s3BucketPath` from its `GetEnvironment`; the job the SDK creates
+  (`RemoteExecutionClient`) takes `securityGroup`, `privateSubnets` (split on `,`), `userRoleArn`
+  and `kmsKeyArn` from it, and requires `awsAccountRegion`, `awsAccountId`, `id` and
+  `provisionedResources`.
+- **The script against a local DataZone server** (`uv run --with sagemaker-studio==1.1.35`,
+  CPython 3.13.16, boto3 1.43.111): eleven `GET`s, three of them from the second
+  `SageMakerStudioAPI()` (the blueprint, the environments and the environment again); stdout held
+  only the JSON, and an `AccessDeniedException` on `GetProject` ended with exit 1 and the traceback
+  on stderr. Importing `sagemaker_studio` took 3.73 s; the SDK pulls 102 packages (pandas, pyarrow,
+  duckdb, awswrangler, deltalake and database drivers).
+- **The managed policy `SageMakerStudioProjectUserRolePolicy`** v75 grants, with no condition, on
+  the domain of the principal tag `AmazonDataZoneDomain`, `datazone:GetProject`,
+  `ListConnections`, `GetEnvironment`, `ListEnvironments`, `ListEnvironmentBlueprints` and
+  `GetDomainExecutionRoleCredentials`, among others; `iam:GetRole` in the principal's account; and
+  `ec2:DescribeSubnets`, `DescribeSecurityGroups` and `DescribeVpcs` on `*` (re-read 2026-10-11).
+  Whether the target's project role carries it is unread.
+- **boto3 1.43.111** calls `https://datazone.sa-east-1.api.aws` for the target's region; the
+  target's probe resolved `datazone.sa-east-1.amazonaws.com` to the interface endpoint, and the
+  `api.aws` name was never resolved there. AWS's page on DataZone interface endpoints names neither.
+  `Project()` working means the SDK reaches DataZone there; which name it calls is unread.
+- **botocore 1.43.111** reads
+  `Config(connect_timeout=5, read_timeout=20, retries={"total_max_attempts": 1})` as retry mode
+  `legacy` with one attempt (a local server answering 503 got one request); the script's first
+  version used it. The timeout of a connection that never opens was not measured: the container's
+  proxy answers 403 for a private address.

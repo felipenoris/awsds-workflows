@@ -24,6 +24,13 @@ nomeia esse lugar.
   do alvo leu 3.12.14 em `/opt/conda` em 2026-09-21, antes da 4.15), o usuário do contêiner e o
   `sudo` que o `chown` da pasta de saída usa. Fecha com um space na imagem (`--version`, `id`,
   `ldd --version`) e o primeiro job.
+- **O `scripts/space_values.py` num espaço do alvo.** O script rodou num espaço do laboratório em
+  2026-10-11 e imprimiu o mesmo JSON que o `values` na mesma conta (`environments.md`, "The project
+  space"); no alvo, onde o `Project()` funciona (o usuário, 2026-10-11), não rodou. Não
+  lidos lá: o ambiente Tooling padrão que o SDK `sagemaker-studio` acha (o blueprint `Tooling` ou
+  `ToolingLite`, ou a conexão IAM), os recursos `userRoleArn`, `securityGroup`, `privateSubnets`,
+  `kmsKeyArn` e `s3BucketPath` dele, e a ordem das sub-redes, que no laboratório é a das zonas.
+  Fecha com o que o script imprime num espaço do alvo.
 - **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, um `.zip` montado pela
   receita à mão rodou numa task Python em 2026-10-11, depois que a política do endpoint de gateway
   do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia que o
