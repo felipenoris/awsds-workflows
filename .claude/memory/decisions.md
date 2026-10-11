@@ -109,6 +109,11 @@ Claude's choices inside that decision, named in the PR:
   each file's mode (`ZipFile.write` stores it, now under a test), since Python's `zipfile`
   extraction drops the mode and the service's extraction is not documented (`packaging.md`).
 
+At 22:12:50 UTC the user asked for a section on the `BashOperator` in the `pdoc` documentation,
+"caso já não tenha feito". The subsection of the code section became the top-level section
+"Uma task Bash", with its own row in the page's table of sections and a table that sets a Bash
+task against a Python task.
+
 `src/awsds_workflows/package_task.py`, `src/awsds_workflows/cli.py`, `docs/index.md` ("Uma task
 Bash").
 
