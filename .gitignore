@@ -1,0 +1,9 @@
+uv.lock
+**/__pycache__
+secrets/
+**/.DS_Store
+.venv
+.pytest_cache
+.python
+site/
+dist/

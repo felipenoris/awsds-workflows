@@ -1,0 +1,52 @@
+# Os testes do pacote awsds_workflows no Ubuntu, a plataforma em que o pacote roda. Antes dos
+# testes, o pacote é instalado sem o grupo dev e cada módulo dele é importado, porque quem instala
+# o pacote recebe só as dependências de execução. Com o grupo dev instalado, o Ruff confere o código
+# (ruff check) e a formatação (ruff format --check). Os testes marcados network travam e constroem
+# projetos de teste com o uv e baixam do PyPI, que o runner alcança.
+name: Testes do pacote
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Instalar o pacote só com as dependências de execução
+        run: uv sync --no-dev
+
+      - name: Importar cada módulo do pacote sem o grupo dev
+        run: |
+          uv run --no-dev python - <<'PY'
+          import importlib
+          import pkgutil
+
+          import awsds_workflows
+
+          for module in pkgutil.walk_packages(awsds_workflows.__path__, "awsds_workflows."):
+              importlib.import_module(module.name)
+          PY
+          uv run --no-dev awsds-workflows --help > /dev/null
+
+      - name: Instalar o pacote e as dependências de teste
+        run: uv sync
+
+      - name: Conferir o código e a formatação com o Ruff
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Rodar os testes do pacote
+        run: uv run pytest -p no:cacheprovider
