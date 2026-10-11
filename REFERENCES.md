@@ -27,6 +27,15 @@ pacote repete.
 - A rede do worker:
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/networking.html> e
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/networking-vpc.html>
+- O formato da definição: o MWAA Serverless recebe um YAML, valida-o antes de executar e aceita
+  Jinja2, sem publicar um esquema; a seção "YAML support" dos conceitos (lido em 2026-10-11):
+  <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/mwaas-concepts.html>
+- O conversor de DAGs Python para YAML da AWS, que escreve "dag-factory compatible Dags" e se diz
+  compatível com o DagFactory 1.0 (lido em 2026-10-11):
+  <https://github.com/awslabs/python-to-yaml-dag-converter-mwaa-serverless>
+- O dag-factory, a biblioteca da Astronomer (Apache-2.0, fora do projeto Apache Airflow) que
+  constrói DAGs do Airflow a partir de YAML; o worker traz a 1.0.0 (lido em 2026-10-11):
+  <https://github.com/astronomer/dag-factory>
 
 ## SageMaker Unified Studio e SageMaker
 
