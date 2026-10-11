@@ -1,0 +1,57 @@
+[project]
+name = "awsds-workflows"
+version = "0.1.0"
+description = "Empacota o código das tasks de um workflow do MWAA Serverless e renderiza as definições de workflow de um projeto do SageMaker Unified Studio"
+readme = "README.md"
+authors = [
+    { name = "Felipe Noronha", email = "felipenoris@gmail.com" }
+]
+requires-python = ">=3.13"
+# O packaging avalia os marcadores PEP 508 do ambiente da imagem do job para o interpretador e a
+# plataforma do job (awsds_workflows.package_job). A versão é mínima, e não fixa, para o pacote
+# instalar ao lado de um ambiente que fixa a sua. O uv é chamado como programa e não entra como
+# dependência: a máquina que empacota já o tem.
+dependencies = [
+    "packaging>=24",
+]
+
+[project.scripts]
+awsds-workflows = "awsds_workflows:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "ruff==0.16.10",
+]
+# A documentação do pacote, publicada em HTML estático.
+docs = [
+    "pdoc==16.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: roda o uv sobre projetos de teste gravados em tmp_path e precisa do PyPI; -m 'not network' os pula",
+]
+
+# O ruff do grupo dev lê esta configuração: `uv run ruff check` e `uv run ruff format --check`,
+# que a esteira roda antes dos testes.
+[tool.ruff]
+line-length = 100
+# Só os arquivos Python: o padrão do Ruff 0.16 inclui `*.md`, e formataria os blocos de código do
+# README.
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+[tool.ruff.format]
+# A vírgula final depois do último parâmetro mantém um parâmetro por linha e o `) -> T:` em linha
+# própria, o padrão das assinaturas do repositório.
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+# Os erros do pyflakes e do pycodestyle, e o limite de 100 caracteres por linha; o estilo continua
+# conferido pela leitura, pelas regras de CLAUDE.md.
+select = ["E4", "E7", "E9", "F", "E501"]
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
