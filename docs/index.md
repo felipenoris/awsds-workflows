@@ -20,7 +20,7 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, e a pasta de código com `package-job` |
 | [O código de uma task Python ou Bash](#o-codigo-de-uma-task-python-ou-bash) | cientista de dados | o `.zip` com `package-task`, e uma task Python |
 | [Uma task Bash](#uma-task-bash) | cientista de dados | o `BashOperator`: o comando, o ambiente do worker e o código que ele chama |
-| [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders e o `render` |
+| [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders, o `render` e os valores lidos de dentro de um espaço |
 | [Como ler uma execução](#como-ler-uma-execucao) | todos | uma leitura por pergunta |
 | [Limpeza](#limpeza) | todos | o que fica depois de um workflow |
 
@@ -735,9 +735,11 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   `--image-name`, do SageMaker, e pede `--subnet-name`, o padrão do `Name` das sub-redes privadas do
   projeto (`awsds-sandbox-private-*` no laboratório). Numa conta com mais de um projeto, `--project`
   escolhe o id.
-- **No ambiente alvo** o IAM e o SageMaker não responderam a partir de um space (leituras do
-  serialize-db de 2026-09-21 e 2026-09-23), então lá os valores vêm de um arquivo. O `values` de
-  uma máquina que alcança a conta escreve um arquivo inicial; os valores da imagem entram à mão.
+- **No ambiente alvo** o IAM e o SageMaker não responderam a partir de um space (leituras de
+  2026-09-21 e 2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
+  escreve de dentro de um espaço do projeto
+  ([Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco)), e o `values` de uma
+  máquina que alcança a conta também; os valores da imagem entram à mão.
 - **Os valores que dependem da imagem**, `JOB_IMAGE_URI` e `JOB_PYTHON`, vêm do arquivo com a imagem
   padrão. Com uma imagem customizada registrada no SageMaker, `--image-name` lê o `JOB_IMAGE_URI`.
 
@@ -754,6 +756,31 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
 
 Um nome fora desta tabela entra pelo arquivo de valores: o `render` preenche qualquer placeholder
 que tenha valor e recusa o que não tem, listando todos os que faltam.
+
+### Os valores de dentro de um espaço
+
+O script
+[`scripts/space_values.py`](https://github.com/felipenoris/awsds-workflows/blob/main/scripts/space_values.py)
+do repositório roda num espaço do projeto e imprime o JSON que o `values` imprime sem
+`--image-name`, sem o pacote, sem o `aws` e sem as permissões de IAM e EC2. Copie o arquivo para o
+espaço e rode, num terminal de lá:
+
+```shell
+python space_values.py > valores.json
+```
+
+- **Os valores do projeto** vêm do arquivo em que o espaço grava os dados do projeto,
+  `/opt/ml/metadata/resource-metadata.json`, e da região do espaço, `AWS_REGION`.
+- **As sub-redes** saem na ordem desse arquivo; o `values` as ordena pela zona, que só o EC2
+  informa.
+- **A chave KMS**, `PROJECT_KEY_ID`, vem do `kmsKeyArn` que o `GetEnvironment` do DataZone devolve
+  para o ambiente do espaço. Quando o DataZone recusa ou não responde, o JSON sai sem a chave, o
+  motivo vai para a saída de erro e a chave entra à mão.
+- **Um campo que falta** no arquivo do espaço termina o script com 1, sem JSON, e a mensagem lista
+  os campos que faltam e os que o arquivo tem.
+
+Os nomes dos campos vêm do SDK `sagemaker-studio` 1.1.35 (2026-10-11), e `PrivateSubnets` e
+`SecurityGroup` só dos dados de teste dele; o script ainda não rodou num espaço.
 
 ## Como ler uma execução
 
