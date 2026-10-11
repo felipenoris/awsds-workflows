@@ -11,7 +11,7 @@ de um projeto do SageMaker Unified Studio. O procedimento completo está na docu
 
 - Linux com internet, onde o `uv` alcança o PyPI. O que o pacote grava é copiado depois para o
   ambiente do SageMaker, que não precisa de internet.
-- O [`uv`](https://docs.astral.sh/uv/) no `PATH` e o Python 3.13 ou mais novo, que o `uv` instala.
+- O [`uv`](https://docs.astral.sh/uv/) no `PATH` e o Python 3.12 ou mais novo, que o `uv` instala.
 - O `aws` no `PATH`, só para a leitura dos valores da conta (`awsds-workflows values --profile`).
 
 ## Instalação
@@ -35,7 +35,15 @@ uv run ruff format --check
 uv run pdoc awsds_workflows --docformat restructuredtext -o site
 ```
 
-O `uv sync --all-groups` instala em `.venv/` o Python 3.13, o pacote e os grupos `dev` (o `pytest`
-e o `ruff`) e `docs` (o `pdoc`). Os testes marcados `network` travam e constroem projetos de teste
-com o `uv` e precisam do PyPI; `-m "not network"` os pula. O `pdoc` grava o site em `site/`, a mesma
-geração que o workflow `docs.yml` publica a cada push na `main`.
+O `uv sync --all-groups` instala em `.venv/` o Python 3.13 do `.python-version`, o pacote e os
+grupos `dev` (o `pytest` e o `ruff`) e `docs` (o `pdoc`). Os testes marcados `network` travam e
+constroem projetos de teste com o `uv` e precisam do PyPI; `-m "not network"` os pula. O `pdoc`
+grava o site em `site/`, a mesma geração que o workflow `docs.yml` publica a cada push na `main`.
+
+O workflow [`tests.yml`](.github/workflows/tests.yml) roda o Ruff e os testes nos Pythons 3.12,
+3.13 e 3.14. Em outra versão, o `--isolated` roda os testes num ambiente temporário, sem trocar o
+`.venv/`:
+
+```shell
+uv run --isolated --python 3.12 pytest
+```

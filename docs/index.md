@@ -35,8 +35,8 @@ uv tool install git+https://github.com/felipenoris/awsds-workflows   # o comando
 uv add git+https://github.com/felipenoris/awsds-workflows            # ou como dependência
 ```
 
-O pacote pede o Python 3.13 ou mais novo e chama o `uv` como programa. A única dependência é o
-`packaging`, que avalia os marcadores do ambiente da imagem.
+O pacote pede o Python 3.12 ou mais novo, é testado no 3.12, no 3.13 e no 3.14, e chama o `uv`
+como programa. A única dependência é o `packaging`, que avalia os marcadores do ambiente da imagem.
 
 ## As peças
 
