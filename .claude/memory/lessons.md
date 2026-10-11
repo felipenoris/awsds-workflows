@@ -20,3 +20,11 @@ commit.
   project the lab measured (`petl`, `requests`, `boto3`, `pyyaml`) was built with
   `package-uv.sh`/`package-uv-job.py` and with the package, and the outputs diffed:
   `packaging.md` holds the readings.
+- **The documentation ported from a lab that kept measuring went stale the same day** (2026-10-11).
+  `docs/index.md` was adapted from AWS-DataScience's runbook on 2026-10-11, and the lab kept
+  measuring that evening: the S3 gateway endpoint's refusal of the service's code bucket, fixed by
+  `vpc-v0.4.0`, a Python task over a `.zip`, the precedence of the worker's packages and the Bash
+  task's temporary working directory. A question about the `BashOperator` that evening found
+  `docs/index.md` still saying that the `.zip` was blocked and that a Bash task ran in
+  `/usr/local/airflow/dags`; the stage log `docs/log/log-stage-06i-sandbox-orchestration.md` had
+  the newer readings, and the answer cited them.

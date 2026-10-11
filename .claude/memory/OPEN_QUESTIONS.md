@@ -24,14 +24,19 @@ nomeia esse lugar.
   do alvo leu 3.12.14 em `/opt/conda` em 2026-09-21, antes da 4.15), o usuário do contêiner e o
   `sudo` que o `chown` da pasta de saída usa. Fecha com um space na imagem (`--version`, `id`,
   `ldd --version`) e o primeiro job.
-- **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, o worker de um workflow com
-  `Code` falha ao preparar o ambiente, e a leitura, não medida, é que a política do endpoint de
-  gateway do S3 recusa o bucket do serviço (decisão 7 do Stage 6i do AWS-DataScience, aberta). No
-  alvo, a política do endpoint de gateway não foi lida. Fecha com a decisão 7 aplicada e uma
-  execução.
-- **A precedência no worker.** O guia diz que um pacote pré-instalado vence a cópia do `.zip`
-  (verificação viii do Stage 6i do AWS-DataScience, não medida); `WORKER_PROVIDED` poda esses
-  pacotes por isso. Fecha com uma task que imprime o `__file__` do `boto3`.
+- **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, um `.zip` montado pela
+  receita à mão rodou numa task Python em 2026-10-11, depois que a política do endpoint de gateway
+  do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia que o
+  serviço guarda (`environments.md`). No alvo, a política do endpoint de gateway não foi lida.
+  Fecha com um `.zip` do `package-task` numa execução, e com a política lida no alvo.
+- **Uma task Bash sobre um `.zip`.** Só comandos inline rodaram no worker (2026-10-11). Não
+  medidos: a pasta de trabalho de um script, que o guia diz ser `/usr/local/airflow/dags`, quando
+  um comando inline rodou numa pasta temporária; um `bash_command` terminado em `.sh`, que o
+  Airflow lê como template; o bit de execução depois da extração, que o `.zip` do `package-task`
+  guarda e o `zipfile` do Python descarta; onde o worker põe um `Code` que é um `.py` ou um `.sh`
+  sozinho; se um pacote do `.zip` vence o do worker num `python3 -m` rodado em
+  `/usr/local/airflow/dags`; e o `env` sem `append_env`. Fecha com uma task Bash sobre um `.zip` do
+  `package-task` com `--include` que imprima cada um.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **O AWS-DataScience passar a usar o pacote.** O runbook e os exemplos de lá chamam os scripts, com
