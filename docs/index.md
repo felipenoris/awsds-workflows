@@ -11,7 +11,6 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 
 | Seção | Para quem | O que traz |
 |---|---|---|
-| [O estado](#o-estado) | todos | o que já rodou no laboratório e no alvo |
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota |
 | [As peças](#as-pecas) | todos | onde ficam a definição, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
@@ -23,22 +22,6 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders e o `render` |
 | [Como ler uma execução](#como-ler-uma-execucao) | todos | uma leitura por pergunta |
 | [Limpeza](#limpeza) | todos | o que fica depois de um workflow |
-
-## O estado
-
-Medido no laboratório em 2026-10-11:
-
-- **A task de processamento funciona de ponta a ponta**: um sensor, um job na imagem do laboratório
-  que resume a amostra e a remoção da origem depois que o resultado chegou, sob a chave do projeto
-  (execução `f9L7CKQzmUQWQTR`).
-- **Um workflow com `.zip` de código não roda no laboratório.** O worker falha ao preparar o
-  ambiente, antes de qualquer task, com `Execution environment preparation failed due to an internal
-  server error`. A leitura, ainda não medida, é que a política do endpoint de gateway do S3 recusa o
-  bucket em que o serviço guarda a cópia do código. O empacotamento foi conferido localmente, e
-  nenhum `.zip` de `package-task` rodou num worker.
-
-No ambiente alvo, nenhum workflow foi exercitado, e a primeira imagem do job lá é a padrão do
-SageMaker.
 
 ## Instalação
 
@@ -445,8 +428,10 @@ meu-job:
 
 ## O código de uma task Python ou Bash
 
-**Estado no laboratório**: bloqueado ([O estado](#o-estado)). Tudo abaixo foi construído e
-conferido localmente; nada disso rodou num worker.
+**Estado no laboratório**: bloqueado. O worker de um workflow com `.zip` de código falhou ao
+preparar o ambiente, antes de qualquer task, com `Execution environment preparation failed due to an
+internal server error` (2026-10-11). Tudo abaixo foi construído e conferido localmente; nada disso
+rodou num worker.
 
 ### O que o worker espera
 
