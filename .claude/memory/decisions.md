@@ -124,10 +124,18 @@ the JSON `values` prints, because their user may lack the permissions `values` n
 `import boto3` and an instance of the SDK's `Project` to carry what the space knows. At 21:19 UTC,
 on a decision card, the user chose DataZone as the source of `PROJECT_KEY_ID` ("Pede ao DataZone o
 ambiente Tooling do projeto, a fonte que o SDK usa"), over the key of an object in the project's S3
-path and over writing it by hand. Two deviations, named in the PR: the script calls
-`GetEnvironment` on the space's `DataZoneEnvironmentId` instead of the SDK's two listings that find
-the default Tooling environment, and it does not use `Project()`, which failed in the target with
-`ProfileNotFound (DomainExecutionRoleCreds)` (`environments.md`, "The project space").
+path and over writing it by hand. The first version read nine values from the space's metadata
+file and called `GetEnvironment` on its `DataZoneEnvironmentId` without `Project()`, which had
+failed in the target with `ProfileNotFound (DomainExecutionRoleCreds)` on 2026-09-21.
+
+At 21:39 UTC the user stated that `from sagemaker_studio import Project` and `project = Project()`
+work in the target ("funciona no ambiente alvo"), and at 21:40 UTC proposed adapting the script to
+use `project`. At 21:47 UTC, on a decision card, the user chose "Tudo pelo SDK" ("Os 10 valores vêm
+do Project() e do ambiente Tooling, a fonte do SDK para criar um job, e o arquivo de metadados sai
+do script") over reading only the key through `project.kms_key_arn`. The script takes the ids from
+`Project()` and every other value from the default Tooling environment the SDK finds, and a
+DataZone failure ends without JSON, where the first version printed nine values
+(`environments.md`, "The project space").
 
 `scripts/space_values.py`, `tests/test_space_values.py`, `docs/index.md`.
 

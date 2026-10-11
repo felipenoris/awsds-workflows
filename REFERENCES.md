@@ -54,14 +54,15 @@ pacote repete.
 - O arquivo de metadados de um espaço, `/opt/ml/metadata/resource-metadata.json`, que a página
   descreve só pelo `ProjectS3Path` (lido em 2026-10-11):
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/accessing-metadata.html>
-- O SDK `sagemaker-studio`, cujo código 1.1.35 dá os nomes dos campos desse arquivo, o endpoint do
-  DataZone e a chave do ambiente Tooling; a API JSON do PyPI e as rodas 1.1.35 e 1.1.32 (lidas em
-  2026-10-11): <https://pypi.org/pypi/sagemaker-studio/json>,
+- O SDK `sagemaker-studio`, cujo código 1.1.35 dá o `Project()`, o ambiente Tooling padrão e os
+  recursos dele, os nomes dos campos desse arquivo e o endpoint do DataZone; a API JSON do PyPI e as
+  rodas 1.1.35 e 1.1.32 (lidas em 2026-10-11): <https://pypi.org/pypi/sagemaker-studio/json>,
   <https://files.pythonhosted.org/packages/bb/aa/c2c4a60ff70a46b673a0cfb73e38f1552619cc35e5c9e7b939e1f18befdf/sagemaker_studio-1.1.35-py3-none-any.whl>
   e
   <https://files.pythonhosted.org/packages/5c/93/60f4e17498ae65299197ad408986dc265ead855539948f0d7301bb64a46f/sagemaker_studio-1.1.32-py3-none-any.whl>
 - A política gerenciada do papel do projeto, `SageMakerStudioProjectUserRolePolicy` v75, com o
-  `datazone:GetEnvironment`, o `iam:GetRole` e os `ec2:Describe*` (lida em 2026-10-11):
+  `datazone:GetProject`, o `ListConnections`, o `GetEnvironment`, as listagens de ambientes e de
+  blueprints, o `iam:GetRole` e os `ec2:Describe*` (lida em 2026-10-11):
   <https://docs.aws.amazon.com/aws-managed-policy/latest/reference/SageMakerStudioProjectUserRolePolicy.html>
 - Os blueprints customizados, que nomeiam os parâmetros `privateSubnets` e `s3BucketArn` e nada do
   arquivo de metadados (lido em 2026-10-11):

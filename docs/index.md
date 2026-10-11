@@ -763,24 +763,24 @@ O script
 [`scripts/space_values.py`](https://github.com/felipenoris/awsds-workflows/blob/main/scripts/space_values.py)
 do repositório roda num espaço do projeto e imprime o JSON que o `values` imprime sem
 `--image-name`, sem o pacote, sem o `aws` e sem as permissões de IAM e EC2. Copie o arquivo para o
-espaço e rode, num terminal de lá:
+espaço e rode, num terminal de lá, com o Python do espaço:
 
 ```shell
 python space_values.py > valores.json
 ```
 
-- **Os valores do projeto** vêm do arquivo em que o espaço grava os dados do projeto,
-  `/opt/ml/metadata/resource-metadata.json`, e da região do espaço, `AWS_REGION`.
-- **As sub-redes** saem na ordem desse arquivo; o `values` as ordena pela zona, que só o EC2
-  informa.
-- **A chave KMS**, `PROJECT_KEY_ID`, vem do `kmsKeyArn` que o `GetEnvironment` do DataZone devolve
-  para o ambiente do espaço. Quando o DataZone recusa ou não responde, o JSON sai sem a chave, o
-  motivo vai para a saída de erro e a chave entra à mão.
-- **Um campo que falta** no arquivo do espaço termina o script com 1, sem JSON, e a mensagem lista
-  os campos que faltam e os que o arquivo tem.
+- **Os valores** vêm do SDK `sagemaker-studio`, que o espaço traz: o `Project()` dá o projeto e o
+  domínio, e o ambiente Tooling padrão do projeto dá a conta, a região, o caminho S3 do projeto
+  (`s3BucketPath`) e os recursos com que o SDK cria um job (`userRoleArn`, `securityGroup`,
+  `privateSubnets` e `kmsKeyArn`). O SDK escolhe o endpoint do DataZone e as credenciais.
+- **As sub-redes** saem na ordem do ambiente; o `values` as ordena pela zona, que só o EC2 informa.
+- **Um valor que o ambiente não dá** termina o script com 1, sem JSON, e a mensagem lista o que
+  falta e os recursos que o ambiente tem. Uma recusa do DataZone também termina sem JSON, com o
+  rastro do Python na saída de erro.
 
-Os nomes dos campos vêm do SDK `sagemaker-studio` 1.1.35 (2026-10-11), e `PrivateSubnets` e
-`SecurityGroup` só dos dados de teste dele; o script ainda não rodou num espaço.
+Os nomes dos recursos vêm do código do SDK `sagemaker-studio` 1.1.35, igual ao da 1.1.32 nesse
+ponto (lidos em 2026-10-11). O `Project()` funciona no ambiente alvo (2026-10-11), e o script
+ainda não rodou num espaço.
 
 ## Como ler uma execução
 

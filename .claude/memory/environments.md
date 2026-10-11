@@ -87,37 +87,59 @@ alvo para um workflow"): they were taken from a space, and the worker's network 
 
 ## The project space
 
-What `scripts/space_values.py` relies on, read on 2026-10-11 from a cloud container; no space of
-the lab or the target has run the script yet:
+What `scripts/space_values.py` relies on, read on 2026-10-11 from a cloud container in the code of
+the SDK `sagemaker-studio` 1.1.35 (PyPI wheel; 1.1.32 holds the same code on these points). No
+space of the lab or the target has run the script yet.
 
+- **`Project()` works in the target** (user statement of 2026-10-11, 21:39 UTC). On 2026-09-21,
+  when the target had no `~/.aws/config`, 1.1.32's `Project()` failed there with
+  `ProfileNotFound (DomainExecutionRoleCreds)`; the `DomainExecutionRoleCreds` profile is in the
+  lab space's `~/.aws/config` (serialize-db, 2026-09-19).
 - **The metadata file** `/opt/ml/metadata/resource-metadata.json` is where a space writes the
-  project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`.
-- **The SDK `sagemaker-studio` 1.1.35** (PyPI wheel) reads a field at the file's root, then in
-  `AdditionalMetadata` (`_get_field_from_sagemaker_space_metadata_json`). Its code reads
+  project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`. The SDK reads
+  a field at the file's root, then in `AdditionalMetadata`
+  (`_get_field_from_sagemaker_space_metadata_json`); without the file, from the environment
+  variable of the same name, then from `AIRFLOW__WORKFLOWS__<...>` on MWAA. Its code reads
   `ExecutionRoleArn` (the account is `split(":")[4]`), `DataZoneDomainId`, `DataZoneDomainRegion`,
   `DataZoneEndpoint`, `DataZoneEnvironmentId`, `DataZoneProjectId`, `DataZoneStage`,
   `DataZoneUserId`, `ProjectS3Path`, `NotebookId` and `SpaceName`; `PrivateSubnets` and
-  `SecurityGroup` appear only in its test fixtures, one id each, so their separator is unread. The
-  root `DomainId` is the SageMaker domain.
+  `SecurityGroup` appear only in its test fixtures, one id each. The root `DomainId` is the
+  SageMaker domain.
+- **`Project()`** takes `DataZoneDomainId` and `DataZoneProjectId` from there, builds the singleton
+  `SageMakerStudioAPI`, whose `__init__` runs again on every call, and calls DataZone's
+  `GetProject` and `ListConnections` (`default.iam`). Each `__init__` also reads the project's S3
+  path from the default Tooling environment, falling back to `ProjectS3Path` in silence.
 - **The SDK's DataZone client** calls `DataZoneEndpoint` when the file has it, else
-  `https://datazone.<region>.api.aws`. It reads the project's KMS key as the `kmsKeyArn`
-  provisioned resource of the project's default Tooling environment, found by
-  `ListEnvironmentBlueprints` (name `Tooling`, then `ToolingLite`), `ListEnvironments` and
-  `GetEnvironment`; the script calls only `GetEnvironment`, on the space's `DataZoneEnvironmentId`.
-- **The `DomainExecutionRoleCreds` profile** is in the lab space's `~/.aws/config`
-  (serialize-db, 2026-09-19); the target has no `~/.aws/config`, and `sagemaker_studio` 1.1.32's
-  `Project()` failed there with `ProfileNotFound (DomainExecutionRoleCreds)` (2026-09-21). The
-  script uses the profile only when botocore's `available_profiles` lists it.
-- **The managed policy `SageMakerStudioProjectUserRolePolicy`** v75 grants, on the domain of the
-  principal tag `AmazonDataZoneDomain`, `datazone:GetEnvironment`, `ListEnvironments`,
-  `ListEnvironmentBlueprints` and `GetDomainExecutionRoleCredentials`, among others; `iam:GetRole`
-  in the principal's account; and `ec2:DescribeSubnets`, `DescribeSecurityGroups` and
-  `DescribeVpcs` on `*`. Whether the target's project role carries it is unread.
+  `https://datazone.<region>.api.aws`, and signs with the profile `DomainExecutionRoleCreds` when
+  `/home/sagemaker-user/.aws/config` names it, else with the default chain, with botocore's default
+  timeouts and retries. The SDK loads its own DataZone model (`boto3_models`), where a
+  `ListEnvironments` item carries `provisionedResources` and the internal `deploymentOrder`.
+- **The default Tooling environment** (`ProjectService.get_project_default_environment`) is the
+  project's environment of the managed blueprint `Tooling`, then `ToolingLite`, with the smallest
+  `deploymentOrder` (`ListEnvironmentBlueprints`, `ListEnvironments`), else the environment of the
+  `default.iam` or `project.iam` connection. `project.kms_key_arn` and `project.s3.root` read
+  `kmsKeyArn` and `s3BucketPath` from its `GetEnvironment`; the job the SDK creates
+  (`RemoteExecutionClient`) takes `securityGroup`, `privateSubnets` (split on `,`), `userRoleArn`
+  and `kmsKeyArn` from it, and requires `awsAccountRegion`, `awsAccountId`, `id` and
+  `provisionedResources`.
+- **The script against a local DataZone server** (`uv run --with sagemaker-studio==1.1.35`,
+  CPython 3.13.16, boto3 1.43.111): eleven `GET`s, three of them from the second
+  `SageMakerStudioAPI()` (the blueprint, the environments and the environment again); stdout held
+  only the JSON, and an `AccessDeniedException` on `GetProject` ended with exit 1 and the traceback
+  on stderr. Importing `sagemaker_studio` took 3.73 s; the SDK pulls 102 packages (pandas, pyarrow,
+  duckdb, awswrangler, deltalake and database drivers).
+- **The managed policy `SageMakerStudioProjectUserRolePolicy`** v75 grants, with no condition, on
+  the domain of the principal tag `AmazonDataZoneDomain`, `datazone:GetProject`,
+  `ListConnections`, `GetEnvironment`, `ListEnvironments`, `ListEnvironmentBlueprints` and
+  `GetDomainExecutionRoleCredentials`, among others; `iam:GetRole` in the principal's account; and
+  `ec2:DescribeSubnets`, `DescribeSecurityGroups` and `DescribeVpcs` on `*` (re-read 2026-10-11).
+  Whether the target's project role carries it is unread.
 - **boto3 1.43.111** calls `https://datazone.sa-east-1.api.aws` for the target's region; the
   target's probe resolved `datazone.sa-east-1.amazonaws.com` to the interface endpoint, and the
   `api.aws` name was never resolved there. AWS's page on DataZone interface endpoints names neither.
-- **The call's settings**, read back with botocore 1.43.111:
-  `Config(connect_timeout=5, read_timeout=20, retries={"total_max_attempts": 1})` gives retry mode
-  `legacy` with one attempt, and a local server answering 503 got one request. The timeout of a
-  connection that never opens was not measured: the container's proxy answers 403 for a private
-  address.
+  `Project()` working means the SDK reaches DataZone there; which name it calls is unread.
+- **botocore 1.43.111** reads
+  `Config(connect_timeout=5, read_timeout=20, retries={"total_max_attempts": 1})` as retry mode
+  `legacy` with one attempt (a local server answering 503 got one request); the script's first
+  version used it. The timeout of a connection that never opens was not measured: the container's
+  proxy answers 403 for a private address.
