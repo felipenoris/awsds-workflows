@@ -12,7 +12,7 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | Seção | Para quem | O que traz |
 |---|---|---|
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota |
-| [As peças](#as-pecas) | todos | onde ficam a definição, o código, os logs e as execuções |
+| [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
@@ -42,7 +42,7 @@ O pacote pede o Python 3.13 ou mais novo e chama o `uv` como programa. A única 
 
 | O quê | Onde | Nota |
 |---|---|---|
-| a definição | `s3://<bucket do projeto>/<domínio>/<projeto>/dev/workflows/<nome>.yaml` | gravada pelo portal a cada save; *View code* a mostra |
+| o arquivo de definição do workflow | `s3://<bucket do projeto>/<domínio>/<projeto>/dev/workflows/<nome>.yaml` | gravado pelo portal a cada save; *View code* o mostra |
 | o `.zip` de uma task Python ou Bash | `.../dev/operatorFiles/<arquivo>` | enviado em *Settings → Storage*; um `.zip` é guardado como foi enviado, e o workflow fixa a versão S3 dele |
 | a cópia do código que o serviço guarda | armazenamento do serviço | tirada a cada save e cifrada com a chave do projeto; não é gravada no bucket do projeto, e o bucket dela não foi lido (2026-10-11) |
 | os logs das tasks | `/aws/mwaa-serverless/<domínio>-<projeto>/<workflow>`, um stream por tentativa de task | por projeto, sem retenção; o grupo sobrevive ao workflow |
