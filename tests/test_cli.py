@@ -44,7 +44,7 @@ def test_package_task_passes_the_arguments_and_prints_the_summary(
 
     def fake_build_archive(
         project: Path,
-        entry_module: Path,
+        entry_module: Path | None,
         archive: Path,
         **options: object,
     ) -> package_task.TaskArchive:
@@ -72,12 +72,80 @@ def test_package_task_passes_the_arguments_and_prints_the_summary(
             "python": "3.12",
             "platform": "x86_64-manylinux2014",
             "omit": ["a", "b"],
+            "include": [],
         }
     ]
     printed = capsys.readouterr().out
     assert "task.zip: 10 bytes, 20 descompactados" in printed
     assert "raiz: demo_task, tasks.py" in printed
     assert "python_callable: tasks.<função>" in printed
+
+
+def test_package_task_without_an_entry_module_passes_none_and_the_includes(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Sem o módulo de entrada, ``package-task`` passa ``None`` e cada ``--include``, e o próximo
+    passo fala do ``bash_command``, e não do ``python_callable``."""
+    calls: list[dict[str, object]] = []
+
+    def fake_build_archive(
+        project: Path,
+        entry_module: Path | None,
+        archive: Path,
+        **options: object,
+    ) -> package_task.TaskArchive:
+        """Grava a chamada e devolve um ``.zip`` fabricado."""
+        calls.append({"entry": entry_module, "archive": archive, "include": options["include"]})
+        return package_task.TaskArchive(
+            path=archive,
+            size_bytes=10,
+            unzipped_bytes=20,
+            top_level=["demo_task", "ferramenta", "run.sh"],
+            python=str(options["python"]),
+            platform=str(options["platform"]),
+        )
+
+    monkeypatch.setattr(package_task, "build_archive", fake_build_archive)
+    code = cli.main(
+        [
+            "package-task",
+            "projeto",
+            "task.zip",
+            "--include",
+            "run.sh",
+            "--include",
+            "bin/ferramenta",
+        ]
+    )
+    assert code == 0
+    assert calls == [
+        {
+            "entry": None,
+            "archive": Path("task.zip"),
+            "include": [Path("run.sh"), Path("bin/ferramenta")],
+        }
+    ]
+    printed = capsys.readouterr().out
+    assert "raiz: demo_task, ferramenta, run.sh" in printed
+    assert "bash_command pelo caminho /usr/local/airflow/dags" in printed
+    assert "python_callable" not in printed
+
+
+def test_a_missing_included_file_is_refused_with_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Um ``--include`` que não existe é recusado antes de qualquer chamada ao ``uv``."""
+    (tmp_path / "uv.lock").write_text("", encoding="utf-8")
+    missing = tmp_path / "nao.sh"
+    code = cli.main(
+        ["package-task", str(tmp_path), str(tmp_path / "t.zip"), "--include", str(missing)]
+    )
+    assert code == 1
+    error = capsys.readouterr().err
+    assert "não há arquivo em" in error
+    assert "nao.sh" in error
 
 
 def test_a_refusal_prints_the_reason_and_exits_with_one(

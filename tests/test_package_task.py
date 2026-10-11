@@ -3,8 +3,9 @@ projeto de teste, e as recusas antes de qualquer download.
 
 Os testes marcados ``network`` travam um projeto que depende do ``requests`` e do ``boto3`` e
 constroem o ``.zip`` para o worker: o ``boto3`` e as dependências que só ele usa ficam de fora, o
-``urllib3``, de que o ``requests`` também precisa, fica, e os módulos compilados do
-``charset_normalizer`` têm a etiqueta do CPython pedido em Linux x86_64. Os outros testes não
+``urllib3``, de que o ``requests`` também precisa, fica, os módulos compilados do
+``charset_normalizer`` têm a etiqueta do CPython pedido em Linux x86_64, e o ``.zip`` de uma task
+Bash leva o script de ``include`` com o modo dele e nenhum módulo de entrada. Os outros testes não
 chamam o ``uv``.
 """
 
@@ -118,6 +119,31 @@ def test_omit_leaves_out_one_more_package(
 
 
 @pytest.mark.network
+def test_a_bash_task_archive_carries_the_included_script_and_no_entry_module(
+    locked_project: Path,
+    tmp_path: Path,
+) -> None:
+    """Sem módulo de entrada, o ``.zip`` traz o projeto, as dependências e o script de
+    ``include`` na raiz, com o bit de execução gravado."""
+    script = tmp_path / "run.sh"
+    script.write_text("#!/usr/bin/env bash\npython3 -m demo_task\n", encoding="utf-8")
+    script.chmod(0o755)
+
+    archive = package_task.build_archive(
+        locked_project,
+        None,
+        tmp_path / "task.zip",
+        include=[script],
+    )
+    assert "run.sh" in archive.top_level
+    assert "demo_task" in archive.top_level
+    assert "requests" in archive.top_level
+    assert "tasks.py" not in archive.top_level
+    mode = zipfile.ZipFile(archive.path).getinfo("run.sh").external_attr >> 16
+    assert mode & 0o777 == 0o755
+
+
+@pytest.mark.network
 def test_a_stale_lock_is_refused_and_nothing_is_written(
     tmp_path: Path,
 ) -> None:
@@ -148,8 +174,77 @@ def test_a_missing_entry_module_is_refused(
 ) -> None:
     """Um módulo de entrada que não existe é recusado antes de qualquer chamada ao ``uv``."""
     (tmp_path / "uv.lock").write_text("", encoding="utf-8")
-    with pytest.raises(RefusalError, match="não há módulo de entrada"):
+    with pytest.raises(RefusalError, match="não há arquivo em"):
         package_task.build_archive(tmp_path, tmp_path / "tasks.py", tmp_path / "task.zip")
+
+
+def test_a_missing_included_file_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Um arquivo de ``include`` que não existe é recusado antes de qualquer chamada ao ``uv``,
+    também sem módulo de entrada."""
+    (tmp_path / "uv.lock").write_text("", encoding="utf-8")
+    with pytest.raises(RefusalError, match="não há arquivo em .*nao.sh"):
+        package_task.build_archive(
+            tmp_path,
+            None,
+            tmp_path / "task.zip",
+            include=[tmp_path / "nao.sh"],
+        )
+
+
+def test_an_included_folder_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Uma pasta em ``include`` é recusada antes de qualquer chamada ao ``uv``."""
+    (tmp_path / "uv.lock").write_text("", encoding="utf-8")
+    (tmp_path / "bin").mkdir()
+    with pytest.raises(RefusalError, match="não há arquivo em .*bin"):
+        package_task.build_archive(
+            tmp_path,
+            None,
+            tmp_path / "task.zip",
+            include=[tmp_path / "bin"],
+        )
+
+
+def test_a_name_already_at_the_root_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Um arquivo com o nome de um pacote da raiz é recusado, e o pacote fica como estava."""
+    root = tmp_path / "root"
+    (root / "requests").mkdir(parents=True)
+    included = tmp_path / "requests"
+    included.write_text("", encoding="utf-8")
+
+    with pytest.raises(RefusalError, match="requests já está na raiz do .zip"):
+        package_task._copy_to_root(included, root)
+    assert (root / "requests").is_dir()
+
+
+def test_the_archive_keeps_the_mode_of_each_file(
+    tmp_path: Path,
+) -> None:
+    """O arquivo copiado para a raiz e gravado no ``.zip`` guarda o modo, o bit de execução
+    incluído."""
+    root = tmp_path / "root"
+    root.mkdir()
+    script = tmp_path / "run.sh"
+    script.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    script.chmod(0o755)
+    data = tmp_path / "dados.txt"
+    data.write_text("", encoding="utf-8")
+    data.chmod(0o644)
+
+    package_task._copy_to_root(script, root)
+    package_task._copy_to_root(data, root)
+    archive = tmp_path / "task.zip"
+    package_task._write_archive(root, archive)
+    with zipfile.ZipFile(archive) as zip_file:
+        script_mode = zip_file.getinfo("run.sh").external_attr >> 16
+        data_mode = zip_file.getinfo("dados.txt").external_attr >> 16
+    assert script_mode & 0o777 == 0o755
+    assert data_mode & 0o777 == 0o644
 
 
 def test_a_missing_archive_folder_is_refused(

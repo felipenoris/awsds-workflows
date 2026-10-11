@@ -15,8 +15,9 @@ pacote repete.
 
 - O que é o MWAA Serverless:
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/what-is-mwaa-serverless.html>
-- Os operadores Python e Bash: o `Code`, os limites, o worker, os pacotes pré-instalados e a pasta
-  `/usr/local/airflow/dags` (lido em 2026-10-10 e 2026-10-11):
+- Os operadores Python e Bash: o `Code`, os limites, o worker, os pacotes pré-instalados, a pasta
+  `/usr/local/airflow/dags` e a frase de que um script do `BashOperator` roda nela (lido em
+  2026-10-10 e 2026-10-11):
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/operators-python-bash-detail.html>
 - Os operadores suportados, e o histórico do guia que data a chegada dos operadores Python e Bash em
   2026-08-17: <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/operators.html> e
@@ -40,12 +41,27 @@ pacote repete.
 ## SageMaker Unified Studio e SageMaker
 
 - Os workflows visuais serverless: o editor, o envio dos arquivos dos operadores Python e Bash e a
-  receita de dependências sem opção de plataforma (relido em 2026-10-11):
+  receita de dependências sem opção de plataforma (relido em 2026-10-11). As leituras da mesma
+  página entre 21:30 e 22:10 UTC daquele dia não acharam o texto dos operadores:
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/serverless-visual-workflows.html>
+- O anúncio dos operadores Python e Bash nos workflows do SageMaker Unified Studio, de 2026-09-03
+  (lido em 2026-10-11):
+  <https://aws.amazon.com/about-aws/whats-new/2026/09/sagemaker-workflows-python-bash/>
 - A orquestração de workflows no SageMaker Unified Studio:
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/workflow-orchestration.html>
 - As entradas e as saídas de um job de processamento, sob `/opt/ml/processing/`:
   <https://docs.aws.amazon.com/sagemaker/latest/dg/byoc-input-and-output.html>
+
+## Apache Airflow
+
+- O `BashOperator` e o `SubprocessHook` do `apache-airflow-providers-standard`, lidos no código dos
+  wheels 1.6.0 e 1.20.0 em 2026-10-11: o `template_ext`, o `bash -c`, a pasta temporária, o `env`
+  e o `append_env` e os códigos de saída. A API JSON do PyPI deu os endereços dos wheels:
+  <https://pypi.org/pypi/apache-airflow-providers-standard/1.6.0/json> e
+  <https://pypi.org/pypi/apache-airflow-providers-standard/json>
+- As constraints do Airflow 3.0.6 para o Python 3.12, que fixam o
+  `apache-airflow-providers-standard` 1.6.0 (lido em 2026-10-11):
+  <https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt>
 
 ## Ferramentas Python
 

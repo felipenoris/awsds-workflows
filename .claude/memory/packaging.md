@@ -10,18 +10,23 @@ AWS-DataScience's `docs/REFERENCES.md`):
 
 - the code travels apart from the YAML, in the API's `Code` (an `S3Location`): one `.py`, one `.sh`
   or one `.zip`; 250 MB per file and unzipped, 75 GB of code per account;
-- the `.zip` is extracted to `/usr/local/airflow/dags`, on `sys.path`, which is also a
-  `BashOperator` script's working directory; `python_callable` is `<module>.<function>`;
+- the `.zip` is extracted to `/usr/local/airflow/dags`, on `sys.path`; the guide says a
+  `BashOperator` script runs there, while an inline command ran in a temporary folder
+  (2026-10-11, `environments.md`); `python_callable` is `<module>.<function>`;
 - dependencies are vendored at the archive's root for Linux x86_64 and Python 3.12;
 - the pre-installed set (Airflow 3.0.6, Amazon provider 9.32.0, boto3 1.43.1, dag-factory 1.0.0, and
-  PyYAML, lz4 and the AWS Encryption SDK family) wins over any bundled version, which no run has
-  measured;
+  PyYAML, lz4 and the AWS Encryption SDK family) wins over any bundled version, measured in a Python
+  task on 2026-10-11: the worker's PyYAML 6.0.2 imported over the archive's 6.0.1
+  (`environments.md`);
 - a 1 vCPU / 3 GiB worker, no internet by default, the execution role's credentials available to the
   task; 0.088 USD per task-hour, one-minute minimum.
 
 The portal (*Serverless visual workflows*, re-read 2026-10-11): one uploaded file is stored as it
 is, several are zipped into one archive; only `.py`, `.sh` and `.zip`; its dependency recipe
-`pip install --target ./package` carries no platform flag.
+`pip install --target ./package` carries no platform flag. The fetches of the same page between
+21:30 and 22:10 UTC that day returned about 6,000 characters with none of `Python Operator`,
+`Operator Files`, `Python Callable` or `pip install --target`; the portal's fields the
+documentation names come from the lab's own readings.
 
 The definition's format (read 2026-10-11, `REFERENCES.md`): the guide's *Key concepts* page says
 MWAA Serverless takes a YAML definition, validates it before running and accepts Jinja2, and
@@ -29,6 +34,32 @@ publishes no schema. AWS's converter `python-to-yaml-dag-converter-mwaa-serverle
 "dag-factory compatible Dags" for DagFactory 1.0, and the worker pre-installs dag-factory 1.0.0,
 Astronomer's Apache-2.0 library that builds Airflow DAGs from YAML, outside the Apache Airflow
 project. How the service turns the YAML into a DAG is not documented.
+
+## The `BashOperator`
+
+Read in the source of `apache-airflow-providers-standard` on 2026-10-11: 1.6.0, the version the
+Airflow 3.0.6 constraints for Python 3.12 pin, and 1.20.0, the newest on PyPI (`REFERENCES.md`).
+Which version the worker runs is not documented.
+
+- A `bash_command` that does not end in `.sh` or `.bash` (`template_ext`) runs as
+  `bash -c <command>`. One that does names a template file, read from the DAG's template path and
+  rendered by Jinja into `bash_command`. 1.6.0 decides in `__init__`, from the name, and writes the
+  rendered text to a temporary `.sh` in the working directory, run as `bash <file>`; 1.20.0
+  decides in `execute`, from the rendered text, which ends in neither, and runs it as
+  `bash -c <text>`. In both, the script's `$0` is not its path in the `.zip`.
+- `cwd` defaults to `None`, and the subprocess hook then works in a new `TemporaryDirectory` with
+  the prefix `airflowtmp`, the `/var/tmp/airflowtmp…` the lab read.
+- `env`, when given, replaces the task's environment unless `append_env` is true.
+- Exit 0 succeeds, `skip_on_exit_code` (99 by default) skips, and any other code fails.
+
+## The archive's file modes
+
+Python's `zipfile.ZipFile.write` stores each file's mode in `external_attr` (a 0o755 script reads
+0o100755); `ZipFile.extractall` drops it, and the file gets the default mode (0o644 under the umask
+022), while Info-ZIP's `unzip` keeps it (probed 2026-10-11 on CPython 3.12.3 and 3.13.16, and
+UnZip 6.00). `build_archive` copies the entry module and the `include` files with `shutil.copy2`,
+which keeps the mode, so a script or a binary arrives executable when the extractor honors the
+mode; how the service extracts is not documented.
 
 ## The processing job's folder
 

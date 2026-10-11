@@ -4,7 +4,8 @@ Cada subcomando roda uma ferramenta do pacote na máquina com internet, e o que 
 depois para o ambiente do SageMaker, que não tem internet.
 
 - ``package-task`` grava o ``.zip`` de uma task Python ou Bash para o worker do MWAA Serverless
-  (``awsds_workflows.package_task``).
+  (``awsds_workflows.package_task``); o módulo de entrada é opcional, e ``--include`` põe na raiz
+  um script ou um binário.
 - ``package-job`` grava a pasta de código de um job de processamento para a imagem do job, cujo
   ambiente chega em ``--environment`` (``awsds_workflows.package_job``).
 - ``job-constraints`` imprime as versões do ambiente da imagem como requisitos, para restringir o
@@ -22,6 +23,8 @@ Exemplo:
 .. code-block:: shell
 
     awsds-workflows package-task ~/src/meu-projeto ~/src/meu-projeto/tasks.py /tmp/meu-projeto.zip
+    awsds-workflows package-task ~/src/meu-projeto /tmp/meu-projeto.zip \\
+        --include ~/src/meu-projeto/run.sh
     awsds-workflows package-job ~/src/meu-projeto /tmp/meu-projeto-0.2.0 \\
         --environment ambiente.txt --python 3.12
     awsds-workflows job-constraints --environment ambiente.txt --python 3.12
@@ -99,7 +102,9 @@ def _add_package_task_parser(
     command.add_argument(
         "entry_module",
         type=Path,
-        help="o módulo .py que vai para a raiz e que o python_callable nomeia",
+        nargs="?",
+        help="o módulo .py que vai para a raiz e que o python_callable de uma task Python nomeia; "
+        "um .zip só de tasks Bash o dispensa",
     )
     command.add_argument("archive", type=Path, help="o .zip a gravar, numa pasta que já existe")
     command.add_argument(
@@ -118,6 +123,15 @@ def _add_package_task_parser(
         default=[],
         metavar="PACOTE",
         help="mais um pacote a deixar de fora, além dos que o worker traz; repita para vários",
+    )
+    command.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="ARQUIVO",
+        help="mais um arquivo a pôr na raiz do .zip, como o script ou o binário de uma task Bash; "
+        "repita para vários",
     )
     command.set_defaults(handler=_package_task)
 
@@ -235,17 +249,25 @@ def _package_task(
         python=arguments.python,
         platform=arguments.platform,
         omit=arguments.omit,
+        include=arguments.include,
     )
     print(
         f"{archive.path}: {archive.size_bytes} bytes, {archive.unzipped_bytes} descompactados, "
         f"para o CPython {archive.python} em {archive.platform}"
     )
     print(f"raiz: {', '.join(archive.top_level)}")
+
+    # O próximo passo nomeia o python_callable de uma task Python, ou o caminho que o bash_command
+    # de uma task Bash usa, já que a pasta de trabalho dela é temporária.
+    upload = "envie o .zip em Settings -> Storage -> Python/Bash Operator Files do workflow, salve"
+    if arguments.entry_module is None:
+        print(
+            f"próximo passo: {upload}, e chame o código no bash_command pelo caminho "
+            "/usr/local/airflow/dags, onde o worker extrai o .zip"
+        )
+        return 0
     module = arguments.entry_module.stem
-    print(
-        "próximo passo: envie o .zip em Settings -> Storage -> Python/Bash Operator Files do "
-        f"workflow, salve, e nomeie a função como python_callable: {module}.<função>"
-    )
+    print(f"próximo passo: {upload}, e nomeie a função como python_callable: {module}.<função>")
     return 0
 
 

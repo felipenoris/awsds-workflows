@@ -67,8 +67,9 @@ no longer says:
 
 On 2026-10-11 the user asked to remove the "O estado" section from `docs/index.md`. Its facts stay
 in `.claude/memory/environments.md` ("The AWS-DataScience lab") and in
-`.claude/memory/OPEN_QUESTIONS.md`; the section on a Python or Bash task keeps its own warning that
-no `.zip` has run on a worker.
+`.claude/memory/OPEN_QUESTIONS.md`; the section on a Python or Bash task keeps its own state line,
+which since 2026-10-11 says that a `.zip` built by hand ran in the lab and that no `.zip` of
+`package-task` has run on a worker.
 
 ## The supported Python versions
 
@@ -81,6 +82,40 @@ than Python 3.9 in `src/` and `tests/`. `requires-python` has no upper bound, so
 untested.
 
 `pyproject.toml`, `.github/workflows/tests.yml`, `README.md`, `docs/index.md`.
+
+## The Bash task
+
+On 2026-10-11 the user asked how a `BashOperator` differs from a `PythonOperator`, whether one can
+run any binary or a Python script, what must be packaged, and whether the package could help.
+Claude answered in the thread, with `bash-operator/bash-operator.md` in the Claude project's
+library, and asked whether to update the package: "Só a doc" (Claude's recommendation: correct
+`docs/index.md` with the lab's measurements and write the Bash task's section), "Doc e --include"
+or "Nada agora". At 21:45:54 UTC the user chose "Doc e --include": the documentation work, plus
+`package-task` taking `--include`, repeatable, to put scripts and binaries at the archive's root,
+with the entry module optional.
+
+Claude's choices inside that decision, named in the PR:
+
+- **The entry module stays a positional argument, now optional** (`project [entry_module]
+  archive`), so the existing command line keeps working. `argparse` then refuses an option between
+  the positionals (`unrecognized arguments`), and the documentation puts the options after the
+  `.zip`.
+- **A name already at the root is refused**, whether a package, the entry module or another
+  included file, rather than overwritten; the rule also covers the entry module, which
+  `build_archive` copied over a file of the same name before.
+- **The entry module and the included files are copied after the cleanup**, which would delete an
+  included `.pyc` or `.lock`.
+- **The documentation has a binary's caller copy it and `chmod +x`**, although the archive keeps
+  each file's mode (`ZipFile.write` stores it, now under a test), since Python's `zipfile`
+  extraction drops the mode and the service's extraction is not documented (`packaging.md`).
+
+At 22:12:50 UTC the user asked for a section on the `BashOperator` in the `pdoc` documentation,
+"caso já não tenha feito". The subsection of the code section became the top-level section
+"Uma task Bash", with its own row in the page's table of sections and a table that sets a Bash
+task against a Python task.
+
+`src/awsds_workflows/package_task.py`, `src/awsds_workflows/cli.py`, `docs/index.md` ("Uma task
+Bash").
 
 ## Design choices of the first session
 
