@@ -139,7 +139,8 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
 - **No internet and no proxy** (`Network is unreachable`). S3 names resolve public and connect
   through the gateway endpoint; interface endpoints exist for STS, the three Redshift APIs and the
   workgroup host, Glue, Athena, Secrets Manager and DataZone; KMS, IAM, SageMaker, Lake Formation and
-  S3 Tables resolve public and time out (probes of 2026-09-21 and 2026-09-23, from a space).
+  S3 Tables resolve public and time out (probes of 2026-09-21 and 2026-09-23, from a space; the
+  SageMaker name probed is not the API's, "A space on 2026-10-12" below).
 - `uv`, `git` and `aws` on the `PATH`, no `gh`, no `~/shared`, no `~/.aws/config`; system Python
   3.12.14 in `/opt/conda` (2026-09-21); container credentials lasting about an hour; `AWS_REGION`
   and `AWS_DEFAULT_REGION` both `sa-east-1`.
@@ -154,15 +155,47 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   `uid=1000(sagemaker-user) gid=100(users) groups=100(users)`; `sudo -n true` succeeded, so the
   space's sudo needs no password; `mount | grep -i shared` printed
   `s3fs on /mnt/custom-file-systems/s3/shared type fuse.s3fs (rw,nosuid,nodev,relatime,user_id=0,group_id=0,allow_other)`,
-  a mount the 2026-09-21 probe did not find, the S3 prefix behind it unread; the public SSM
+  a mount the 2026-09-21 probe did not find; the public SSM
   parameter `/aws/service/sagemaker-distribution/ecr-account-id` answered with an AWS account, the
   registry of the distribution's `sagemaker-distribution-prod` in `sa-east-1`; and `aws sagemaker
   list-processing-jobs --max-results 1 --cli-connect-timeout 5` printed `{"ProcessingJobSummaries":
-  []}` with exit 0, so the SageMaker API answers from a space, where it timed out on 2026-09-21 and
-  2026-09-23. Whether it answered through an endpoint was not read.
+  []}` with exit 0, so the SageMaker API answers from a space. The 2026-09-21 and 2026-09-23 probes
+  had resolved `sagemaker.sa-east-1.amazonaws.com` (serialize-db's `probes/space.py` builds
+  `<service>.<region>.amazonaws.com`), a name the API does not use: botocore 1.43.111 calls
+  `https://api.sagemaker.sa-east-1.amazonaws.com` (read 2026-10-12), the private DNS name of the
+  `sagemaker.api` interface endpoint the target's Terraform declares. At 18:07 UTC the files the
+  user copied into `~/shared/<user>/orchestration-demo/` were listed by `aws s3 ls` under
+  `s3://<bucket>/<domain>/<project>/shared/<user>/orchestration-demo/`, so `~/shared` is the
+  `shared/` folder of the project's prefix in the project bucket.
+- **The first workflow run, 2026-10-12** (the user, 18:12 UTC): `demo-devenv-job`, imported in the
+  portal from the definition rendered for the target (image `sagemaker-distribution-prod:4.5.2-cpu`,
+  no KMS key, the folders under `shared/<user>/orchestration-demo/`). `wait_for_file` passed, so the
+  worker listed the inbox in S3. `run_project` failed in 1.5 s with `AccessDeniedException` on
+  `sagemaker:DescribeProcessingJob` for the proposed name `demo-devenv-20261012T181230`, as
+  `assumed-role/datazone_usr_role_<project>_<environment>/AmazonMWAAServerless`, `because no
+  identity-based policy allows the sagemaker:DescribeProcessingJob action`: the worker runs as the
+  project role, reaches the SageMaker API, and wrote the task's log, which the portal showed. It is
+  the lab's first refusal of 2026-10-10 (`docs/index.md`, "A permissão do projeto"); no job was
+  created, and the message names no service control policy and no permissions boundary.
+- **The target's Terraform** (the user's copy, a commit of 2026-09-04, read 2026-10-12 from the
+  user's laptop): the domain, the blueprint configurations (Tooling, DataLake, MLExperiments), a
+  project profile that deploys Tooling and DataLake on create, and the project are CloudFormation
+  stacks. The VPC has no internet route; it has interface endpoints with private DNS for
+  `sagemaker.api`, `sagemaker.runtime`, `sts`, `ecr.api`, `ecr.dkr`, `glue`, `redshift`,
+  `redshift-data`, `logs`, `secretsmanager`, `datazone`, the Studio endpoint, `ssm`, `ssmmessages`
+  and `athena`, an S3 gateway endpoint with no endpoint policy, and no KMS endpoint. The project
+  bucket defaults to SSE-KMS with the account's customer key, and the Tooling blueprint
+  configuration sets no permissions boundary. The copy fails `terraform validate` on its own: its
+  root `main.tf` reads `module.redshift.security_group_id`, which the module does not output, so
+  it may lag what was applied. The grant of `docs/index.md` ("A permissão do projeto") went to the
+  user as adjusted copies of that Terraform (a new file in its compute module and a
+  `project_role_names` variable), `terraform validate` passing on provider aws 5.100.0 with a
+  stand-in for the missing output, and the rendered policy equal to the documented one. Not
+  applied yet.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
-alvo para um workflow"): they were taken from a space, and the worker's network was never read.
+alvo para um workflow"): the worker's S3, SageMaker and log calls answered on 2026-10-12, and the
+job's own path, from the image pull on, was never read.
 
 ## The project space
 

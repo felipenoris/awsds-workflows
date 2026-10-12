@@ -75,12 +75,15 @@ pacote repete.
 - A política gerenciada do papel do projeto, `SageMakerStudioProjectUserRolePolicy` v75, com o
   `datazone:GetProject`, o `ListConnections`, o `GetEnvironment`, as listagens de ambientes e de
   blueprints, o `iam:GetRole` e os `ec2:Describe*` (lida em 2026-10-11, e relida em 2026-10-12 sem
-  nenhuma ação `sagemaker:`):
+  nenhuma ação `sagemaker:` e com o `AllowPassRoleOnProjectRoles`, o `iam:PassRole` do próprio papel
+  para o `sagemaker.amazonaws.com`):
   <https://docs.aws.amazon.com/aws-managed-policy/latest/reference/SageMakerStudioProjectUserRolePolicy.html>
 - A política gerenciada de aprendizado de máquina do papel do projeto,
   `SageMakerStudioProjectRoleMachineLearningPolicy` v42: o `CreateProcessingJob` e o
   `DescribeProcessingJob` só com a etiqueta `AmazonDataZoneProject` do chamador e o `AddTags` sem
-  as chaves `AmazonDataZone*` (lida em 2026-10-12):
+  as chaves `AmazonDataZone*`, o `ListProcessingJobs` só com a etiqueta
+  `EnableSageMakerMLWorkloadsPermissions` do papel, e o ECR e os logs sem condição de projeto (lida
+  em 2026-10-12):
   <https://docs.aws.amazon.com/aws-managed-policy/latest/reference/SageMakerStudioProjectRoleMachineLearningPolicy.html>
 - O `VolumeKmsKeyId` e o `KmsKeyId` da saída de um job de processamento, opcionais, sem dizer o
   que cifra o volume e a saída sem eles (lidos em 2026-10-12):
@@ -124,6 +127,13 @@ pacote repete.
 ## Ferramentas Python
 
 - O `uv`: <https://docs.astral.sh/uv/>
+- O Terraform 1.16.5 e os providers `hashicorp/aws` 5.100.0 e `hashicorp/time` 0.14.2, baixados com
+  as somas SHA-256 em 2026-10-12 para validar as cópias ajustadas do Terraform do ambiente alvo:
+  <https://releases.hashicorp.com/terraform/1.16.5/>,
+  <https://releases.hashicorp.com/terraform-provider-aws/5.100.0/> e
+  <https://releases.hashicorp.com/terraform-provider-time/0.14.2/>
+- O botocore 1.43.111, num ambiente temporário em 2026-10-12, que chama a API do SageMaker em
+  `https://api.sagemaker.sa-east-1.amazonaws.com`: <https://pypi.org/project/botocore/1.43.111/>
 - O `pdoc`: <https://pdoc.dev/>
 - O exemplo `dark-mode` do pdoc 16.0.0, lido em 2026-10-12, de onde vêm as cores escuras do
   `theme.css` de `docs/theme/` e o estilo `monokai` do destaque do código:

@@ -510,11 +510,14 @@ nine values with a warning, as the SDK creates its own job without a key
 distribution's CPython 3.12.14, `sagemaker-user` with sudo, `~/shared` on s3fs and a SageMaker API
 that answers; public ECR has no SageMaker Distribution 4.15, its tags ending at 4.5.2, so the first
 target definition names `4.5.2-cpu` until the user says which image the space runs
-(`.claude/memory/environments.md`, "The target").
+(`.claude/memory/environments.md`, "The target"). The first workflow run there (18:12 UTC) passed
+its S3 sensor and failed on `DescribeProcessingJob`, the lab's first refusal; the grant of
+`docs/index.md` ("A permissão do projeto") went to the user as adjusted copies of the target's
+Terraform, read from the user's laptop, in the Claude project's library (`alvo/terraform/`), not
+applied yet.
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
-("Design choices of the first session"); the first workflow in the target with its default image,
-which measures the worker's network, the project role's permission and the image's facts; a Bash
-task over a `package-task` archive, which measures what the Bash section marks as not measured;
-`package-job` run in a lab space and its folder in a job. Each one is an item in
-`.claude/memory/OPEN_QUESTIONS.md`.
+("Design choices of the first session"); the target's Terraform grant applied and a run that creates
+the job, which measures the image's facts and the job's path; a Bash task over a `package-task`
+archive, which measures what the Bash section marks as not measured; `package-job` run in a lab
+space and its folder in a job. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.

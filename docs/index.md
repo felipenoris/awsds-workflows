@@ -225,7 +225,12 @@ o `SageMakerProcessingOperator`, por dois motivos medidos no laboratório em 202
   `AmazonDataZoneProject`. A segunda execução falha com `AccessDeniedException` em
   `sagemaker:AddTags`.
 
-A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois casos. Ela permite
+No ambiente alvo, a primeira execução, em 2026-10-12, falhou do mesmo jeito em
+`DescribeProcessingJob`, antes de existir um job.
+
+A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois casos. O papel nasce
+com o ambiente Tooling do projeto e se chama `datazone_usr_role_<projeto>_<ambiente>`; quem
+mantém a conta com Terraform anexa a política a esse nome depois que o projeto existe. Ela permite
 o `DescribeProcessingJob` de um job sem etiqueta de projeto e o `AddTags` só da etiqueta do próprio
 projeto, num job sem etiqueta ou com a do chamador; os jobs de outro projeto ficam fora de alcance.
 `<REGION>` e `<ACCOUNT_ID>` são a região e a conta do projeto.
@@ -286,10 +291,13 @@ responde. O que o laboratório leu no CloudTrail, nos logs de fluxo e no log do 
 
 No ambiente alvo, as leituras feitas a partir de um espaço (2026-09-21 e 2026-09-23) encontraram o
 endpoint de gateway do S3 e endpoints de interface para STS, Redshift, Glue, Athena, Secrets
-Manager e DataZone; os nomes do SageMaker, do KMS e do IAM resolveram para endereços públicos e não
-responderam. Em 2026-10-12, de um espaço do projeto, o SageMaker respondeu a uma listagem de jobs e
-o SSM a uma leitura de parâmetro. A rede do worker do ambiente alvo ainda não foi medida; a primeira
-execução lá é a medida.
+Manager e DataZone; os nomes do KMS e do IAM resolveram para endereços públicos e não responderam.
+O nome do SageMaker que elas testaram, `sagemaker.sa-east-1.amazonaws.com`, também não respondeu,
+mas a API atende em `api.sagemaker.sa-east-1.amazonaws.com`. Em 2026-10-12, de um espaço do
+projeto, o SageMaker respondeu a uma listagem de jobs e o SSM a uma leitura de parâmetro. No mesmo
+dia, na primeira execução de um workflow lá, o worker listou a pasta de entrada no S3, chamou a API
+do SageMaker, que recusou o pedido por permissão, e gravou o log da task. O caminho do job, do
+download da imagem à gravação da saída, ainda não foi medido no ambiente alvo.
 
 ## Regras de autoria
 

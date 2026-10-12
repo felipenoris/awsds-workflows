@@ -11,15 +11,14 @@ nomeia esse lugar.
   `render` por arquivo, os nomes genéricos dos placeholders, o `--subnet-name` obrigatório com
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
   `docs/index.md` como runbook. Fecha com a resposta do usuário no PR.
-- **A rede do alvo para um workflow.** As leituras do serialize-db a partir de um space do alvo
-  (2026-09-21 e 2026-09-23) acharam o endpoint de gateway do S3 e endpoints de interface para STS,
-  Redshift, Glue, Athena, Secrets Manager e DataZone; SageMaker, KMS, IAM, Lake Formation e S3
-  Tables resolveram para endereços públicos e não responderam. Em 2026-10-12, de um espaço do
-  projeto, o SageMaker respondeu ao `ListProcessingJobs` e o SSM ao `GetParameter`
-  (`environments.md`, "The target"). No laboratório, o operador de processamento chama
-  `CreateProcessingJob` pelo endpoint `sagemaker.api`, e o worker grava o log pelo endpoint `logs`
-  (2026-10-11). Não lidos no alvo: a rede do worker, o caminho por que o SageMaker respondeu ao
-  espaço e o `logs`. Fecha com a primeira execução de um workflow no alvo.
+- **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker
+  listou a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob`
+  por permissão, e gravou o log da task (`environments.md`, "The target"). O Terraform do alvo
+  (cópia de 2026-09-04, lida em 2026-10-12) declara endpoints de interface com DNS privado para
+  `sagemaker.api`, `logs`, `sts`, `ecr.api` e `ecr.dkr`, entre outros, e nenhum para o KMS. As
+  leituras do serialize-db de 2026-09-21 e 2026-09-23, em que o SageMaker não respondeu, testaram
+  `sagemaker.sa-east-1.amazonaws.com`, que não é o nome da API (`api.sagemaker...`). Não medido no
+  alvo: o caminho do job, do pull da imagem à gravação da saída. Fecha com o primeiro job no alvo.
 - **A imagem padrão do alvo como imagem do job.** O usuário a chamou de SageMaker Distribution 4.15
   (2026-10-11), e as tags públicas da distribuição vão até a 4.5.2, sem 4.15 (lidas em 2026-10-12).
   Num espaço do alvo, em 2026-10-12, `/opt/conda/bin/python` era o CPython 3.12.14, como em
@@ -33,15 +32,17 @@ nomeia esse lugar.
   `SageMakerStudioProjectRoleMachineLearningPolicy` v42, lida em 2026-10-12, só deixa descrever um
   job com a etiqueta `AmazonDataZoneProject` do chamador e tira as chaves `AmazonDataZone*` do
   `AddTags`, as duas recusas que o laboratório mediu em 2026-10-10; o operador do provedor Amazon
-  do Airflow (9.37.0) sempre descreve o nome antes de criar o job. Não lidos no alvo: as políticas
-  do papel do projeto e se a política de `docs/index.md` ("A permissão do projeto") pode ser
-  anexada lá; num espaço, em 2026-10-12, o papel listou os jobs (`ListProcessingJobs`). Fecha com a
-  primeira execução do operador no alvo.
+  do Airflow (9.37.0) sempre descreve o nome antes de criar o job. No alvo, a primeira execução,
+  em 2026-10-12, falhou na primeira recusa, como papel do projeto. O papel nasce do ambiente
+  Tooling do projeto, que o Terraform do alvo cria; a política de `docs/index.md` ("A permissão do
+  projeto") foi ao usuário como cópias ajustadas desse Terraform, ainda não aplicadas
+  (`environments.md`, "The target"). Fecha com a aplicação e uma execução que crie o job.
 - **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, `.zip` montados à mão
   rodaram numa task Python e numa task Bash em 2026-10-11, depois que a política do endpoint de
   gateway do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia
-  que o serviço guarda (`environments.md`). No alvo, a política do endpoint de gateway não foi lida.
-  Fecha com um `.zip` do `package-task` numa execução, e com a política lida no alvo.
+  que o serviço guarda (`environments.md`). No alvo, o Terraform (cópia de 2026-09-04, lida em
+  2026-10-12) declara o endpoint de gateway sem política, o que admite esse bucket; o que está
+  aplicado não foi lido. Fecha com um `.zip` do `package-task` numa execução no alvo.
 - **Nenhuma pasta do `package-job` rodou num job, e o pacote não rodou num space.** No laboratório,
   uma pasta gravada num space pelo script do AWS-DataScience, com os mesmos passos do `uv`, rodou
   num job em 2026-10-11, e o `package-job` gravou a mesma pasta num space simulado, com o
