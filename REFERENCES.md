@@ -64,14 +64,28 @@ pacote repete.
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/accessing-metadata.html>
 - O SDK `sagemaker-studio`, cujo código 1.1.35 dá o `Project()`, o ambiente Tooling padrão e os
   recursos dele, os nomes dos campos desse arquivo e o endpoint do DataZone; a API JSON do PyPI e as
-  rodas 1.1.35 e 1.1.32 (lidas em 2026-10-11): <https://pypi.org/pypi/sagemaker-studio/json>,
+  rodas 1.1.35 e 1.1.32 (lidas em 2026-10-11). A 1.1.35 foi relida em 2026-10-12 no
+  `RemoteExecutionClient`, que cria o job sem chave quando o ambiente não tem `kmsKeyArn` e monta o
+  URI da SageMaker Distribution pelo parâmetro público do SSM
+  `/aws/service/sagemaker-distribution/ecr-account-id`:
+  <https://pypi.org/pypi/sagemaker-studio/json>,
   <https://files.pythonhosted.org/packages/bb/aa/c2c4a60ff70a46b673a0cfb73e38f1552619cc35e5c9e7b939e1f18befdf/sagemaker_studio-1.1.35-py3-none-any.whl>
   e
   <https://files.pythonhosted.org/packages/5c/93/60f4e17498ae65299197ad408986dc265ead855539948f0d7301bb64a46f/sagemaker_studio-1.1.32-py3-none-any.whl>
 - A política gerenciada do papel do projeto, `SageMakerStudioProjectUserRolePolicy` v75, com o
   `datazone:GetProject`, o `ListConnections`, o `GetEnvironment`, as listagens de ambientes e de
-  blueprints, o `iam:GetRole` e os `ec2:Describe*` (lida em 2026-10-11):
+  blueprints, o `iam:GetRole` e os `ec2:Describe*` (lida em 2026-10-11, e relida em 2026-10-12 sem
+  nenhuma ação `sagemaker:`):
   <https://docs.aws.amazon.com/aws-managed-policy/latest/reference/SageMakerStudioProjectUserRolePolicy.html>
+- A política gerenciada de aprendizado de máquina do papel do projeto,
+  `SageMakerStudioProjectRoleMachineLearningPolicy` v42: o `CreateProcessingJob` e o
+  `DescribeProcessingJob` só com a etiqueta `AmazonDataZoneProject` do chamador e o `AddTags` sem
+  as chaves `AmazonDataZone*` (lida em 2026-10-12):
+  <https://docs.aws.amazon.com/aws-managed-policy/latest/reference/SageMakerStudioProjectRoleMachineLearningPolicy.html>
+- O `VolumeKmsKeyId` e o `KmsKeyId` da saída de um job de processamento, opcionais, sem dizer o
+  que cifra o volume e a saída sem eles (lidos em 2026-10-12):
+  <https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProcessingClusterConfig.html> e
+  <https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProcessingOutputConfig.html>
 - Os blueprints customizados, que nomeiam os parâmetros `privateSubnets` e `s3BucketArn` e nada do
   arquivo de metadados (lido em 2026-10-11):
   <https://aws.amazon.com/blogs/big-data/tailor-amazon-sagemaker-unified-studio-project-environments-to-your-needs-using-custom-blueprints/>
@@ -94,6 +108,9 @@ pacote repete.
 - As constraints do Airflow 3.0.6 para o Python 3.12, que fixam o
   `apache-airflow-providers-standard` 1.6.0 (lido em 2026-10-11):
   <https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt>
+- O `SageMakerProcessingOperator` do `apache-airflow-providers-amazon` 9.37.0, lido no código do
+  wheel em 2026-10-12: o nome do job é descrito antes da criação, e só uma `ValidationException`
+  conta como job ausente: <https://pypi.org/project/apache-airflow-providers-amazon/9.37.0/>
 
 ## Ferramentas Python
 

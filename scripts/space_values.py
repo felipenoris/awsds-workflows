@@ -17,7 +17,7 @@ Os valores e de onde vêm:
 - ``ACCOUNT_ID`` e ``REGION``: ``awsAccountId`` e ``awsAccountRegion`` do ambiente;
 - ``PROJECT_ROLE_NAME``: o nome do papel de ``userRoleArn``;
 - ``PROJECTS_BUCKET``: o bucket de ``s3BucketPath``;
-- ``PROJECT_KEY_ID``: o id da chave de ``kmsKeyArn``;
+- ``PROJECT_KEY_ID``: o id da chave de ``kmsKeyArn``, quando o ambiente tem esse recurso;
 - ``PROJECT_SG``: ``securityGroup``;
 - ``SUBNET_AZ1`` e ``SUBNET_AZ2``: as duas primeiras sub-redes de ``privateSubnets``, uma lista
   separada por vírgulas, na ordem do ambiente; ``values`` as ordena pela zona, que só o EC2
@@ -30,8 +30,13 @@ sub-redes na ordem das zonas.
 ``JOB_IMAGE_URI`` e ``JOB_PYTHON`` não saem daqui: com a imagem padrão do SageMaker, eles entram
 no arquivo de valores.
 
-Um valor que o ambiente não dá termina com 1 e o motivo na saída de erro, sem JSON. Uma recusa do
-DataZone ou outra falha do SDK também termina sem JSON, com o rastro do Python na saída de erro.
+Só um projeto com chave KMS própria tem o ``kmsKeyArn``: o ambiente Tooling lido num espaço do
+ambiente alvo em 2026-10-12 não o tinha. Sem ele, o JSON sai sem ``PROJECT_KEY_ID``, com um aviso
+na saída de erro, e o SDK cria o job dele sem ``KmsKeyId`` e sem ``VolumeKmsKeyId``, dois campos
+opcionais do ``CreateProcessingJob``.
+
+Outro valor que o ambiente não dá termina com 1 e o motivo na saída de erro, sem JSON. Uma recusa
+do DataZone ou outra falha do SDK também termina sem JSON, com o rastro do Python na saída de erro.
 
 Uso, num terminal do espaço, com este arquivo copiado para lá:
 
@@ -49,7 +54,15 @@ from urllib.parse import urlparse
 ENVIRONMENT_FIELDS = ("awsAccountId", "awsAccountRegion")
 
 # Os recursos provisionados do ambiente que dão os outros valores.
-RESOURCE_NAMES = ("kmsKeyArn", "privateSubnets", "s3BucketPath", "securityGroup", "userRoleArn")
+RESOURCE_NAMES = ("privateSubnets", "s3BucketPath", "securityGroup", "userRoleArn")
+
+# O recurso da chave KMS do projeto, que só um projeto com chave própria tem.
+KEY_RESOURCE = "kmsKeyArn"
+
+# O aviso, na saída de erro, de um ambiente sem a chave.
+NO_KEY_WARNING = (
+    "o ambiente Tooling não tem kmsKeyArn, a chave KMS do projeto: o JSON sai sem PROJECT_KEY_ID"
+)
 
 
 class ValuesError(Exception):
@@ -144,7 +157,8 @@ def values_from_environment(
     domain_id: str,
     environment: dict[str, Any],
 ) -> dict[str, str]:
-    """Os valores da definição, dos ids do projeto e do domínio e do ambiente Tooling."""
+    """Os valores da definição, dos ids do projeto e do domínio e do ambiente Tooling;
+    ``PROJECT_KEY_ID`` só quando o ambiente tem ``kmsKeyArn``."""
     # O que falta vai todo na mensagem, com os recursos que o ambiente tem, para comparar.
     resources = provisioned_resources(environment)
     missing = [name for name in ENVIRONMENT_FIELDS if not environment.get(name)]
@@ -163,18 +177,22 @@ def values_from_environment(
             f"{resources['privateSubnets']}"
         )
 
-    return {
+    values = {
         "REGION": environment["awsAccountRegion"],
         "ACCOUNT_ID": environment["awsAccountId"],
         "PROJECT_ROLE_NAME": role_name_from_arn(resources["userRoleArn"]),
         "PROJECT_ID": project_id,
         "DOMAIN_ID": domain_id,
         "PROJECTS_BUCKET": bucket_from_path(resources["s3BucketPath"]),
-        "PROJECT_KEY_ID": key_id_from_arn(resources["kmsKeyArn"]),
         "PROJECT_SG": resources["securityGroup"],
         "SUBNET_AZ1": subnets[0],
         "SUBNET_AZ2": subnets[1],
     }
+
+    # A chave entra só quando o projeto tem uma própria.
+    if resources.get(KEY_RESOURCE):
+        values["PROJECT_KEY_ID"] = key_id_from_arn(resources[KEY_RESOURCE])
+    return values
 
 
 def main() -> int:
@@ -187,6 +205,8 @@ def main() -> int:
         print(error, file=sys.stderr)
         return 1
 
+    if "PROJECT_KEY_ID" not in values:
+        print(NO_KEY_WARNING, file=sys.stderr)
     print(json.dumps(values, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 

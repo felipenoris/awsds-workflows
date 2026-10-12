@@ -24,13 +24,19 @@ nomeia esse lugar.
   do alvo leu 3.12.14 em `/opt/conda` em 2026-09-21, antes da 4.15), o usuário do contêiner e o
   `sudo` que o `chown` da pasta de saída usa. Fecha com um space na imagem (`--version`, `id`,
   `ldd --version`) e o primeiro job.
-- **O `scripts/space_values.py` num espaço do alvo.** O script rodou num espaço do laboratório em
-  2026-10-11 e imprimiu o mesmo JSON que o `values` na mesma conta (`environments.md`, "The project
-  space"); no alvo, onde o `Project()` funciona (o usuário, 2026-10-11), não rodou. Não
-  lidos lá: o ambiente Tooling padrão que o SDK `sagemaker-studio` acha (o blueprint `Tooling` ou
-  `ToolingLite`, ou a conexão IAM), os recursos `userRoleArn`, `securityGroup`, `privateSubnets`,
-  `kmsKeyArn` e `s3BucketPath` dele, e a ordem das sub-redes, que no laboratório é a das zonas.
-  Fecha com o que o script imprime num espaço do alvo.
+- **O `scripts/space_values.py` num espaço do alvo.** No laboratório, em 2026-10-11, o script
+  imprimiu o mesmo JSON que o `values` na mesma conta. Num espaço do alvo, em 2026-10-12, achou o
+  ambiente Tooling com `userRoleArn`, `securityGroup`, `privateSubnets` e `s3BucketPath`, sem
+  `kmsKeyArn`, e parou; desde então o JSON sai sem `PROJECT_KEY_ID` (`environments.md`, "The
+  project space"). Não lidos lá: os valores e a ordem das sub-redes, que no laboratório é a das
+  zonas. Fecha com o JSON que o script imprime num espaço do alvo.
+- **O papel do projeto no alvo e o operador de processamento.** A política do blueprint
+  `SageMakerStudioProjectRoleMachineLearningPolicy` v42, lida em 2026-10-12, só deixa descrever um
+  job com a etiqueta `AmazonDataZoneProject` do chamador e tira as chaves `AmazonDataZone*` do
+  `AddTags`, as duas recusas que o laboratório mediu em 2026-10-10; o operador do provedor Amazon
+  do Airflow (9.37.0) sempre descreve o nome antes de criar o job. Não lidos no alvo: as políticas
+  do papel do projeto e se a política de `docs/index.md` ("A permissão do projeto") pode ser
+  anexada lá. Fecha com a primeira execução do operador no alvo.
 - **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, `.zip` montados à mão
   rodaram numa task Python e numa task Bash em 2026-10-11, depois que a política do endpoint de
   gateway do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia

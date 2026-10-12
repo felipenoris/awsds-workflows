@@ -993,15 +993,17 @@ python space_values.py > valores.json
   (`s3BucketPath`) e os recursos com que o SDK cria um job (`userRoleArn`, `securityGroup`,
   `privateSubnets` e `kmsKeyArn`). O SDK escolhe o endpoint do DataZone e as credenciais.
 - **As sub-redes** saem na ordem do ambiente; o `values` as ordena pela zona, que só o EC2 informa.
-- **Um valor que o ambiente não dá** termina o script com 1, sem JSON, e a mensagem lista o que
+- **A chave KMS do projeto**, `kmsKeyArn`, só existe num projeto com chave própria. Sem ela, o JSON
+  sai sem `PROJECT_KEY_ID`, com um aviso na saída de erro, e o script termina com 0.
+- **Outro valor que o ambiente não dá** termina o script com 1, sem JSON, e a mensagem lista o que
   falta e os recursos que o ambiente tem. Uma recusa do DataZone também termina sem JSON, com o
   rastro do Python na saída de erro.
 
 Os nomes dos recursos vêm do código do SDK `sagemaker-studio` 1.1.35, igual ao da 1.1.32 nesse
 ponto (lidos em 2026-10-11). Num espaço do laboratório, em 2026-10-11, o script imprimiu o mesmo
 JSON, byte a byte, que o `values` com `--profile` imprimiu para a mesma conta, as sub-redes na
-ordem das zonas inclusive. No ambiente alvo, onde o `Project()` funciona (2026-10-11), o script
-ainda não rodou.
+ordem das zonas inclusive. Num espaço do ambiente alvo, em 2026-10-12, o ambiente Tooling tinha
+`userRoleArn`, `securityGroup`, `privateSubnets` e `s3BucketPath`, e não tinha `kmsKeyArn`.
 
 ### A definição que o portal salvou
 

@@ -174,6 +174,25 @@ space ran the script on 2026-10-11; no target space has.
   names by the role's `KmsKeyId` tag and its pass 2 (2026-10-11) by its id; the bucket
   `awsds-sandbox-smus-projects` (06i's 0.1, and the `DomainBucketName` tag of the domain's first
   project role, 06a, 2026-08-22). In this lab the environment's subnet order is the zone order.
+- **The script in a target space** (the user, 2026-10-12, 17:15 UTC, run as `python
+  space_values.py` in `~/shared/<user>/workflows`, a folder the 2026-09-21 probe did not have):
+  exit 1 with `o ambiente <ambiente> não tem kmsKeyArn`. `Project()` and the SDK's DataZone calls
+  worked; the default Tooling environment's provisioned resources were `SageMakerSpacesDomain`,
+  `ScheduleGroupName`, `allowConnectionToUserGovernedEmrClusters`, `athenaOutputUri`,
+  `athenaSparkWorkGroupName`, `athenaWorkGroupName`, `cloudFormationStackId`,
+  `enableNetworkIsolation`, `enableS3AccessGrantsForTools`,
+  `enableTrustedIdentityPropagationPermissions`, `enableUserBackgroundSessions`,
+  `enableWorkflowsConfigV2`, `glueNetworkConnection0` to `glueNetworkConnection2`,
+  `isDefaultToolingEnvironment`, `logGroupArn`, `logGroupName`, `logGroupRetention`,
+  `nonGitProjectRepositoryLocation`, `privateSubnets`, `s3BucketArn`, `s3BucketPath`,
+  `sageMakerDomainId`, `securityGroup`, `systemRole-AmazonBedrockLambdaExecutionRoleArn`,
+  `systemRole-AmazonBedrockServiceRoleArn`, `userRoleArn`, `userRoleName` and `vpcId`. The
+  target's project has no project KMS key. The SDK 1.1.35 takes that case as normal: its
+  `RemoteExecutionClient` reads `kmsKeyArn` with a `None` default and creates its training job
+  without `KmsKeyId` and `VolumeKmsKeyId` (read 2026-10-12), so the script prints the other nine
+  values and a warning since then. `CreateProcessingJob`'s API reference lists both fields as
+  optional and does not say what encrypts the volume and the output without them (read
+  2026-10-12).
 - **The metadata file** `/opt/ml/metadata/resource-metadata.json` is where a space writes the
   project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`. The SDK reads
   a field at the file's root, then in `AdditionalMetadata`

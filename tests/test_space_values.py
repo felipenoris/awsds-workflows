@@ -204,14 +204,53 @@ def test_main_refuses_an_environment_without_a_value(
 ) -> None:
     """Um ambiente sem um recurso termina com 1, sem JSON, com o motivo na saída de erro."""
     calls: list[str] = []
-    environment = replace_resource(tooling_environment(), "kmsKeyArn", None)
+    environment = replace_resource(tooling_environment(), "securityGroup", None)
     double = fake_read_tooling_environment(environment, calls)
     monkeypatch.setattr(space_values, "_read_tooling_environment", double)
     assert space_values.main() == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "o ambiente env456 não tem kmsKeyArn" in captured.err
+    assert "o ambiente env456 não tem securityGroup" in captured.err
     assert len(calls) == 1
+
+
+def test_an_environment_without_a_key_gives_the_other_values() -> None:
+    """Um projeto sem chave KMS própria não tem ``kmsKeyArn``, como o ambiente alvo lido em
+    2026-10-12, e os outros valores saem sem ``PROJECT_KEY_ID``."""
+    environment = replace_resource(tooling_environment(), "kmsKeyArn", None)
+    values = space_values.values_from_environment("abc123", "dzd_exemplo", environment)
+    expected = dict(EXPECTED)
+    del expected["PROJECT_KEY_ID"]
+    assert values == expected
+
+
+def test_main_warns_when_the_project_has_no_key(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Sem ``kmsKeyArn``, o script imprime o JSON sem ``PROJECT_KEY_ID``, termina com 0 e avisa
+    na saída de erro; um ``kmsKeyArn`` vazio conta como ausente."""
+    calls: list[str] = []
+    environment = replace_resource(tooling_environment(), "kmsKeyArn", "")
+    double = fake_read_tooling_environment(environment, calls)
+    monkeypatch.setattr(space_values, "_read_tooling_environment", double)
+    assert space_values.main() == 0
+    captured = capsys.readouterr()
+    assert "PROJECT_KEY_ID" not in json.loads(captured.out)
+    assert "não tem kmsKeyArn" in captured.err
+    assert "o JSON sai sem PROJECT_KEY_ID" in captured.err
+    assert len(calls) == 1
+
+
+def test_main_does_not_warn_when_the_project_has_a_key(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Com ``kmsKeyArn``, a saída de erro fica vazia."""
+    double = fake_read_tooling_environment(tooling_environment(), [])
+    monkeypatch.setattr(space_values, "_read_tooling_environment", double)
+    assert space_values.main() == 0
+    assert capsys.readouterr().err == ""
 
 
 def test_main_lets_a_failure_of_the_sdk_through(
