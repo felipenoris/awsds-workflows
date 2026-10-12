@@ -73,8 +73,9 @@ which since 2026-10-11 says that a `.zip` built by hand ran in the lab and that 
 
 On 2026-10-12 the user asked for a review of the `pdoc` documentation, the README and the
 docstrings for language: clear, succinct and direct writing for someone learning to build MWAA
-workflows in SageMaker, the material being read to learn. The reading of that request, awaiting the
-user's confirmation on the branch `claude/review-docs-code-2aux2x`: the reader uses a SageMaker
+workflows in SageMaker, the material being read to learn. The reading of that request, which the
+user confirmed on 2026-10-12 by choosing "Redação e abertura" over "Só a redação" and
+"Reorganizar" (PR #9): the reader uses a SageMaker
 Unified Studio project (project, space, portal) and does not know the Airflow or the MWAA; every
 term is introduced where it first appears (worker, task, operator, job de processamento, sensor,
 placeholder, endpoint de VPC, limite de permissões, módulo de extensão, fechamento travado,
@@ -84,7 +85,7 @@ workflow, and keeps every other section, anchor, fact, measurement and date; the
 for the platform a build targets); a measurement reads "medido no laboratório em <data>" and a
 missing one "ainda não medido". The same review asked for the code against the Python standards
 and for simplicity; its changes keep the behavior and the CLI, and are a commit of the same PR,
-as the repository's git rule asks, unless the user chooses a PR of their own.
+by the user's choice of 2026-10-12 ("Um PR" over "Dois PRs"), as the repository's git rule asks.
 
 ## The supported Python versions
 
