@@ -35,10 +35,10 @@ nomeia esse lugar.
   `ToolingLite`, ou a conexão IAM), os recursos `userRoleArn`, `securityGroup`, `privateSubnets`,
   `kmsKeyArn` e `s3BucketPath` dele, e a ordem das sub-redes, que no laboratório é a das zonas.
   Fecha com o que o script imprime num espaço do alvo.
-- **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, um `.zip` montado pela
-  receita à mão rodou numa task Python em 2026-10-11, depois que a política do endpoint de gateway
-  do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia que o
-  serviço guarda (`environments.md`). No alvo, a política do endpoint de gateway não foi lida.
+- **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, `.zip` montados à mão
+  rodaram numa task Python e numa task Bash em 2026-10-11, depois que a política do endpoint de
+  gateway do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia
+  que o serviço guarda (`environments.md`). No alvo, a política do endpoint de gateway não foi lida.
   Fecha com um `.zip` do `package-task` numa execução, e com a política lida no alvo.
 - **Nenhuma pasta do `package-job` rodou num job, e o pacote não rodou num space.** No laboratório,
   uma pasta gravada num space pelo script do AWS-DataScience, com os mesmos passos do `uv`, rodou
@@ -47,14 +47,15 @@ nomeia esse lugar.
   medidos num space de verdade: o `uv tool install` do pacote no Python da distribuição, a recusa
   sem o `UV_PYTHON` e a pasta com ele. Fecha com o `package-job` rodado num space do laboratório e
   a pasta dele num job.
-- **Uma task Bash sobre um `.zip`.** Só comandos inline rodaram no worker (2026-10-11). Não
-  medidos: a pasta de trabalho de um script, que o guia diz ser `/usr/local/airflow/dags`, quando
-  um comando inline rodou numa pasta temporária; um `bash_command` terminado em `.sh`, que o
-  Airflow lê como template; o bit de execução depois da extração, que o `.zip` do `package-task`
-  guarda e o `zipfile` do Python descarta; onde o worker põe um `Code` que é um `.py` ou um `.sh`
-  sozinho; se um pacote do `.zip` vence o do worker num `python3 -m` rodado em
-  `/usr/local/airflow/dags`; e o `env` sem `append_env`. Fecha com uma task Bash sobre um `.zip` do
-  `package-task` com `--include` que imprima cada um.
+- **Uma task Bash sobre um `.zip`.** Um `.zip` montado à mão rodou numa task Bash em 2026-10-11:
+  um módulo com `python3 -m`, depois de um `cd /usr/local/airflow/dags`, e um script chamado pelo
+  nome, que o worker renderizou numa cópia temporária (`environments.md`; `docs/index.md`, "O
+  código do `.zip` no comando"). Não medidos: um script chamado pelo caminho inteiro e a pasta
+  de trabalho dele; o `python3 -m` sem o `cd`, que o `PYTHONPATH` lido sugere; se um pacote do
+  `.zip` vence o do worker com o mesmo nome; o bit de execução depois da extração, que o `.zip` do
+  `package-task` guarda e o `zipfile` do Python descarta; onde o worker põe um `Code` que é um
+  `.py` ou um `.sh` sozinho; e o `env` sem `append_env`. Fecha com uma task Bash sobre um `.zip`
+  do `package-task` com `--include` que imprima cada um.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

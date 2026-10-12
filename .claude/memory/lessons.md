@@ -28,3 +28,11 @@ commit.
   `docs/index.md` still saying that the `.zip` was blocked and that a Bash task ran in
   `/usr/local/airflow/dags`; the stage log `docs/log/log-stage-06i-sandbox-orchestration.md` had
   the newer readings, and the answer cited them.
+- **A rewrite that keeps every fact keeps the stale ones too** (2026-10-12). On 2026-10-12
+  `docs/index.md` still said that no Bash task with `Code` had run and that the worker was
+  prepared per run, while AWS-DataScience's stage log had held since the evening before a Bash
+  task over a `.zip` (pass 5), one worker per task and a new code snapshot at every save
+  (verification vii). PR #9 rewrote the page keeping every fact and date, the stale ones
+  included, and the adoption's fix (`40caedb`) read only the entries its own work met. The check
+  that found them read each "Estado no laboratório" line and each "não medido" of the page
+  against the stage log.

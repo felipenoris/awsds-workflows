@@ -11,15 +11,19 @@ AWS-DataScience's `docs/REFERENCES.md`):
 - the code travels apart from the YAML, in the API's `Code` (an `S3Location`): one `.py`, one `.sh`
   or one `.zip`; 250 MB per file and unzipped, 75 GB of code per account;
 - the `.zip` is extracted to `/usr/local/airflow/dags`, on `sys.path`; the guide says a
-  `BashOperator` script runs there, while an inline command ran in a temporary folder
-  (2026-10-11, `environments.md`); `python_callable` is `<module>.<function>`;
+  `BashOperator` script runs there, while an inline command ran in a temporary folder, a script
+  named as the command ran from a rendered copy in one, and a Bash task's `PYTHONPATH` starts
+  with `/usr/local/airflow/dags`, before the worker's `site-packages` (2026-10-11,
+  `environments.md`); `python_callable` is `<module>.<function>`;
 - dependencies are vendored at the archive's root for Linux x86_64 and Python 3.12;
 - the pre-installed set (Airflow 3.0.6, Amazon provider 9.32.0, boto3 1.43.1, dag-factory 1.0.0, and
   PyYAML, lz4 and the AWS Encryption SDK family) wins over any bundled version, measured in a Python
   task on 2026-10-11: the worker's PyYAML 6.0.2 imported over the archive's 6.0.1
   (`environments.md`);
 - a 1 vCPU / 3 GiB worker, no internet by default, the execution role's credentials available to the
-  task; 0.088 USD per task-hour, one-minute minimum.
+  task; 0.088 USD per task-hour, one-minute minimum;
+- one worker per task, not per run: two tasks of one run ran in different subnets, and each
+  task's log opens with `Preparing the execution environment.` (2026-10-11, `environments.md`).
 
 The portal (*Serverless visual workflows*, re-read 2026-10-11): one uploaded file is stored as it
 is, several are zipped into one archive; only `.py`, `.sh` and `.zip`; its dependency recipe
@@ -39,14 +43,18 @@ project. How the service turns the YAML into a DAG is not documented.
 
 Read in the source of `apache-airflow-providers-standard` on 2026-10-11: 1.6.0, the version the
 Airflow 3.0.6 constraints for Python 3.12 pin, and 1.20.0, the newest on PyPI (`REFERENCES.md`).
-Which version the worker runs is not documented.
+Which version the worker runs is not documented; it behaves as 1.6.0 does: on 2026-10-11 the
+lab's `bash_command: reach_pypi.sh` ran as `['/usr/bin/bash', 'tmp6wm8sj1x.sh']`
+(`environments.md`).
 
 - A `bash_command` that does not end in `.sh` or `.bash` (`template_ext`) runs as
   `bash -c <command>`. One that does names a template file, read from the DAG's template path and
   rendered by Jinja into `bash_command`. 1.6.0 decides in `__init__`, from the name, and writes the
   rendered text to a temporary `.sh` in the working directory, run as `bash <file>`; 1.20.0
   decides in `execute`, from the rendered text, which ends in neither, and runs it as
-  `bash -c <text>`. In both, the script's `$0` is not its path in the `.zip`.
+  `bash -c <text>`. In both, the script's `$0` is not its path in the `.zip`. 1.6.0's test is
+  `not bash_command.endswith(template_ext)` (`_is_inline_command`, re-read 2026-10-12), so a
+  script's name followed by arguments runs inline, and the script form takes no argument.
 - `cwd` defaults to `None`, and the subprocess hook then works in a new `TemporaryDirectory` with
   the prefix `airflowtmp`, the `/var/tmp/airflowtmp…` the lab read.
 - `env`, when given, replaces the task's environment unless `append_env` is true.
