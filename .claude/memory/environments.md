@@ -192,10 +192,33 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   `docs/index.md` ("A permissão do projeto") went to the user as adjusted copies of the current
   version (a new file in its compute module and a `project_role_names` variable), `terraform
   validate` passing and the rendered policy equal to the documented one. Not applied yet.
+- **The first Python task, 2026-10-12** (the user, 19:16 UTC): `demo-python-operator`, the lab's
+  definition rendered for the target (the folders under `shared/<user>/orchestration-demo/python/`),
+  imported in the portal, its `.zip` uploaded in *Settings → Storage* before the save. The `.zip`
+  was the first archive of `package-task` on a worker: built on the build host from a copy of the
+  lab's `awsds-demo-job` with `petl==1.7.28` as its one dependency and the lab's `demo_tasks.py` as
+  the entry module, 152 entries and 261,205 bytes, with `awsds_demo_job`, `demo_tasks.py`, `petl`
+  and their `dist-info` at the root and no PyYAML. `run_project`'s log printed `Preparing the
+  execution environment.` at 19:16:27.970Z and `Execution environment is ready.` 0.1 s later, so
+  the worker got the code's copy; then `python 3.12.14 at /opt/mwaa-serverless-venv/bin/python3`,
+  `caller arn:aws:sts::<account>:assumed-role/datazone_usr_role_<project>_<environment>/AmazonMWAAServerless`,
+  `import petl: 1.7.28 from /usr/local/airflow/dags/petl/__init__.py`,
+  `import yaml: 6.0.2 from /opt/mwaa-serverless-venv/lib64/python3.12/site-packages/yaml/__init__.py`,
+  `sample.csv: 10 rows -> s3://<bucket>/<domain>/<project>/shared/<user>/orchestration-demo/python/outbox/20261012T191631Z/sample.result.json; source deleted`
+  and `1 object(s) processed`, and `Task finished` with exit code 0 in 2.44 s, on a worker whose
+  host name is a private `ip-10-…` address. The result's sha256, read in a space with `sha256sum`,
+  is `1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191`, the lab's of 2026-10-11.
+  The worker fetched the service's copy of the code, which the lab's endpoint allow-list had
+  refused, presumably through the S3 gateway endpoint the target's Terraform declares with no
+  policy; it reached STS; and it listed, read, wrote and deleted objects in the project's folder.
+  With the region set, boto3 1.43.1 calls STS at `https://sts.sa-east-1.amazonaws.com`, the private
+  DNS name of the target's `sts` interface endpoint; botocore 1.43.111 reads `AWS_DEFAULT_REGION`
+  and not `AWS_REGION`, and with only `AWS_REGION` set its STS client calls the global
+  `https://sts.amazonaws.com` (probed on the build host, 2026-10-12). The lab's worker set both.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
-alvo para um workflow"): the worker's S3, SageMaker and log calls answered on 2026-10-12, and the
-job's own path, from the image pull on, was never read.
+alvo para um workflow"): the worker's code fetch and its S3, STS, SageMaker and log calls answered
+on 2026-10-12, and the job's own path, from the image pull on, was never read.
 
 ## The project space
 

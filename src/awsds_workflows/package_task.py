@@ -38,8 +38,10 @@ cerca de 0,9 MB, com o projeto, ``tasks.py``, o ``petl`` e o ``requests`` com ``
 ``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. No laboratório,
 em 2026-10-11, ``.zip`` com a mesma forma, montados à mão, rodaram numa task Python, que importou
 o ``petl`` de ``/usr/local/airflow/dags``, e numa task Bash, depois que a política do endpoint de
-gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do código. Nenhum
-``.zip`` gravado por ``build_archive`` rodou num worker até essa data.
+gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do código. No ambiente
+alvo, em 2026-10-12, um ``.zip`` gravado por ``build_archive``, com o projeto do laboratório e o
+``petl`` 1.7.28, rodou numa task Python: o worker, um CPython 3.12.14, importou o ``petl`` de
+``/usr/local/airflow/dags`` e o ``yaml`` 6.0.2 dos pacotes dele.
 
 Exemplo:
 

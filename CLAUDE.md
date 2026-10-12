@@ -443,10 +443,9 @@ The first session (2026-10-11, from the AWS-DataScience repository) created the 
 `claude/package-structure` and its PR: the three tools of AWS-DataScience's runbook ported to
 `package_task`, `package_job` and `render`, the CLI, the tests, the CI, the `pdoc` documentation
 (`docs/index.md`, the runbook adapted in pt-BR) and this file. The port was verified against the
-original scripts on the project the lab measured (`.claude/memory/packaging.md`). Nothing has run in
-the target yet. In the lab, a `.zip` built by hand ran in a Python task on 2026-10-11, once the S3
-gateway endpoint admitted the service's code bucket, and no archive of `package-task` has run on a
-worker anywhere (`.claude/memory/environments.md`).
+original scripts on the project the lab measured (`.claude/memory/packaging.md`). In the lab, a
+`.zip` built by hand ran in a Python task on 2026-10-11, once the S3 gateway endpoint admitted the
+service's code bucket (`.claude/memory/environments.md`).
 
 A session on branch `claude/bash-operator-hchepx` (2026-10-11) gave `package-task` `--include` and
 an optional entry module, by the user's decision ("The Bash task" in `.claude/memory/decisions.md`),
@@ -514,7 +513,10 @@ target definition names `4.5.2-cpu` until the user says which image the space ru
 its S3 sensor and failed on `DescribeProcessingJob`, the lab's first refusal; the grant of
 `docs/index.md` ("A permissão do projeto") went to the user as adjusted copies of the target's
 Terraform, built on the user's current version of it, in the Claude project's library
-(`alvo/terraform/`), not applied yet.
+(`alvo/terraform/`), not applied yet. At 19:16 UTC a Python task over a `package-task` archive ran
+there, the package's first archive on a worker, with no change to the target's Terraform: the code's
+copy reached the worker, STS answered, `petl` came from the archive and PyYAML 6.0.2 from the
+worker, and the result's sha256 was the lab's (`.claude/memory/environments.md`, "The target").
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session"); the target's Terraform grant applied and a run that creates

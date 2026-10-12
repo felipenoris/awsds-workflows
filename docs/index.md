@@ -79,8 +79,8 @@ ela mudou.
 
 **O laboratório e o ambiente alvo.** O laboratório é a conta de testes em que cada passo desta
 página foi medido, nas datas que a página cita. O ambiente alvo é o SageMaker Unified Studio em que
-os workflows vão rodar: lá nenhum workflow rodou ainda, e a página diz o que a primeira execução
-vai medir.
+os workflows vão rodar: lá a primeira task Python rodou em 2026-10-12, e a página diz o que ainda
+não foi medido.
 
 **O primeiro workflow**, na ordem das seções: instale o pacote; leia onde cada peça fica e qual é a
 imagem do job; peça à infraestrutura a permissão e a rede; escreva a definição pelas regras de
@@ -296,8 +296,9 @@ O nome do SageMaker que elas testaram, `sagemaker.sa-east-1.amazonaws.com`, tamb
 mas a API atende em `api.sagemaker.sa-east-1.amazonaws.com`. Em 2026-10-12, de um espaço do
 projeto, o SageMaker respondeu a uma listagem de jobs e o SSM a uma leitura de parâmetro. No mesmo
 dia, na primeira execução de um workflow lá, o worker listou a pasta de entrada no S3, chamou a API
-do SageMaker, que recusou o pedido por permissão, e gravou o log da task. O caminho do job, do
-download da imagem à gravação da saída, ainda não foi medido no ambiente alvo.
+do SageMaker, que recusou o pedido por permissão, e gravou o log da task. Numa task Python, o
+worker recebeu a cópia do código, chamou o STS e leu, gravou e apagou objetos na pasta do projeto.
+O caminho do job, do download da imagem à gravação da saída, ainda não foi medido no ambiente alvo.
 
 ## Regras de autoria
 
@@ -649,9 +650,15 @@ viaja num `.zip`, o `Code` do workflow, que o `package-task` monta a partir de u
 
 **Estado no laboratório**: funciona desde 2026-10-11. Uma task Python e uma task Bash, cada uma com
 um `.zip`, leram a amostra, gravaram o resultado e apagaram a origem. Os dois `.zip` foram montados
-pela receita [à mão](#a-mao-sem-o-pacote), e nenhum `.zip` do `package-task` rodou num worker
-ainda. Antes, o worker falhava ao preparar o ambiente, antes de qualquer task: a política do
-endpoint de gateway do S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
+pela receita [à mão](#a-mao-sem-o-pacote). Antes, o worker falhava ao preparar o ambiente, antes de
+qualquer task: a política do endpoint de gateway do S3 recusava o bucket da cópia do código
+([A rede](#a-rede)).
+
+**Estado no ambiente alvo**: uma task Python funciona desde 2026-10-12, com um `.zip` do
+`package-task` de 261.205 bytes, o projeto do laboratório com o `petl` 1.7.28. O worker, um
+CPython 3.12.14, importou o `petl` do `.zip`, em `/usr/local/airflow/dags`, e o PyYAML 6.0.2 dos
+pacotes dele, e o resultado saiu igual ao do laboratório, com o mesmo sha256. Uma task Bash ainda
+não rodou lá.
 
 ### O que o worker espera
 
