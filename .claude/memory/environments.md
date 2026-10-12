@@ -65,6 +65,35 @@ step of the runbook was measured in October 2026 (its stage log
 - **A save with no code**: the editor pre-fills *Operator files zip S3 location*, and with no file
   there the save is refused with `ValidationException: Code not found in specified S3 location`;
   emptying the field makes the save send `code` null (2026-10-11).
+- **A processing job with dependencies** (run `aB2zorz48GP67hx`, 2026-10-11, the stage log's pass
+  3b): the workflow `demo-devenv-deps`, imported into a new workflow whose editor had pre-filled
+  *Operator files zip S3 location* with `dev/operatorFiles/demo-devenv-deps.zip` and no file
+  (emptied before the save), saved at 22:36:12Z; its log group existed from the save, empty and
+  with no retention. The code input was a folder built in a space by AWS-DataScience's
+  `package-uv-job.py` (176 files, 1,735,841 bytes: the project, petl 1.7.29 and msgspec 0.22.0 for
+  CPython 3.13 on `x86_64-manylinux_2_28`; the fresh lock had pyarrow 26.0.0 against the image's
+  24.0.0 until the constraint block) and copied with `cp -r` to `~/shared/jobs/`: 192 objects, the
+  176 files and 16 zero-byte folder markers the space's `shared/` writes, which did not disturb the
+  download. The job (created 23:06:03Z, processing 23:08:56Z to 23:16:26Z, 450 s) imported petl and
+  msgspec's `_core.cpython-313-x86_64-linux-gnu.so` from `/opt/ml/processing/code`, and pyarrow
+  24.0.0 from `/opt/awsds/venv/lib/python3.13/site-packages`; its JSON and Parquet outputs are byte
+  for byte the laptop's. The run took 909 s and the processing task 791 s, about 3 minutes before
+  `ProcessingStartTime`, 7 of image pull and 2.5 after `ProcessingEndTime` before `Completed`
+  (AWS-DataScience's runbook); `get-workflow-run`'s `RunState` read `QUEUED` until 23:06:16Z,
+  after the sensor had finished. About 0.029 USD: 15.2 task-minutes, 0.022 USD, and 450 s of
+  `ml.t3.medium`, 0.006 USD.
+- **`uv` in a lab space** (the user's run, 2026-10-11): `which python` answered
+  `/opt/conda/bin/python` and `which uv` `/opt/conda/bin/uv`, the distribution's uv, 0.12.17 by
+  AWS-DataScience's records of the house image (the space's version was not printed). The base
+  image sets `UV_PYTHON_DOWNLOADS=never`, and the house CPython 3.13 lives under
+  `/opt/awsds/python`, installed by a `uv python install` whose `UV_PYTHON_INSTALL_DIR` only the
+  build step sets, so uv finds the distribution's Python only (AWS-DataScience's
+  `images/README.md`); the image exports `AWSDS_PYTHON_ENV=/opt/awsds/venv`.
+  `package-uv-job.py` stopped there with `No interpreter found for Python 3.14 in virtual
+  environments, managed installations, or search path`, the repository's `.python-version` read
+  by the shebang's `uv run --script`; its fix, AWS-DataScience's `fcc760b`, asks the shebang for
+  `--python >=3.11` and names `$AWSDS_PYTHON_ENV/bin/python` to its uv commands through
+  `UV_PYTHON`. What the package does there is in `packaging.md` ("The interpreter `uv` needs").
 
 ## The target
 

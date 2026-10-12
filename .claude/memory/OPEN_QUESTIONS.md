@@ -36,6 +36,13 @@ nomeia esse lugar.
   do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia que o
   serviço guarda (`environments.md`). No alvo, a política do endpoint de gateway não foi lida.
   Fecha com um `.zip` do `package-task` numa execução, e com a política lida no alvo.
+- **Nenhuma pasta do `package-job` rodou num job, e o pacote não rodou num space.** No laboratório,
+  uma pasta gravada num space pelo script do AWS-DataScience, com os mesmos passos do `uv`, rodou
+  num job em 2026-10-11, e o `package-job` gravou a mesma pasta num space simulado, com o
+  `UV_PYTHON` apontando o 3.13 da imagem (`packaging.md`, "The interpreter `uv` needs"). Não
+  medidos num space de verdade: o `uv tool install` do pacote no Python da distribuição, a recusa
+  sem o `UV_PYTHON` e a pasta com ele. Fecha com o `package-job` rodado num space do laboratório e
+  a pasta dele num job.
 - **Uma task Bash sobre um `.zip`.** Só comandos inline rodaram no worker (2026-10-11). Não
   medidos: a pasta de trabalho de um script, que o guia diz ser `/usr/local/airflow/dags`, quando
   um comando inline rodou numa pasta temporária; um `bash_command` terminado em `.sh`, que o

@@ -90,6 +90,34 @@ Read with uv 0.12.13 on 2026-10-11 unless dated otherwise:
 - `uv`'s error output is UTF-8 with box-drawing characters, so `_uv.run` decodes with `utf-8` and
   `errors="replace"`.
 
+## The interpreter `uv` needs
+
+Measured on 2026-10-11 and 2026-10-12 with uv 0.12.17, the house image's, in a simulation of a lab
+space in a cloud container (Linux x86_64): `UV_PYTHON_DOWNLOADS=never`, an empty
+`UV_PYTHON_INSTALL_DIR`, only a CPython 3.12.3 on `PATH`, and a venv of CPython 3.13.16 off every
+search path standing for `/opt/awsds/venv` (`environments.md`, "`uv` in a lab space"):
+
+- `uv export --locked` and `uv build` need an interpreter the project accepts, the one its
+  `.python-version` names or else one its `requires-python` admits. With none found and downloads
+  off they refuse with `No interpreter found for Python 3.13 in managed installations or search
+  path` (`>=3.13` without a `.python-version`). `UV_PYTHON` names the interpreter and wins over
+  `.python-version`.
+- `_uv.run` passes no `env`, so the process's `UV_*` variables reach every uv call.
+  `tests/test_uv.py::test_uv_python_reaches_the_call` holds it: it failed on 2026-10-12 against a
+  `run` that dropped `UV_PYTHON` from the environment. It calls `uv venv`, which honours
+  `UV_PYTHON`; `uv python find` ignores it (uv 0.11.32, 2026-10-12).
+- Without `UV_PYTHON`, `package-job` on AWS-DataScience's `awsds-demo-deps` (`.python-version`
+  3.13, `requires-python >=3.13`) and `package-task` on a project with `.python-version` 3.13 and
+  `requires-python >=3.12` stopped at `uv export --locked`; with `UV_PYTHON` set to the 3.13 venv's
+  interpreter, both wrote their output (176 files and 1,735,841 bytes; 150 entries, 1,186,338 bytes
+  unzipped).
+- With downloads on (2026-10-12), uv downloaded CPython 3.13.15 into the managed folder and
+  `package-job` wrote the same files. Besides the project's three metadata files, petl's `RECORD`
+  differed on the line of the removed `bin/petl`, whose shebang names the interpreter (815 bytes
+  against 882).
+- `uv tool install` ignores the `.python-version` of the folder it runs in (3.13 and 3.14 tried) and
+  installed `awsds-workflows` on the only interpreter, CPython 3.12.3.
+
 ## The port verified against the original scripts
 
 On 2026-10-11, on the project the lab measured (`petl`, `requests`, `boto3`, `pyyaml`,
@@ -109,3 +137,9 @@ On 2026-10-11, on the project the lab measured (`petl`, `requests`, `boto3`, `py
   2.8.0 against 2.7.0) and the same 12-entry constraint block; after it and a re-lock, both wrote
   1,186,389 bytes, 12 packages from the image and only `petl` 1.7.29 in the folder, with equal
   `shasum` for every file but the same three metadata files.
+- **`package-job` against the fixed `package-uv-job.py`** (AWS-DataScience's `fcc760b`), on
+  2026-10-11 in the simulated space of "The interpreter `uv` needs", both naming the 3.13 venv
+  through `UV_PYTHON`, on `awsds-demo-deps` with its constraint block (`pyarrow==24.0.0`): the same
+  176 files and 1,735,841 bytes, equal but for the project's `RECORD`, `direct_url.json` (the
+  wheel's temporary path) and `uv_cache.json` (the build's time). The space's own build of that
+  folder ran in a job (`environments.md`).
