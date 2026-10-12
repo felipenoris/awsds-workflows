@@ -57,13 +57,6 @@ nomeia esse lugar.
   `package-task` com `--include` que imprima cada um.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
-- **O AWS-DataScience passar a usar o pacote.** O runbook e os exemplos de lá chamam os scripts, com
-  os placeholders antigos (`SANDBOX_ACCOUNT_ID`, `REGISTRY_ACCOUNT_ID`, `IMAGE_DIGEST`,
-  `DEMO_PREFIX`) e as mensagens em inglês nas tabelas de recusa. Fecha com a decisão do usuário e um
-  PR naquele repositório.
-- **O GitHub Pages do repositório.** O `docs.yml` falha em `actions/configure-pages` até a origem do
-  Pages ser "GitHub Actions" (Settings, Pages, Build and deployment). Fecha quando o usuário
-  configurar, antes do primeiro push na `main` com o workflow.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver
   um índice próprio (o CodeArtifact do D14 do AWS-DataScience), o controle de origem do pacote
   bloqueia o upstream para este nome. Fecha com o índice.

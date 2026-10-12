@@ -103,6 +103,17 @@ Instale sempre pelo endereço do repositório ou por uma pasta local, nunca pelo
 `awsds-workflows` está livre no PyPI (lido em 2026-10-11), e um pacote publicado lá com esse nome
 por outra pessoa seria instalado no lugar deste.
 
+O comando instalado pelo endereço, sem um commit fixo, acompanha a `main` com:
+
+```shell
+uv tool upgrade awsds-workflows
+```
+
+Medido em 2026-10-12 com o `uv` 0.12.13, numa instalação feita de um repositório git local que
+depois ganhou um commit na `main`: o `uv tool upgrade` instalou o commit novo. O commit instalado é
+o `commit_id` do arquivo `direct_url.json`, dentro de `$(uv tool dir)/awsds-workflows/`; o
+`uv tool list` mostra o endereço, e não o commit.
+
 O pacote pede o Python 3.12 ou mais novo, que o `uv` instala, e é testado no 3.12, no 3.13 e no
 3.14. Ele chama o `uv` como programa, e as dependências dele são o `packaging`, que avalia os
 marcadores do arquivo de ambiente da imagem ([A imagem do job](#a-imagem-do-job)), e o PyYAML,
@@ -181,6 +192,13 @@ aquela versão da imagem: uma imagem nova pede um arquivo novo e uma pasta de c�
 `uv pip list --format freeze` escreve só linhas `nome==versão`; o `pip freeze` escreve
 `nome @ file:///...` para um pacote instalado pelo conda, e o `package-job` recusa essa linha: se a
 ignorasse, o pacote pareceria ausente da imagem e entraria na pasta.
+
+Uma imagem construída de um projeto `uv`, como a do laboratório, dá o arquivo sem um espaço: o
+lock do projeto que a constrói, exportado na pasta dele com
+`uv export --frozen --no-dev --no-emit-project --no-hashes`. Com a imagem do laboratório, esse
+arquivo, com o cabeçalho e as anotações `# via` que o `uv` escreve, foi aceito pelo `package-job`
+e pelo `job-constraints`, que leu 452 versões para o CPython 3.13 em `x86_64-manylinux_2_28`
+(medido em 2026-10-12).
 
 **Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo,
 a versão do Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem do laboratório
@@ -288,9 +306,13 @@ tudo o que uma definição expressa, e a importação guarda cada campo: a defin
 importada só por `is_paused_upon_creation: false`, pela ordem das chaves e por textos longos
 dobrados.
 
-**Uma importação substitui o workflow.** Cada importação medida aparece no CloudTrail como
-`DeleteWorkflow` seguido de `CreateWorkflow`: o sufixo do ARN muda, e o histórico de execuções e de
-versões recomeça. O grupo de logs leva o nome do workflow e guarda os logs de cada execução.
+**Uma importação não substitui um workflow salvo.** Importado no editor de um workflow já salvo, o
+arquivo vira um workflow novo com o mesmo nome, e o save é recusado com `ConflictException: Workflow
+with given name already exists` (medido no laboratório em 2026-10-11). Apague antes o workflow
+antigo (lista *Workflows*, *Delete workflow*, e a palavra "confirm") e então salve: o CloudTrail
+registra `DeleteWorkflow` e depois `CreateWorkflow`, o sufixo do ARN muda, e o histórico de
+execuções e de versões recomeça. O grupo de logs leva o nome do workflow e guarda os logs de cada
+execução.
 
 **Erros do save e a saída de cada um**:
 
