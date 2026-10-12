@@ -127,11 +127,13 @@ pacote repete.
 ## Ferramentas Python
 
 - O `uv`: <https://docs.astral.sh/uv/>
-- O Terraform 1.16.5 e os providers `hashicorp/aws` 5.100.0 e `hashicorp/time` 0.14.2, baixados com
-  as somas SHA-256 em 2026-10-12 para validar as cópias ajustadas do Terraform do ambiente alvo:
+- O Terraform 1.16.5 e os providers `hashicorp/aws` 5.100.0 e `hashicorp/time` 0.14.2 e 0.14.0, a
+  versão que o lock do Terraform do alvo fixa, baixados com as somas SHA-256 em 2026-10-12 para
+  validar as cópias ajustadas do Terraform do ambiente alvo:
   <https://releases.hashicorp.com/terraform/1.16.5/>,
-  <https://releases.hashicorp.com/terraform-provider-aws/5.100.0/> e
-  <https://releases.hashicorp.com/terraform-provider-time/0.14.2/>
+  <https://releases.hashicorp.com/terraform-provider-aws/5.100.0/>,
+  <https://releases.hashicorp.com/terraform-provider-time/0.14.2/> e
+  <https://releases.hashicorp.com/terraform-provider-time/0.14.0/>
 - O botocore 1.43.111, num ambiente temporário em 2026-10-12, que chama a API do SageMaker em
   `https://api.sagemaker.sa-east-1.amazonaws.com`: <https://pypi.org/project/botocore/1.43.111/>
 - O `pdoc`: <https://pdoc.dev/>

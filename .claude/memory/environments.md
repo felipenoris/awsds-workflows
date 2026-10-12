@@ -177,21 +177,21 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   project role, reaches the SageMaker API, and wrote the task's log, which the portal showed. It is
   the lab's first refusal of 2026-10-10 (`docs/index.md`, "A permissão do projeto"); no job was
   created, and the message names no service control policy and no permissions boundary.
-- **The target's Terraform** (the user's copy, a commit of 2026-09-04, read 2026-10-12 from the
-  user's laptop): the domain, the blueprint configurations (Tooling, DataLake, MLExperiments), a
-  project profile that deploys Tooling and DataLake on create, and the project are CloudFormation
-  stacks. The VPC has no internet route; it has interface endpoints with private DNS for
-  `sagemaker.api`, `sagemaker.runtime`, `sts`, `ecr.api`, `ecr.dkr`, `glue`, `redshift`,
-  `redshift-data`, `logs`, `secretsmanager`, `datazone`, the Studio endpoint, `ssm`, `ssmmessages`
-  and `athena`, an S3 gateway endpoint with no endpoint policy, and no KMS endpoint. The project
-  bucket defaults to SSE-KMS with the account's customer key, and the Tooling blueprint
-  configuration sets no permissions boundary. The copy fails `terraform validate` on its own: its
-  root `main.tf` reads `module.redshift.security_group_id`, which the module does not output, so
-  it may lag what was applied. The grant of `docs/index.md` ("A permissão do projeto") went to the
-  user as adjusted copies of that Terraform (a new file in its compute module and a
-  `project_role_names` variable), `terraform validate` passing on provider aws 5.100.0 with a
-  stand-in for the missing output, and the rendered policy equal to the documented one. Not
-  applied yet.
+- **The target's Terraform** (the user's current version, sent on 2026-10-12 and read that day):
+  the domain, the blueprint configurations (Tooling, DataLake, MLExperiments), a project profile
+  that deploys Tooling and DataLake on create, and the project are CloudFormation stacks. The VPC
+  has no internet route, only a Transit Gateway route to another account's VPC; it has interface
+  endpoints with private DNS for `sagemaker.api`, `sagemaker.runtime`, `sts`, `ecr.api`,
+  `ecr.dkr`, `glue`, `redshift`, `redshift-data`, `logs`, `secretsmanager`, `datazone`, the Studio
+  endpoint, `ssm`, `ssmmessages` and `athena`, an S3 gateway endpoint with no endpoint policy, and
+  no KMS endpoint. The project bucket defaults to SSE-KMS with the account's customer key, and the
+  Tooling blueprint configuration sets no permissions boundary. It passes `terraform validate` on
+  its own with the providers its lock file pins (aws 5.100.0, time 0.14.0). The copy on the user's
+  laptop, a commit of 2026-09-04 read first that day, lagged it in 17 files and lacked 3, among
+  them the Redshift module's `security_group_id` output, so it failed `validate`. The grant of
+  `docs/index.md` ("A permissão do projeto") went to the user as adjusted copies of the current
+  version (a new file in its compute module and a `project_role_names` variable), `terraform
+  validate` passing and the rendered policy equal to the documented one. Not applied yet.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
 alvo para um workflow"): the worker's S3, SageMaker and log calls answered on 2026-10-12, and the

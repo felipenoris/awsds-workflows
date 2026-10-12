@@ -14,8 +14,8 @@ nomeia esse lugar.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker
   listou a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob`
   por permissão, e gravou o log da task (`environments.md`, "The target"). O Terraform do alvo
-  (cópia de 2026-09-04, lida em 2026-10-12) declara endpoints de interface com DNS privado para
-  `sagemaker.api`, `logs`, `sts`, `ecr.api` e `ecr.dkr`, entre outros, e nenhum para o KMS. As
+  (a versão atual do usuário, lida em 2026-10-12) declara endpoints de interface com DNS privado
+  para `sagemaker.api`, `logs`, `sts`, `ecr.api` e `ecr.dkr`, entre outros, e nenhum para o KMS. As
   leituras do serialize-db de 2026-09-21 e 2026-09-23, em que o SageMaker não respondeu, testaram
   `sagemaker.sa-east-1.amazonaws.com`, que não é o nome da API (`api.sagemaker...`). Não medido no
   alvo: o caminho do job, do pull da imagem à gravação da saída. Fecha com o primeiro job no alvo.
@@ -40,9 +40,9 @@ nomeia esse lugar.
 - **Nenhum `.zip` de `package-task` rodou num worker.** No laboratório, `.zip` montados à mão
   rodaram numa task Python e numa task Bash em 2026-10-11, depois que a política do endpoint de
   gateway do S3 passou a admitir `mwaa-serverless-code-files-*-<região>-prod`, o bucket da cópia
-  que o serviço guarda (`environments.md`). No alvo, o Terraform (cópia de 2026-09-04, lida em
-  2026-10-12) declara o endpoint de gateway sem política, o que admite esse bucket; o que está
-  aplicado não foi lido. Fecha com um `.zip` do `package-task` numa execução no alvo.
+  que o serviço guarda (`environments.md`). No alvo, o Terraform (a versão atual do usuário,
+  lida em 2026-10-12) declara o endpoint de gateway sem política, o que admite esse bucket; o que
+  está aplicado não foi lido. Fecha com um `.zip` do `package-task` numa execução no alvo.
 - **Nenhuma pasta do `package-job` rodou num job, e o pacote não rodou num space.** No laboratório,
   uma pasta gravada num space pelo script do AWS-DataScience, com os mesmos passos do `uv`, rodou
   num job em 2026-10-11, e o `package-job` gravou a mesma pasta num space simulado, com o

@@ -513,8 +513,8 @@ target definition names `4.5.2-cpu` until the user says which image the space ru
 (`.claude/memory/environments.md`, "The target"). The first workflow run there (18:12 UTC) passed
 its S3 sensor and failed on `DescribeProcessingJob`, the lab's first refusal; the grant of
 `docs/index.md` ("A permissão do projeto") went to the user as adjusted copies of the target's
-Terraform, read from the user's laptop, in the Claude project's library (`alvo/terraform/`), not
-applied yet.
+Terraform, built on the user's current version of it, in the Claude project's library
+(`alvo/terraform/`), not applied yet.
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session"); the target's Terraform grant applied and a run that creates
