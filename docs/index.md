@@ -287,8 +287,9 @@ responde. O que o laboratório leu no CloudTrail, nos logs de fluxo e no log do 
 No ambiente alvo, as leituras feitas a partir de um espaço (2026-09-21 e 2026-09-23) encontraram o
 endpoint de gateway do S3 e endpoints de interface para STS, Redshift, Glue, Athena, Secrets
 Manager e DataZone; os nomes do SageMaker, do KMS e do IAM resolveram para endereços públicos e não
-responderam. Se o worker do ambiente alvo usar a mesma rede, uma task de processamento não alcança
-o `CreateProcessingJob`; a primeira execução lá é a medida.
+responderam. Em 2026-10-12, de um espaço do projeto, o SageMaker respondeu a uma listagem de jobs e
+o SSM a uma leitura de parâmetro. A rede do worker do ambiente alvo ainda não foi medida; a primeira
+execução lá é a medida.
 
 ## Regras de autoria
 
@@ -954,8 +955,8 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   SageMaker. Ela pede `--subnet-name`, o padrão do `Name` das sub-redes privadas do projeto
   (`awsds-sandbox-private-*` no laboratório). Numa conta com mais de um projeto, `--project`
   escolhe o id.
-- **No ambiente alvo** o IAM e o SageMaker não responderam a partir de um espaço (leituras de
-  2026-09-21 e 2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
+- **No ambiente alvo** o IAM não respondeu a partir de um espaço (leituras de 2026-09-21 e
+  2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
   escreve de dentro de um espaço do projeto
   ([Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco)), e o `values` de uma
   máquina que alcança a conta também; os valores da imagem entram à mão.
@@ -1003,7 +1004,8 @@ Os nomes dos recursos vêm do código do SDK `sagemaker-studio` 1.1.35, igual ao
 ponto (lidos em 2026-10-11). Num espaço do laboratório, em 2026-10-11, o script imprimiu o mesmo
 JSON, byte a byte, que o `values` com `--profile` imprimiu para a mesma conta, as sub-redes na
 ordem das zonas inclusive. Num espaço do ambiente alvo, em 2026-10-12, o ambiente Tooling tinha
-`userRoleArn`, `securityGroup`, `privateSubnets` e `s3BucketPath`, e não tinha `kmsKeyArn`.
+`userRoleArn`, `securityGroup`, `privateSubnets` e `s3BucketPath`, e não tinha `kmsKeyArn`; sem a
+chave, o script imprimiu os outros nove valores.
 
 ### A definição que o portal salvou
 

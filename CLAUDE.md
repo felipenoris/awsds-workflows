@@ -506,11 +506,15 @@ AWS-DataScience's `examples/sandbox-orchestration/` in the target, the processin
 the user's request. `scripts/space_values.py` stopped in a target space because the project there
 has no project KMS key (no `kmsKeyArn` in the Tooling environment), and it now prints the other
 nine values with a warning, as the SDK creates its own job without a key
-(`.claude/memory/environments.md`, "The project space").
+(`.claude/memory/environments.md`, "The project space"). A target space then read the
+distribution's CPython 3.12.14, `sagemaker-user` with sudo, `~/shared` on s3fs and a SageMaker API
+that answers; public ECR has no SageMaker Distribution 4.15, its tags ending at 4.5.2, so the first
+target definition names `4.5.2-cpu` until the user says which image the space runs
+(`.claude/memory/environments.md`, "The target").
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
-("Design choices of the first session"); the first workflow in the target with the SageMaker
-Distribution 4.15, which measures the network question, the project role's permission and the
-image's facts; a Bash task over a `package-task` archive, which measures what the Bash section
-marks as not measured; the JSON of `scripts/space_values.py` in a target space; `package-job` run in
-a lab space and its folder in a job. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.
+("Design choices of the first session"); the first workflow in the target with its default image,
+which measures the worker's network, the project role's permission and the image's facts; a Bash
+task over a `package-task` archive, which measures what the Bash section marks as not measured;
+`package-job` run in a lab space and its folder in a job. Each one is an item in
+`.claude/memory/OPEN_QUESTIONS.md`.

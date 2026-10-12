@@ -144,7 +144,22 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   3.12.14 in `/opt/conda` (2026-09-21); container credentials lasting about an hour; `AWS_REGION`
   and `AWS_DEFAULT_REGION` both `sa-east-1`.
 - **The job image** starts as the SageMaker default image, SageMaker Distribution 4.15; the target
-  cannot create custom images yet (user statement of 2026-10-11).
+  cannot create custom images yet (user statement of 2026-10-11). The distribution's tags on public
+  ECR run to 4.5.2: the 4.x line holds 4.0 to 4.5, each version also tagged
+  `<major>.<minor>-cpu`, beside `4-cpu` and `latest-cpu`, and no 4.15 (read 2026-10-12 with the
+  anonymous token, `https://public.ecr.aws/v2/sagemaker/sagemaker-distribution/tags/list`).
+  Which version the target's space runs waits on the user.
+- **A space on 2026-10-12** (the user, 17:39 UTC, in `~/shared/<user>/workflows`):
+  `/opt/conda/bin/python --version` printed `Python 3.12.14`; `id` printed
+  `uid=1000(sagemaker-user) gid=100(users) groups=100(users)`; `sudo -n true` succeeded, so the
+  space's sudo needs no password; `mount | grep -i shared` printed
+  `s3fs on /mnt/custom-file-systems/s3/shared type fuse.s3fs (rw,nosuid,nodev,relatime,user_id=0,group_id=0,allow_other)`,
+  a mount the 2026-09-21 probe did not find, the S3 prefix behind it unread; the public SSM
+  parameter `/aws/service/sagemaker-distribution/ecr-account-id` answered with an AWS account, the
+  registry of the distribution's `sagemaker-distribution-prod` in `sa-east-1`; and `aws sagemaker
+  list-processing-jobs --max-results 1 --cli-connect-timeout 5` printed `{"ProcessingJobSummaries":
+  []}` with exit 0, so the SageMaker API answers from a space, where it timed out on 2026-09-21 and
+  2026-09-23. Whether it answered through an endpoint was not read.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
 alvo para um workflow"): they were taken from a space, and the worker's network was never read.
@@ -192,7 +207,9 @@ space ran the script on 2026-10-11; no target space has.
   without `KmsKeyId` and `VolumeKmsKeyId` (read 2026-10-12), so the script prints the other nine
   values and a warning since then. `CreateProcessingJob`'s API reference lists both fields as
   optional and does not say what encrypts the volume and the output without them (read
-  2026-10-12).
+  2026-10-12). At 17:39 UTC the script of this branch, run as `python space_values.py >
+  valores.json` in the same folder, printed the warning on stderr and the nine values; the order of
+  the subnets against the zones was not read there.
 - **The metadata file** `/opt/ml/metadata/resource-metadata.json` is where a space writes the
   project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`. The SDK reads
   a field at the file's root, then in `AdditionalMetadata`

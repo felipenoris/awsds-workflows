@@ -86,6 +86,15 @@ pacote repete.
   que cifra o volume e a saída sem eles (lidos em 2026-10-12):
   <https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProcessingClusterConfig.html> e
   <https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProcessingOutputConfig.html>
+- As tags da SageMaker Distribution no ECR público, que vão até a 4.5.2, lidas em 2026-10-12 com o
+  token anônimo: <https://public.ecr.aws/token/> e
+  <https://public.ecr.aws/v2/sagemaker/sagemaker-distribution/tags/list>
+- A política de suporte das imagens do Studio, com o ritmo da SageMaker Distribution: uma versão
+  maior a cada seis meses e menores mensais (lida em 2026-10-12):
+  <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-distribution.html>
+- Os espaços de código de um domínio IAM do SageMaker Unified Studio, cuja escolha de imagem dá o
+  exemplo "SageMaker Distribution 2.11" (lida em 2026-10-12):
+  <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/code-spaces-iam.html>
 - Os blueprints customizados, que nomeiam os parâmetros `privateSubnets` e `s3BucketArn` e nada do
   arquivo de metadados (lido em 2026-10-11):
   <https://aws.amazon.com/blogs/big-data/tailor-amazon-sagemaker-unified-studio-project-environments-to-your-needs-using-custom-blueprints/>
