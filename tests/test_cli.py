@@ -23,7 +23,8 @@ def test_help_exits_with_zero(
         cli.main(["--help"])
     assert exit_info.value.code == 0
     printed = capsys.readouterr().out
-    for command in ("package-task", "package-job", "job-constraints", "render", "values"):
+    commands = ("package-task", "package-job", "job-constraints", "render", "values", "compare")
+    for command in commands:
         assert command in printed
 
 
@@ -309,3 +310,47 @@ def test_values_merges_the_file_over_the_account(
         "PROJECT_ID": "abc123",
         "REGION": "sa-east-1",
     }
+
+
+def test_compare_prints_the_differences_and_exits_with_zero(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``compare`` imprime as linhas das diferenças e termina com 0."""
+    first = tmp_path / "workflow.yaml"
+    first.write_text("meu-job:\n  dag_id: meu-job\n  tasks: {}\n", encoding="utf-8")
+    second = tmp_path / "salvo.yaml"
+    second.write_text(
+        "meu-job:\n  tasks: {a: 1}\n  dag_id: meu-job\n  is_paused_upon_creation: false\n",
+        encoding="utf-8",
+    )
+    assert cli.main(["compare", str(first), str(second)]) == 0
+    assert capsys.readouterr().out == (
+        "+ meu-job.tasks.a: 1\n+ meu-job.is_paused_upon_creation: false\n"
+    )
+
+
+def test_compare_of_the_same_content_says_so(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Duas definições que diferem só no texto têm o mesmo conteúdo, e ``compare`` o diz."""
+    first = tmp_path / "workflow.yaml"
+    first.write_text("# layout\nmeu-job: {dag_id: meu-job}\n", encoding="utf-8")
+    second = tmp_path / "salvo.yaml"
+    second.write_text("meu-job:\n  dag_id: >-\n    meu-job\n", encoding="utf-8")
+    assert cli.main(["compare", str(first), str(second)]) == 0
+    assert capsys.readouterr().out == "as definições têm o mesmo conteúdo\n"
+
+
+def test_compare_of_a_missing_file_is_refused_with_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Um arquivo que falta termina ``compare`` com 1 e o motivo na saída de erro."""
+    first = tmp_path / "workflow.yaml"
+    first.write_text("meu-job: {}\n", encoding="utf-8")
+    assert cli.main(["compare", str(first), str(tmp_path / "salvo.yaml")]) == 1
+    captured = capsys.readouterr()
+    assert "salvo.yaml não existe" in captured.err
+    assert captured.out == ""

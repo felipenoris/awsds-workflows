@@ -27,5 +27,6 @@ class RefusalError(Exception):
     Cobre o projeto sem ``uv.lock``, o arquivo ou a pasta que falta, a pasta de saída que já
     existe, o projeto com módulos de extensão, o conteúdo acima do limite do worker, o lock que
     discorda do ambiente do job, a linha do arquivo de ambiente que não é ``nome==versão``, o
-    ``uv`` ou o ``aws`` que terminaram com erro e o placeholder sem valor.
+    ``uv`` ou o ``aws`` que terminaram com erro, o placeholder sem valor e a definição de workflow
+    que não é YAML ou não é um mapeamento.
     """

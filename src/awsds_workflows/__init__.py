@@ -3,11 +3,12 @@
 .. include:: ../../docs/index.md
 """
 
-from awsds_workflows import cli, errors, package_job, package_task, render
+from awsds_workflows import cli, compare, errors, package_job, package_task, render
 from awsds_workflows.cli import main
 
 __all__ = [
     "cli",
+    "compare",
     "errors",
     "main",
     "package_job",

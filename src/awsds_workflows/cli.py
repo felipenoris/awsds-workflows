@@ -13,10 +13,13 @@ depois para o ambiente do SageMaker, que não tem internet.
 - ``render`` imprime uma definição com os placeholders preenchidos, ou, com ``--placeholders``, uma
   definição salva com os valores trocados pelos placeholders (``awsds_workflows.render``).
 - ``values`` imprime os valores em JSON, o formato de ``--values-file``.
+- ``compare`` imprime as diferenças de conteúdo entre duas definições de workflow, como a cópia
+  versionada e a que o portal salvou com os placeholders de volta (``awsds_workflows.compare``).
 
 Os valores de ``render`` e ``values`` vêm de ``--values-file``, de ``--profile`` (a leitura da
 conta, que pede ``--subnet-name``) ou dos dois, e então os do arquivo completam e substituem os da
 conta. Uma recusa imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
+O ``compare`` termina com 0 com ou sem diferenças.
 
 Exemplo:
 
@@ -31,6 +34,7 @@ Exemplo:
     awsds-workflows render meu-workflow.yaml --values-file valores.json > /tmp/meu-workflow.yaml
     awsds-workflows render --placeholders salvo.yaml --values-file valores.json
     awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*' > valores.json
+    awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
 """
 
 from __future__ import annotations
@@ -40,7 +44,7 @@ import json
 import sys
 from pathlib import Path
 
-from awsds_workflows import package_job, package_task, render
+from awsds_workflows import compare, package_job, package_task, render
 from awsds_workflows.errors import RefusalError
 
 __all__ = ["main"]
@@ -87,6 +91,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_job_constraints_parser(commands)
     _add_render_parser(commands)
     _add_values_parser(commands)
+    _add_compare_parser(commands)
     return parser
 
 
@@ -214,6 +219,23 @@ def _add_values_parser(
     )
     _add_value_source_arguments(command)
     command.set_defaults(handler=_values)
+
+
+def _add_compare_parser(
+    commands: argparse._SubParsersAction,
+) -> None:
+    """[private] O subcomando ``compare``."""
+    command = commands.add_parser(
+        "compare",
+        help="imprime as diferenças de conteúdo entre duas definições de workflow em YAML",
+    )
+    command.add_argument("first", type=Path, help="a primeira definição, como a cópia versionada")
+    command.add_argument(
+        "second",
+        type=Path,
+        help="a segunda definição, como a que o portal salvou, com os placeholders de volta",
+    )
+    command.set_defaults(handler=_compare)
 
 
 def _add_value_source_arguments(
@@ -356,3 +378,16 @@ def _values_from(
     if arguments.values_file is not None:
         values.update(render.load_values(arguments.values_file))
     return values
+
+
+def _compare(
+    arguments: argparse.Namespace,
+) -> int:
+    """[private] Imprime as linhas das diferenças, ou que as definições têm o mesmo conteúdo."""
+    differences = compare.compare_definitions(arguments.first, arguments.second)
+    if not differences:
+        print("as definições têm o mesmo conteúdo")
+        return 0
+    for line in differences:
+        print(line)
+    return 0
