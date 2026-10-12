@@ -123,16 +123,19 @@ def fake_aws(
 
 def project_responses(
     image: str = "111122223333.dkr.ecr.us-west-2.amazonaws.com/imagem@sha256:abcd",
+    key_id: str | None = "chave-exemplo",
 ) -> dict[str, object]:
-    """As respostas do ``aws`` para uma conta com um projeto."""
+    """As respostas do ``aws`` para uma conta com um projeto; ``key_id`` ``None`` tira a etiqueta
+    ``KmsKeyId`` do papel."""
     tags = [
         {"Key": "AmazonDataZoneProject", "Value": "abc123"},
         {"Key": "AmazonDataZoneDomain", "Value": "dzd_exemplo"},
         {"Key": "AmazonDataZoneScopeName", "Value": "dev"},
         {"Key": "DomainBucketName", "Value": "meu-bucket"},
-        {"Key": "KmsKeyId", "Value": "chave-exemplo"},
         {"Key": "VpcId", "Value": "vpc-exemplo"},
     ]
+    if key_id is not None:
+        tags.append({"Key": "KmsKeyId", "Value": key_id})
     return {
         "configure get region": "us-west-2\n",
         "sts get-caller-identity": {"Account": "111122223333"},
@@ -173,6 +176,22 @@ def test_read_values_reads_the_project_from_the_role_tags(
     commands = [" ".join(call) for call in calls]
     assert [command for command in commands if "describe-image-version" in command] == []
     assert [command for command in commands if "group-name,Values=datazone-abc123-dev" in command]
+
+
+@pytest.mark.parametrize("key_id", [None, ""], ids=["sem etiqueta", "etiqueta vazia"])
+def test_read_values_leaves_out_a_missing_project_key(
+    key_id: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Um papel sem a etiqueta ``KmsKeyId``, ou com ela vazia, dá os outros valores, sem
+    ``PROJECT_KEY_ID``: um projeto pode não ter chave KMS própria, como o do ambiente alvo em
+    2026-10-12."""
+    responses = project_responses(key_id=key_id)
+    monkeypatch.setattr(render, "_run_aws", fake_aws(responses, []))
+
+    values = render.read_values("perfil", subnet_name="projeto-private-*")
+    assert "PROJECT_KEY_ID" not in values
+    assert values["PROJECT_SG"] == "sg-exemplo"
 
 
 def test_read_values_reads_the_custom_image_uri(

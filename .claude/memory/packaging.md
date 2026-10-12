@@ -80,9 +80,10 @@ gid 997, and a script executed by its path ran (`environments.md`, "The first Ba
 
 - A `ProcessingInput` downloads an S3 prefix into a path under `/opt/ml/processing/`, and an
   extension module cannot be imported from a zip on `sys.path`, so the job's code is a folder.
-- `PYTHONPATH` comes before the image's site-packages, so a package in both shadows the image's
-  copy: the folder holds only what the image lacks, at equal versions for everything shared
-  (AWS-DataScience documents the numpy failure in `images/dev-env/python/pyproject.toml`).
+- `PYTHONPATH` comes before the image's site-packages, as in a Bash task's `python3` on the worker
+  and unlike a Python task, so a package in both shadows the image's copy: the folder holds only
+  what the image lacks, at equal versions for everything shared (AWS-DataScience documents the
+  numpy failure in `images/dev-env/python/pyproject.toml`).
 - The house image holds `onnxruntime` 1.30.0, which publishes no wheel older than `manylinux_2_28`
   (measured 2026-10-11), so its glibc is at least 2.28 and `manylinux2014` cannot describe it;
   `JOB_PLATFORM` is `x86_64-manylinux_2_28`.

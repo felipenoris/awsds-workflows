@@ -10,10 +10,10 @@ regras separam essa pasta do ``.zip`` de uma task (``awsds_workflows.package_tas
   padrão, ou o ambiente que uma imagem customizada traz.
 - A entrada é uma pasta, e não um arquivo: um ``ProcessingInput`` baixa um prefixo do S3, e um
   módulo de extensão não é importado de um ``.zip`` no ``sys.path``.
-- A precedência é a inversa da do worker: o ``PYTHONPATH`` vem antes do ``site-packages`` da
-  imagem, e um pacote presente nos dois esconderia a cópia da imagem. Por isso a pasta leva só o
-  que a imagem não tem, e as versões do projeto têm de ser iguais às da imagem em tudo o que os
-  dois compartilham.
+- A precedência é a do ``python3`` de uma task Bash, e a inversa da de uma task Python: o
+  ``PYTHONPATH`` vem antes do ``site-packages`` da imagem, e um pacote presente nos dois esconderia
+  a cópia da imagem. Por isso a pasta leva só o que a imagem não tem, e as versões do projeto têm
+  de ser iguais às da imagem em tudo o que os dois compartilham.
 
 ``build_folder`` compara o fechamento travado do projeto, a lista das dependências nas versões do
 ``uv.lock``, com o ambiente da imagem, recusa uma versão que discorda e grava a pasta com o projeto

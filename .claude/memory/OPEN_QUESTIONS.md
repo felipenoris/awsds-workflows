@@ -54,6 +54,15 @@ nomeia esse lugar.
   na extração (`environments.md`, "The first Bash task"; `docs/index.md`, "O código do `.zip` no
   comando"). Não medidos: onde o worker põe um `Code` que é um `.py` ou um `.sh` sozinho, e o `env`
   sem `append_env`, lido só no código do operador. Fecha com uma task que use cada um.
+- **Por que a cópia do worker vence numa task Python.** O PyYAML 6.0.2 do worker venceu o 6.0.1 de
+  um `.zip` numa task Python (laboratório, 2026-10-11), e o `six` 1.16.0 de um `.zip` venceu o do
+  worker numa task Bash, cujo `PYTHONPATH` começa por `/usr/local/airflow/dags` (ambiente alvo,
+  2026-10-12). Não lido: o `sys.path` do processo de uma task Python. Se ele também começa pela
+  pasta do `.zip`, só vence o módulo que o worker importou antes da função da task (o `yaml`, o
+  `six` do Airflow), e um pacote do worker que a função importa primeiro sai do `.zip`; a
+  docstring de `package_task.WORKER_PROVIDED` e `docs/index.md` ("O que o worker espera") dizem
+  que, numa task Python, o pacote pré-instalado vence. Fecha com uma task Python que imprima o
+  `sys.path` e o `__file__` de cada pacote que importa.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

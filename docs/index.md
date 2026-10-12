@@ -205,11 +205,13 @@ arquivo, com o cabeçalho e as anotações `# via` que o `uv` escreve, foi aceit
 e pelo `job-constraints`, que leu 452 versões para o CPython 3.13 em `x86_64-manylinux_2_28`
 (medido em 2026-10-12).
 
-**Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo,
-a versão do Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem do laboratório
+**Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo
+e o usuário do contêiner de um job. Num espaço do ambiente alvo, em 2026-10-12,
+`/opt/conda/bin/python` era o CPython 3.12.14 e o usuário era `sagemaker-user` (uid 1000), com
+`sudo` sem senha; a versão da distribuição que o espaço roda não foi lida. A imagem do laboratório
 roda como `sagemaker-user` (uid 1000), e o `sudo` dela funciona dentro de um job (medido em
-2026-10-11); a distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário, e o
-primeiro job no ambiente alvo é a medida.
+2026-10-11); a distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário num
+job, e o primeiro job no ambiente alvo é a medida.
 
 ## A permissão do projeto
 
@@ -431,10 +433,10 @@ task:
 - **O interpretador é o da imagem do job**, e não o do worker.
 - **A entrada é uma pasta, e não um arquivo.** Um `ProcessingInput` baixa um prefixo do S3, e um
   módulo de extensão (um pacote com código compilado) não é importado de um `.zip` no `sys.path`.
-- **A precedência é a inversa da do worker.** O `PYTHONPATH` vem antes do `site-packages` da
-  imagem, então um pacote presente nos dois esconderia a cópia da imagem. A pasta leva só o que a
-  imagem não tem, e as versões do projeto têm de ser iguais às da imagem em tudo o que os dois
-  compartilham.
+- **A precedência é a do `python3` de uma task Bash, e a inversa da de uma task Python.** O
+  `PYTHONPATH` vem antes do `site-packages` da imagem, então um pacote presente nos dois esconderia
+  a cópia da imagem. A pasta leva só o que a imagem não tem, e as versões do projeto têm de ser
+  iguais às da imagem em tudo o que os dois compartilham.
 
 1. **Prepare o projeto.**
    - Ele tem um `pyproject.toml` e um `uv.lock` em dia.
@@ -982,6 +984,11 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   SageMaker. Ela pede `--subnet-name`, o padrão do `Name` das sub-redes privadas do projeto
   (`awsds-sandbox-private-*` no laboratório). Numa conta com mais de um projeto, `--project`
   escolhe o id.
+- **Um projeto sem chave KMS própria**, como o do ambiente alvo em 2026-10-12, não dá
+  `PROJECT_KEY_ID`. Quando o papel não tem a etiqueta `KmsKeyId`, ou a tem vazia, a leitura da
+  conta dá os outros valores, e o `render` e o `values` avisam na saída de erro, como o script de
+  [Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco). Uma definição que nomeia
+  `<PROJECT_KEY_ID>` é então recusada pelo `render`.
 - **No ambiente alvo** o IAM não respondeu a partir de um espaço (leituras de 2026-09-21 e
   2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
   escreve de dentro de um espaço do projeto

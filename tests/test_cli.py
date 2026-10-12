@@ -312,6 +312,55 @@ def test_values_merges_the_file_over_the_account(
     }
 
 
+def test_values_without_the_project_key_warns_and_exits_with_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Uma leitura da conta sem ``PROJECT_KEY_ID`` imprime os outros valores, termina com 0 e
+    avisa na saída de erro."""
+
+    def fake_read_values(
+        profile: str,
+        **options: object,
+    ) -> dict[str, str]:
+        """Devolve os valores de uma conta cujo papel não tem a etiqueta ``KmsKeyId``."""
+        return {"PROJECT_ID": "abc123"}
+
+    monkeypatch.setattr(render, "read_values", fake_read_values)
+    code = cli.main(["values", "--profile", "perfil", "--subnet-name", "projeto-private-*"])
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(captured.out) == {"PROJECT_ID": "abc123"}
+    assert "não tem a etiqueta KmsKeyId" in captured.err
+    assert "os valores saem sem PROJECT_KEY_ID" in captured.err
+
+
+def test_values_with_the_project_key_from_the_file_does_not_warn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A chave que o arquivo dá completa a leitura da conta, e a saída de erro fica vazia."""
+
+    def fake_read_values(
+        profile: str,
+        **options: object,
+    ) -> dict[str, str]:
+        """Devolve os valores de uma conta cujo papel não tem a etiqueta ``KmsKeyId``."""
+        return {"PROJECT_ID": "abc123"}
+
+    monkeypatch.setattr(render, "read_values", fake_read_values)
+    values = tmp_path / "valores.json"
+    values.write_text(json.dumps({"PROJECT_KEY_ID": "chave-exemplo"}), encoding="utf-8")
+
+    arguments = ["values", "--profile", "perfil", "--subnet-name", "projeto-private-*"]
+    code = cli.main([*arguments, "--values-file", str(values)])
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(captured.out)["PROJECT_KEY_ID"] == "chave-exemplo"
+    assert captured.err == ""
+
+
 def test_compare_prints_the_differences_and_exits_with_zero(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

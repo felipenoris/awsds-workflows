@@ -521,10 +521,16 @@ At 19:35 UTC a Bash task over a `package-task` archive with two `--include` scri
 the worker kept the scripts' executable bit, a module ran with `python3 -m` without a `cd`, a
 script ran by its full path, the archive's `six` came before the worker's, the result's sha256 was
 the same, and the task that tried PyPI failed with errno 101 as designed
-(`.claude/memory/environments.md`, "The first Bash task").
+(`.claude/memory/environments.md`, "The first Bash task"). A review of these findings, by the
+user's request of 20:22 UTC, made `values` and `render` take a project role without a `KmsKeyId`
+tag, with the warning `space_values.py` prints, wrote that a job's `PYTHONPATH` precedence is a
+Bash task's and the inverse of a Python task's (`package_job`, `docs/index.md`), dropped the
+claim that the target has no SageMaker endpoint from `render`, and left the Python task's
+precedence mechanism as an open question.
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session"); the target's Terraform grant applied and a run that creates
 the job, which measures the image's facts and the job's path; a Bash task whose `Code` is a lone
-`.py` or `.sh`, and one with `env` and no `append_env`; `package-job` run in a lab space and its
-folder in a job. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.
+`.py` or `.sh`, and one with `env` and no `append_env`; a Python task that prints its `sys.path`;
+`package-job` run in a lab space and its folder in a job. Each one is an item in
+`.claude/memory/OPEN_QUESTIONS.md`.
