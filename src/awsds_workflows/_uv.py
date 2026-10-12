@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 from awsds_workflows.errors import RefusalError
@@ -47,13 +48,40 @@ def run(
     return completed.stdout
 
 
-def _target_options(
+def export_closure(
+    project: Path,
+    pruned: Sequence[str] = (),
+) -> str:
+    """[protected] O fechamento travado do projeto como texto de requisitos, para os empacotadores:
+    cada dependência na versão do ``uv.lock``, com os hashes, sem o próprio projeto e sem o grupo
+    ``dev``.
+
+    ``--locked`` recusa um lock desatualizado, e ``--prune`` tira cada pacote de ``pruned`` com as
+    dependências que só ele usa.
+
+    :param project: a pasta do projeto, com ``pyproject.toml`` e ``uv.lock``.
+    :param pruned: os pacotes a tirar do fechamento, pelo nome no PyPI.
+    :return: a saída do ``uv export``, um ``nome==versão`` por pacote, com o marcador PEP 508 de
+        quem o tem e as linhas dos hashes.
+    :raises awsds_workflows.errors.RefusalError: quando o ``uv`` recusa o lock ou não acha o Python
+        que o projeto pede.
+    """
+    arguments = ["export", "--locked", "--no-dev", "--no-emit-project", "--no-header", "--quiet"]
+    for name in pruned:
+        arguments += ["--prune", name]
+    return run(arguments, cwd=project)
+
+
+def _install_arguments(
+    target: Path,
     python: str,
     platform: str,
 ) -> list[str]:
-    """[private] As opções do ``uv pip install`` que escolhem os wheels do alvo, e não os desta
-    máquina."""
-    return ["--python-version", python, "--python-platform", platform]
+    """[private] O começo de cada ``uv pip install`` dos empacotadores: em ``target``, sem
+    dependências, com os wheels do alvo, e não os desta máquina."""
+    arguments = ["pip", "install", "--quiet", "--target", str(target), "--no-deps"]
+    arguments += ["--python-version", python, "--python-platform", platform]
+    return arguments
 
 
 def install_requirements(
@@ -76,10 +104,8 @@ def install_requirements(
     :raises awsds_workflows.errors.RefusalError: quando uma dependência não publica wheel para o
         alvo ou um hash não confere.
     """
-    arguments = ["pip", "install", "--quiet", "--target", str(target), "--no-deps"]
-    arguments += ["--only-binary", ":all:"]
-    arguments += _target_options(python, platform)
-    arguments += ["--requirements", str(requirements)]
+    arguments = _install_arguments(target, python, platform)
+    arguments += ["--only-binary", ":all:", "--requirements", str(requirements)]
     run(arguments)
 
 
@@ -128,8 +154,7 @@ def install_wheels(
     :raises awsds_workflows.errors.RefusalError: quando o ``requires-python`` de um wheel não admite
         a versão do alvo.
     """
-    arguments = ["pip", "install", "--quiet", "--target", str(target), "--no-deps"]
-    arguments += _target_options(python, platform)
+    arguments = _install_arguments(target, python, platform)
     arguments += [str(wheel) for wheel in wheels]
     run(arguments)
 

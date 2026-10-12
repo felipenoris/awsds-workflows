@@ -9,6 +9,7 @@ documentação da AWS.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -101,7 +102,7 @@ def test_load_values_refuses_a_missing_file(
 def fake_aws(
     responses: dict[str, object],
     calls: list[list[str]],
-):
+) -> Callable[[list[str]], str]:
     """Um dublê de ``render._run_aws`` que responde pelo primeiro subcomando que casa."""
 
     def run_aws(

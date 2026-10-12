@@ -143,3 +143,13 @@ On 2026-10-11, on the project the lab measured (`petl`, `requests`, `boto3`, `py
   176 files and 1,735,841 bytes, equal but for the project's `RECORD`, `direct_url.json` (the
   wheel's temporary path) and `uv_cache.json` (the build's time). The space's own build of that
   folder ran in a job (`environments.md`).
+- **The code review of 2026-10-12 against `main` (`0027433`)**: `uv export` moved to
+  `_uv.export_closure`, which both packagers call (`package_task` writes its text to
+  `requirements.txt`, where `--output-file` wrote it before), the `uv pip install` prefix to
+  `_uv._install_arguments`, and `build_folder` split into `_check_inputs`, `_locked_closure` and
+  `_write_requirements`. On a locked project depending on `requests` and `six`, with an environment
+  file of the lock minus `six`, the old code built twice (the control) and the new code once: the
+  `.zip` has the same 144 entries and 2,077,012 unzipped bytes, the folder the same 16 files (`six`
+  vendored, five packages from the environment), and both differ only in the project's `RECORD`,
+  `direct_url.json` and `uv_cache.json`, the three files that also differ between the two builds of
+  the old code.

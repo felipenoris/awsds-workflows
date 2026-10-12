@@ -17,7 +17,7 @@ import os
 import subprocess
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -93,7 +93,7 @@ def replace_resource(
 def fake_read_tooling_environment(
     result: dict[str, Any] | Exception,
     calls: list[str],
-):
+) -> Callable[[], tuple[str, str, dict[str, Any]]]:
     """Um dublê de ``space_values._read_tooling_environment`` que grava a chamada e devolve o
     projeto ``abc123``, o domínio ``dzd_exemplo`` e o ambiente dado, ou levanta a exceção dada."""
 

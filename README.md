@@ -3,9 +3,12 @@
 
 # awsds-workflows
 
-Empacota o código das tasks de um workflow do MWAA Serverless e renderiza as definições de workflow
-de um projeto do SageMaker Unified Studio. O procedimento completo está na documentação do pacote,
-<https://felipenoris.github.io/awsds-workflows/>, gerada de `docs/index.md` e das docstrings.
+Ferramentas para montar workflows num projeto do SageMaker Unified Studio, os workflows que o
+Amazon MWAA Serverless executa: o pacote empacota o código de uma task Python ou Bash e o de um job
+de processamento do SageMaker, e preenche o arquivo de definição do workflow com os valores do
+projeto. O procedimento completo, escrito para quem vai montar o primeiro workflow, está na
+documentação do pacote, <https://felipenoris.github.io/awsds-workflows/>, gerada de `docs/index.md`
+e das docstrings.
 
 ## Requisitos
 
@@ -41,8 +44,8 @@ constroem projetos de teste com o `uv` e precisam do PyPI; `-m "not network"` os
 grava o site em `site/`, a mesma geração que o workflow `docs.yml` publica a cada push na `main`.
 
 O workflow [`tests.yml`](.github/workflows/tests.yml) roda o Ruff e os testes nos Pythons 3.12,
-3.13 e 3.14. Em outra versão, o `--isolated` roda os testes num ambiente temporário, sem trocar o
-`.venv/`:
+3.13 e 3.14. Para rodar os testes em outra versão sem trocar o `.venv/`, o `--isolated` usa um
+ambiente temporário:
 
 ```shell
 uv run --isolated --python 3.12 pytest

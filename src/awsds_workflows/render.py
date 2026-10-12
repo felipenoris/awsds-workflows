@@ -10,9 +10,9 @@ e para o portal, nunca para o repositório.
 Os valores vêm de um arquivo JSON (``load_values``), da conta pelo ``aws`` (``read_values``), ou dos
 dois, e então os do arquivo completam e substituem os da conta. A leitura da conta chama o STS, o
 IAM, o EC2 e, para uma imagem customizada, o SageMaker; onde essas APIs não respondem, como no
-SageMaker alvo, que não tem endpoint para o IAM nem para o SageMaker (leituras do serialize-db de
-2026-09-21 e 2026-09-23), os valores vêm só do arquivo. Os valores que dependem da imagem do job,
-como ``JOB_IMAGE_URI`` e o interpretador, vêm do arquivo quando a imagem é a padrão.
+ambiente alvo, que não tem endpoint para o IAM nem para o SageMaker (leituras de 2026-09-21 e
+2026-09-23, a partir de um espaço), os valores vêm só do arquivo. Os valores que dependem da imagem
+do job, como ``JOB_IMAGE_URI`` e o interpretador, vêm do arquivo quando a imagem é a padrão.
 
 Os nomes que ``read_values`` preenche:
 

@@ -2,7 +2,7 @@
 construída pelo ``uv`` sobre um projeto de teste, e as recusas.
 
 O ambiente da imagem é um arquivo ``nome==versão`` gravado pelo teste, como o que
-``uv pip list --format freeze`` escreve num space. Os testes marcados ``network`` travam um projeto
+``uv pip list --format freeze`` escreve num espaço. Os testes marcados ``network`` travam um projeto
 que depende do ``idna`` na versão do ambiente e do ``six``, que o ambiente não tem: a pasta leva o
 ``six`` e o projeto, e não o ``idna``. Os outros testes não chamam o ``uv``.
 """

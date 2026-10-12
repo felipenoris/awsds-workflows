@@ -1,9 +1,10 @@
 """[public] A pasta de código de um job de processamento do SageMaker, para a imagem que o job
 nomeia.
 
-O job roda o interpretador da imagem sem rede, então cada dependência do projeto ou já está no
-ambiente da imagem ou viaja na entrada de código; nada é instalado na execução. Três regras
-separam essa entrada do ``.zip`` de uma task (``awsds_workflows.package_task``):
+Um job de processamento roda um contêiner com a imagem que a task escolhe, sem rede: o
+interpretador é o da imagem, e cada dependência do projeto ou já está no ambiente da imagem ou
+viaja na entrada de código do job, uma pasta baixada do S3; nada é instalado na execução. Três
+regras separam essa pasta do ``.zip`` de uma task (``awsds_workflows.package_task``):
 
 - O interpretador é o da imagem do job, e não o do worker: o da SageMaker Distribution na imagem
   padrão, ou o ambiente que uma imagem customizada traz.
@@ -14,9 +15,13 @@ separam essa entrada do ``.zip`` de uma task (``awsds_workflows.package_task``):
   que a imagem não tem, e as versões do projeto têm de ser iguais às da imagem em tudo o que os
   dois compartilham.
 
+``build_folder`` compara o fechamento travado do projeto, a lista das dependências nas versões do
+``uv.lock``, com o ambiente da imagem, recusa uma versão que discorda e grava a pasta com o projeto
+e os pacotes que a imagem não tem, em wheels do interpretador e da plataforma do job.
+
 O ambiente da imagem chega num arquivo de requisitos, uma linha ``nome==versão`` por pacote, com um
-marcador PEP 508 opcional. Num space que roda a imagem do job, sem internet, com o interpretador
-que o job vai chamar:
+marcador PEP 508 opcional. Gere-o num espaço que roda a imagem do job, sem internet, com o
+interpretador que o job vai chamar:
 
 .. code-block:: shell
 
@@ -32,7 +37,7 @@ conda, é recusada: ignorada, ela faria o pacote parecer ausente da imagem e ent
 A plataforma padrão, ``x86_64-manylinux_2_28``, pede glibc 2.28 ou mais nova na imagem. A imagem do
 laboratório tem o ``onnxruntime`` 1.30.0, que não publica wheel anterior a ``manylinux_2_28``
 (medido em 2026-10-11), então ``manylinux2014`` não a descreve; numa outra imagem, ``ldd --version``
-no space diz a glibc.
+no espaço diz a glibc.
 
 Medido em 2026-10-11 sobre a imagem do laboratório, ``awsds-sandbox-dev-env``, e um projeto que
 dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock novo discordou da imagem em
@@ -40,7 +45,7 @@ dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock novo discordo
 impresso e um novo ``uv lock``, 12 pacotes vieram da imagem e só o ``petl`` entrou na pasta,
 de 1,2 MB.
 
-Num job do laboratório, em 2026-10-11, uma pasta com essa forma, gravada num space por um script
+Num job do laboratório, em 2026-10-11, uma pasta com essa forma, gravada num espaço por um script
 com os mesmos passos do ``uv``, rodou sem rede: o ``petl`` (Python puro) e o módulo de extensão do
 ``msgspec`` foram importados da pasta, e o ``pyarrow`` do ambiente da imagem. Nenhuma pasta
 gravada por ``build_folder`` rodou num job até essa data.
@@ -86,6 +91,8 @@ JOB_PLATFORM = "x86_64-manylinux_2_28"
 """[public] A plataforma padrão do job, Linux x86_64 com glibc 2.28 ou mais nova, no formato do
 ``--python-platform`` do ``uv``."""
 
+# Um requisito nome==versão: o nome, a versão e, depois de ";", o marcador PEP 508; a "\" no fim
+# continua a linha nos hashes que o uv export escreve abaixo dela.
 _PIN = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;\\]+)(?:\s*;\s*([^\\]+?))?\s*\\?$")
 
 
@@ -218,18 +225,9 @@ def build_folder(
     # Os caminhos absolutos, porque o uv roda dentro da pasta do projeto.
     project = project.resolve()
     output = output.resolve()
-    if not (project / "uv.lock").is_file():
-        raise RefusalError(f"não há uv.lock em {project}: rode uv lock lá antes")
-    if output.exists():
-        raise RefusalError(f"{output} já existe: nomeie uma pasta nova, e nada é sobrescrito")
+    _check_inputs(project, output)
     in_environment = environment_versions(environment, python, platform)
-
-    # O fechamento travado do projeto, com os hashes, e a parte dele que vale para o job.
-    exported = _uv.run(
-        ["export", "--locked", "--no-dev", "--no-emit-project", "--no-header", "--quiet"],
-        cwd=project,
-    )
-    closure = _applicable(_read_pins(exported, "uv export"), _marker_environment(python, platform))
+    closure = _locked_closure(project, python, platform)
     from_environment, conflicts, vendored = _compare(closure, in_environment)
     if conflicts:
         raise RefusalError(_conflict_message(conflicts, from_environment, in_environment))
@@ -240,8 +238,7 @@ def build_folder(
         # Os pacotes que a imagem não tem, em wheels do job, com os hashes do lock.
         if vendored:
             requirements = Path(temporary) / "vendored.txt"
-            blocks = ["\n".join(vendored[name].lines) for name in sorted(vendored)]
-            requirements.write_text("\n".join(blocks) + "\n", encoding="utf-8")
+            _write_requirements(vendored, requirements)
             _uv.install_requirements(requirements, stage, python, platform)
 
         # O pacote do projeto, de um wheel construído a partir do pyproject.toml.
@@ -255,11 +252,44 @@ def build_folder(
         path=output,
         size_bytes=sum(path.stat().st_size for path in files),
         from_environment=from_environment,
-        vendored={name: vendored[name].version for name in sorted(vendored)},
+        vendored={name: pin.version for name, pin in vendored.items()},
         top_level=sorted(path.name for path in output.iterdir()),
         python=python,
         platform=platform,
     )
+
+
+def _check_inputs(
+    project: Path,
+    output: Path,
+) -> None:
+    """[private] Recusa, antes de qualquer download, o projeto sem ``uv.lock`` e a pasta de saída
+    que já existe."""
+    if not (project / "uv.lock").is_file():
+        raise RefusalError(f"não há uv.lock em {project}: rode uv lock lá antes")
+    if output.exists():
+        raise RefusalError(f"{output} já existe: nomeie uma pasta nova, e nada é sobrescrito")
+
+
+def _locked_closure(
+    project: Path,
+    python: str,
+    platform: str,
+) -> dict[str, _Pin]:
+    """[private] Os requisitos do fechamento travado do projeto que valem para o interpretador e a
+    plataforma do job, pelo nome normalizado, cada um com as linhas dos hashes."""
+    pins = _read_pins(_uv.export_closure(project), "uv export")
+    return _applicable(pins, _marker_environment(python, platform))
+
+
+def _write_requirements(
+    pins: dict[str, _Pin],
+    path: Path,
+) -> None:
+    """[private] Grava os requisitos em ``path`` como o ``uv export`` os escreveu, cada um com as
+    linhas dos hashes, que o ``uv pip install`` confere."""
+    blocks = ["\n".join(pin.lines) for pin in pins.values()]
+    path.write_text("\n".join(blocks) + "\n", encoding="utf-8")
 
 
 def _normalize(
@@ -343,7 +373,7 @@ def _compare(
     in_environment: dict[str, str],
 ) -> tuple[dict[str, str], dict[str, tuple[str, str]], dict[str, _Pin]]:
     """[private] Separa o fechamento do projeto no que a imagem já tem na mesma versão, no que ela
-    tem em outra versão e no que ela não tem."""
+    tem em outra versão e no que ela não tem, cada parte em ordem de nome."""
     from_environment: dict[str, str] = {}
     conflicts: dict[str, tuple[str, str]] = {}
     vendored: dict[str, _Pin] = {}
