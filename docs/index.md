@@ -1,17 +1,33 @@
-O pacote prepara o que um workflow serverless de um projeto do SageMaker Unified Studio executa: o
-código de uma task Python ou Bash do MWAA Serverless, a pasta de código de um job de processamento
-do SageMaker e a definição do workflow com os valores do projeto. As ferramentas rodam numa máquina
-Linux com internet, onde o `uv` alcança o PyPI. O que elas gravam é copiado para o ambiente do
-SageMaker, que não tem internet, e nada é instalado onde o código roda.
+O `awsds-workflows` prepara o que um workflow de um projeto do SageMaker Unified Studio executa.
+Um workflow é uma sequência de tasks que o Amazon MWAA Serverless, o Apache Airflow gerenciado da
+AWS, roda por você: esperar um arquivo chegar no S3, rodar um programa Python ou um comando Bash,
+iniciar um job de processamento do SageMaker. O portal do SageMaker Unified Studio tem o editor
+desses workflows, mas não monta o código que as tasks rodam nem preenche os valores da sua conta na
+definição. O pacote faz essas duas coisas, e compara definições, com estas ferramentas:
 
-Esta página é o procedimento. Cada passo foi medido em outubro de 2026 no laboratório, uma conta
-de testes em `us-west-2` com uma imagem customizada, `awsds-sandbox-dev-env`. A referência de
-cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.package_job`,
-`awsds_workflows.render`, `awsds_workflows.compare`, `awsds_workflows.errors` e
+- `package-task` grava o `.zip` com o código de uma task Python ou Bash e as dependências dele;
+- `package-job` grava a pasta de código de um job de processamento, só com o que a imagem do job
+  não tem;
+- `render` preenche o arquivo de definição do workflow com os valores do projeto, e `values` lê
+  esses valores da conta;
+- `compare` mostra o que difere no conteúdo de duas definições, como a versionada e a que o
+  portal salvou.
+
+As ferramentas rodam numa máquina Linux com internet, onde o `uv` alcança o PyPI. O que elas gravam
+é copiado para o ambiente do SageMaker, que não tem internet: lá nada é instalado, e o código chega
+pronto, com as dependências ao lado.
+
+Esta página ensina o procedimento do começo ao fim, para quem vai montar o primeiro workflow. Cada
+passo foi medido em outubro de 2026 no laboratório, uma conta de testes em `us-west-2` com uma
+imagem customizada, `awsds-sandbox-dev-env`, e cada ponto ainda não medido está dito. A referência
+de cada módulo do pacote está no menu: `awsds_workflows.package_task`,
+`awsds_workflows.package_job`, `awsds_workflows.render`, `awsds_workflows.compare`,
+`awsds_workflows.errors` e
 `awsds_workflows.cli`.
 
 | Seção | Para quem | O que traz |
 |---|---|---|
+| [Os conceitos](#os-conceitos) | todos | os termos desta página e a ordem em que um primeiro workflow os usa |
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota, e o Python que o `uv` usa nela |
 | [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
@@ -25,49 +41,103 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | [Como ler uma execução](#como-ler-uma-execucao) | todos | uma leitura por pergunta |
 | [Limpeza](#limpeza) | todos | o que fica depois de um workflow |
 
+## Os conceitos
+
+Os termos desta página, na ordem em que um workflow os usa.
+
+**O workflow e a sua definição.** Na página *Workflows* de um projeto, um workflow é descrito por
+um arquivo YAML, o arquivo de definição do workflow: ele lista as tasks, os parâmetros de cada uma e
+a ordem entre elas. Quem o executa é o MWAA Serverless: a cada execução ele prepara um worker, roda
+as tasks nele e grava os logs. A definição fica no bucket do projeto, e o portal a reescreve a cada
+save ([As peças](#as-pecas)).
+
+**As tasks e os operadores.** Cada task da definição é um operador do Airflow, uma classe que sabe
+fazer uma coisa, com os parâmetros dela. Três tipos de task entram nos workflows desta página:
+
+| A task | O operador | Onde roda | O código dela |
+|---|---|---|---|
+| um sensor, que espera um arquivo no S3 | `S3KeySensor` | no worker | nenhum: só os parâmetros |
+| uma task Python ou Bash | `PythonOperator`, `BashOperator` | no worker | um `.zip` com o seu código e as dependências, montado pelo `package-task` |
+| uma task de processamento | `SageMakerProcessingOperator` | num job de processamento do SageMaker, na imagem que a task nomeia | uma pasta de código no S3, montada pelo `package-job` |
+
+**O worker** é a máquina pequena que o MWAA Serverless prepara para uma execução, com Python 3.12,
+o Airflow e sem internet. Uma task Python ou Bash roda nele. Uma task de processamento roda nele só
+o operador: o trabalho de verdade acontece num job de processamento do SageMaker, um contêiner
+que a AWS inicia numa instância à parte, com a imagem que a task escolhe, e que no laboratório
+roda isolado da rede.
+
+**Por que empacotar.** Nem o worker nem o job alcançam o PyPI, então um `pip install` não existe lá.
+O código e cada dependência chegam prontos, construídos para o interpretador e a plataforma de quem
+vai rodá-los: o `.zip` de uma task para o worker, a pasta de um job para a imagem do job. As duas
+ferramentas partem de um projeto gerenciado pelo `uv`, com `pyproject.toml` e `uv.lock`.
+
+**A definição versionada e os valores.** A definição guardada no git escreve cada valor da conta,
+como o id do projeto e o bucket, como um placeholder: `<PROJECT_ID>`, `<PROJECTS_BUCKET>`. O
+`render` troca os placeholders pelos valores do projeto antes da importação no portal, o caminho
+inverso devolve os placeholders a uma definição que o portal salvou, e o `compare` mostra o que
+ela mudou.
+
+**O laboratório e o ambiente alvo.** O laboratório é a conta de testes em que cada passo desta
+página foi medido, nas datas que a página cita. O ambiente alvo é o SageMaker Unified Studio em que
+os workflows vão rodar: lá nenhum workflow rodou ainda, e a página diz o que a primeira execução
+vai medir.
+
+**O primeiro workflow**, na ordem das seções: instale o pacote; leia onde cada peça fica e qual é a
+imagem do job; peça à infraestrutura a permissão e a rede; escreva a definição pelas regras de
+autoria; monte o código da task de processamento ou o `.zip` da task Python ou Bash; preencha os
+valores e importe a definição; leia a execução; e, depois de uma mudança feita no portal, compare
+a definição salva com a versionada.
+
 ## Instalação
 
-A máquina que empacota é Linux, com internet e com o `uv`. O pacote é instalado pelo endereço do
-repositório ou por uma pasta local, nunca pelo nome: o nome `awsds-workflows` está livre no PyPI
-(lido em 2026-10-11), e um pacote publicado lá com ele por outra pessoa seria instalado no lugar
-deste.
+Instale o pacote na máquina que empacota: um Linux com internet e com o
+[`uv`](https://docs.astral.sh/uv/) no `PATH`. O que ela grava é copiado depois para o ambiente do
+SageMaker.
 
 ```shell
 uv tool install git+https://github.com/felipenoris/awsds-workflows   # o comando awsds-workflows
 uv add git+https://github.com/felipenoris/awsds-workflows            # ou como dependência
 ```
 
-O pacote pede o Python 3.12 ou mais novo, é testado no 3.12, no 3.13 e no 3.14, e chama o `uv`
-como programa. As dependências são o `packaging`, que avalia os marcadores do ambiente da imagem, e
-o PyYAML, que lê as definições que o `compare` compara.
+Instale sempre pelo endereço do repositório ou por uma pasta local, nunca pelo nome: o nome
+`awsds-workflows` está livre no PyPI (lido em 2026-10-11), e um pacote publicado lá com esse nome
+por outra pessoa seria instalado no lugar deste.
+
+O pacote pede o Python 3.12 ou mais novo, que o `uv` instala, e é testado no 3.12, no 3.13 e no
+3.14. Ele chama o `uv` como programa, e as dependências dele são o `packaging`, que avalia os
+marcadores do arquivo de ambiente da imagem ([A imagem do job](#a-imagem-do-job)), e o PyYAML,
+que lê as definições que o `compare` compara.
 
 ### O Python que o `uv` usa
 
-O `package-task` e o `package-job` rodam o `uv` na pasta do projeto, e o `uv` precisa de um
-interpretador que o projeto aceite: o que o `.python-version` dele nomeia ou, sem esse arquivo, um
-que satisfaça o `requires-python`. O `uv` baixa o que não acha, a menos que os downloads de Python
-estejam desligados.
+O `package-task` e o `package-job` rodam o `uv` na pasta do projeto, e o `uv` escolhe um
+interpretador que o projeto aceite: o que o `.python-version` do projeto nomeia ou, sem esse
+arquivo, um que satisfaça o `requires-python`. Quando não acha nenhum, o `uv` baixa um, a menos que
+os downloads de Python estejam desligados.
 
-Num space do laboratório, a imagem desliga esses downloads (`UV_PYTHON_DOWNLOADS=never`), e o `uv`
-acha só o Python da distribuição, `/opt/conda/bin/python` 3.12. O interpretador do job,
-`/opt/awsds/venv/bin/python` 3.13, fica fora dos caminhos de busca dele, e um projeto que pede o
-3.13 é recusado com `No interpreter found for Python 3.13`. A variável `UV_PYTHON` do `uv` nomeia o
-interpretador, e o pacote a repassa a cada chamada do `uv`:
+Num espaço do laboratório, a imagem desliga esses downloads (`UV_PYTHON_DOWNLOADS=never`), e o
+`uv` acha só o Python da distribuição, `/opt/conda/bin/python` 3.12. O interpretador do job,
+`/opt/awsds/venv/bin/python` 3.13, fica fora dos caminhos em que o `uv` procura, e um projeto que
+pede o 3.13 é recusado com `No interpreter found for Python 3.13`. A saída é a variável `UV_PYTHON`
+do próprio `uv`, que nomeia o interpretador; o pacote a repassa a cada chamada do `uv`:
 
 ```shell
 UV_PYTHON=/opt/awsds/venv/bin/python awsds-workflows package-job ~/src/meu-projeto \
     /tmp/meu-projeto-0.2.0 --environment ambiente.txt --python 3.13
 ```
 
-Medido num space simulado em 2026-10-11, com o `uv` 0.12.17 da imagem do laboratório, os downloads
-desligados, só um CPython 3.12 no `PATH` e um 3.13 fora dele: o `uv tool install` instalou o pacote
-no 3.12, sem ler o `.python-version` da pasta em que rodou; sem o `UV_PYTHON`, o `package-job` e o
-`package-task` pararam no `uv export --locked` de um projeto que pedia o 3.13; com ele, gravaram a
-pasta e o `.zip`. Com os downloads ligados, o `uv` baixou o CPython 3.13.15, e o `package-job`
-gravou os mesmos arquivos, diferentes só em metadados da instalação (2026-10-12). Num space de
-verdade, o pacote ainda não rodou.
+Medido num espaço simulado em 2026-10-11, com o `uv` 0.12.17 da imagem do laboratório, os
+downloads desligados, só um CPython 3.12 no `PATH` e um 3.13 fora dele: o `uv tool install`
+instalou o pacote no 3.12, sem ler o `.python-version` da pasta em que rodou; sem o `UV_PYTHON`, o
+`package-job` e o `package-task` pararam no `uv export --locked` de um projeto que pedia o 3.13;
+com ele, gravaram a pasta e o `.zip`. Com os downloads ligados, o `uv` baixou o CPython 3.13.15, e
+o `package-job` gravou os mesmos arquivos, diferentes só em metadados da instalação (2026-10-12).
+Num espaço de verdade, o pacote ainda não rodou.
 
 ## As peças
+
+Onde cada peça de um workflow fica, para você saber onde procurar o que enviou e o que o serviço
+gravou.
 
 | O quê | Onde | Nota |
 |---|---|---|
@@ -76,56 +146,66 @@ verdade, o pacote ainda não rodou.
 | a cópia do código que o serviço guarda | `mwaa-serverless-code-files-<conta da AWS>-<região>-prod`, um bucket do serviço (lido no CloudTrail em 2026-10-11) | tirada a cada save, fora do bucket do projeto, e cifrada com a chave do projeto; o worker a busca pelo endpoint de gateway do S3 ([A rede](#a-rede)) |
 | os logs das tasks | `/aws/mwaa-serverless/<domínio>-<projeto>/<workflow>`, um stream por tentativa de task | por projeto, sem retenção; o grupo existe desde o primeiro save, antes de qualquer execução, e sobrevive ao workflow |
 | a saída do contêiner de um job | `/aws/sagemaker/ProcessingJobs`, stream `<job>/algo-1-<n>` | da conta inteira: todo papel de projeto da conta pode lê-la |
-| a identidade | o papel do projeto, `datazone_usr_role_<projeto>_<ambiente>`, sessão `AmazonMWAAServerless` no worker e `SageMaker` dentro de um job | |
+| a identidade | o papel do projeto, `datazone_usr_role_<projeto>_<ambiente>`, o papel do IAM com que o projeto age; sessão `AmazonMWAAServerless` no worker e `SageMaker` dentro de um job | |
 | a rede | as sub-redes privadas e o grupo de segurança do projeto, injetados pelo portal | sem rota padrão: a AWS é alcançada pelos endpoints de VPC |
-| a chave | a chave KMS do projeto | a cifra do workflow, o volume e as saídas do job, o bucket |
+| a chave | a chave KMS do projeto | cifra o workflow, o volume e as saídas do job, e o bucket |
 
-**O worker** tem 1 vCPU e 3 GiB, Python 3.12, Airflow 3.0.6, o provider da Amazon 9.32.0 e o
-`boto3` 1.43.1 (o guia, lido em 2026-10-11). Ele não tem internet nem proxy. Uma task ocupa o
-worker durante toda a sua duração, espera de sensor incluída, e custa 0,088 USD por task-hora, com
-mínimo de um minuto.
+**O worker**, segundo o guia da AWS do MWAA Serverless (lido em 2026-10-11), tem 1 vCPU e 3 GiB,
+Python 3.12, Airflow 3.0.6, o provider da Amazon 9.32.0 e o `boto3` 1.43.1, e não tem internet nem
+proxy. Uma task ocupa o worker durante toda a sua duração, a espera de um sensor incluída, e custa
+0,088 USD por task-hora, com mínimo de um minuto.
 
 ## A imagem do job
 
-Um job de processamento roda numa imagem que o próprio job nomeia, e o pacote não supõe qual. A
-imagem decide o interpretador, a versão do Python e o ambiente de pacotes, e cada um entra no
-`package-job` e na definição. O worker das tasks Python e Bash não depende dela.
+Um job de processamento roda dentro de uma imagem de contêiner, e a definição da task diz qual. O
+pacote não supõe nenhuma: a imagem decide o interpretador que o job chama, a versão do Python e os
+pacotes já instalados, e cada um desses fatos entra no `package-job` e na definição. As tasks
+Python e Bash não dependem da imagem, porque rodam no worker.
+
+Duas imagens servem: a imagem padrão do SageMaker, a SageMaker Distribution que a AWS publica, ou
+uma imagem customizada, registrada no SageMaker pela infraestrutura. A tabela diz de onde vem cada
+valor em cada caso.
 
 | | A imagem padrão do SageMaker | Uma imagem customizada |
 |---|---|---|
-| exemplo | a SageMaker Distribution 4.15, a imagem inicial do alvo | a imagem do laboratório, `awsds-sandbox-dev-env` |
-| `JOB_IMAGE_URI` | o URI da distribuição na região do projeto, no arquivo de valores | lido da imagem registrada no SageMaker (`values --image-name`) ou no arquivo de valores |
+| exemplo | a SageMaker Distribution 4.15, a imagem inicial do ambiente alvo | a imagem do laboratório, `awsds-sandbox-dev-env` |
+| `JOB_IMAGE_URI`, a imagem na definição | o URI da distribuição na região do projeto, escrito no arquivo de valores | lido da imagem registrada no SageMaker (`values --image-name`) ou escrito no arquivo de valores |
 | `JOB_PYTHON`, o interpretador que o job chama | `/opt/conda/bin/python` | o do ambiente da imagem; na do laboratório, `/opt/awsds/venv/bin/python` |
-| `--python` | a versão desse interpretador, lida com `/opt/conda/bin/python --version` num space com a imagem | na do laboratório, 3.13 |
-| o arquivo de ambiente | `uv pip list --format freeze --python /opt/conda/bin/python` num space com a imagem | o mesmo comando com o interpretador da imagem, ou o `uv export` do projeto que constrói a imagem |
+| `--python`, a versão desse interpretador | lida com `/opt/conda/bin/python --version` num espaço que roda a imagem | na do laboratório, 3.13 |
+| o arquivo de ambiente, a lista do que a imagem já tem | `uv pip list --format freeze --python /opt/conda/bin/python` num espaço que roda a imagem | o mesmo comando com o interpretador da imagem, ou o `uv export` do projeto que constrói a imagem |
 
-O arquivo de ambiente é gerado num space que roda a imagem do job, sem internet, e copiado para a
-máquina que empacota. Ele vale para aquela versão da imagem: uma imagem nova pede um arquivo novo
-e uma pasta de código nova. O `uv pip list --format freeze` escreve só linhas `nome==versão`; o
-`pip freeze` escreve `nome @ file:///...` para um pacote instalado pelo conda, e o `package-job`
-recusa essa linha, porque ignorada ela faria o pacote parecer ausente da imagem e entrar na pasta.
+**O arquivo de ambiente** diz ao `package-job` o que a imagem já tem, para a pasta de código levar
+só o resto. Gere-o num espaço do projeto que roda a imagem do job, o ambiente interativo do portal
+(JupyterLab ou Code Editor), sem internet, e copie-o para a máquina que empacota. Ele vale para
+aquela versão da imagem: uma imagem nova pede um arquivo novo e uma pasta de código nova. O
+`uv pip list --format freeze` escreve só linhas `nome==versão`; o `pip freeze` escreve
+`nome @ file:///...` para um pacote instalado pelo conda, e o `package-job` recusa essa linha: se a
+ignorasse, o pacote pareceria ausente da imagem e entraria na pasta.
 
-Ainda não medido na SageMaker Distribution 4.15: o URI da imagem para um job no alvo, a versão do
-Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem do laboratório roda como
-`sagemaker-user` (uid 1000), e o `sudo` dela funciona dentro de um job (medido em 2026-10-11); a
-distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário, e o primeiro job no
-alvo é a medida.
+**Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo,
+a versão do Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem do laboratório
+roda como `sagemaker-user` (uid 1000), e o `sudo` dela funciona dentro de um job (medido em
+2026-10-11); a distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário, e o
+primeiro job no ambiente alvo é a medida.
 
 ## A permissão do projeto
 
-O papel de um projeto não roda o `SageMakerProcessingOperator` só com as políticas do blueprint,
-por dois motivos medidos no laboratório em 2026-10-10:
+Tudo num workflow roda como o papel do projeto, e a política dele vem do blueprint, o conjunto de
+regras com que o SageMaker Unified Studio cria o ambiente do projeto. Essa política não basta para
+o `SageMakerProcessingOperator`, por dois motivos medidos no laboratório em 2026-10-10:
 
 - **O operador descreve o nome do job antes de criá-lo**, e o blueprint deixa o papel descrever só
   um job com a etiqueta do próprio projeto. Um nome ainda livre não tem etiqueta, então a primeira
-  execução falha com `AccessDeniedException` em `DescribeProcessingJob` antes de existir um job.
-- **Uma criação com etiquetas também é autorizada como `sagemaker:AddTags`**, e o blueprint tira
-  toda chave `AmazonDataZone*` do `AddTags` enquanto exige que o job leve `AmazonDataZoneProject`.
-  A segunda execução falha com `AccessDeniedException` em `sagemaker:AddTags`.
+  execução falha com `AccessDeniedException` em `DescribeProcessingJob`, antes de existir um job.
+- **Criar um job com etiquetas também é autorizado como `sagemaker:AddTags`**, e o blueprint tira
+  toda chave `AmazonDataZone*` do `AddTags` enquanto exige que o job leve a etiqueta
+  `AmazonDataZoneProject`. A segunda execução falha com `AccessDeniedException` em
+  `sagemaker:AddTags`.
 
-A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois. Ela permite o
-`DescribeProcessingJob` de um job sem etiqueta de projeto e o `AddTags` só da etiqueta do próprio
+A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois casos. Ela permite
+o `DescribeProcessingJob` de um job sem etiqueta de projeto e o `AddTags` só da etiqueta do próprio
 projeto, num job sem etiqueta ou com a do chamador; os jobs de outro projeto ficam fora de alcance.
+`<REGION>` e `<ACCOUNT_ID>` são a região e a conta do projeto.
 
 ```json
 {
@@ -159,15 +239,17 @@ projeto, num job sem etiqueta ou com a do chamador; os jobs de outro projeto fic
 
 ## A rede
 
-O worker roda nas sub-redes privadas do projeto e alcança a AWS só pelos endpoints de VPC. O que o
-laboratório leu no CloudTrail, nos logs de fluxo e no log do firewall de DNS em 2026-10-11:
+O worker roda nas sub-redes privadas do projeto, sem rota para a internet, e alcança cada serviço
+da AWS por um endpoint de VPC, uma porta privada para aquele serviço; um serviço sem endpoint não
+responde. O que o laboratório leu no CloudTrail, nos logs de fluxo e no log do firewall de DNS em
+2026-10-11:
 
 - **O operador de processamento** chama `CreateProcessingJob` e `DescribeProcessingJob` pelo
   endpoint de interface `sagemaker.api`, como o papel do projeto.
 - **O worker grava o log** por `CreateLogStream`, pelo endpoint `logs`.
 - **Uma task que chama o STS** passa pelo endpoint de interface `sts`.
-- **O S3** é alcançado pelo endpoint de gateway. O sensor lista o prefixo, e o worker de um
-  workflow com código busca a cópia que o serviço guarda em
+- **O S3** é alcançado pelo endpoint de gateway. O sensor lista o prefixo por ele, e o worker de um
+  workflow com código busca por ele a cópia que o serviço guarda em
   `mwaa-serverless-code-files-<conta da AWS>-<região>-prod`, num `GetObject` do principal de
   serviço `airflow-serverless.amazonaws.com`. Uma política do endpoint que não admite esse bucket
   faz o worker falhar antes da primeira task, com `Execution environment preparation failed due to
@@ -178,13 +260,16 @@ laboratório leu no CloudTrail, nos logs de fluxo e no log do firewall de DNS em
 - **A imagem do job é baixada pela plataforma**, fora da rede do projeto, então um job isolado não
   precisa de endpoint do ECR.
 
-No ambiente alvo, as leituras do serialize-db a partir de um space (2026-09-21 e 2026-09-23)
-encontraram o endpoint de gateway do S3 e endpoints de interface para STS, Redshift, Glue, Athena,
-Secrets Manager e DataZone; os nomes do SageMaker, do KMS e do IAM resolveram para endereços
-públicos e não responderam. Se o worker do alvo usar a mesma rede, uma task de processamento não
-alcança o `CreateProcessingJob`; a primeira execução no alvo é a medida.
+No ambiente alvo, as leituras feitas a partir de um espaço (2026-09-21 e 2026-09-23) encontraram o
+endpoint de gateway do S3 e endpoints de interface para STS, Redshift, Glue, Athena, Secrets
+Manager e DataZone; os nomes do SageMaker, do KMS e do IAM resolveram para endereços públicos e não
+responderam. Se o worker do ambiente alvo usar a mesma rede, uma task de processamento não alcança
+o `CreateProcessingJob`; a primeira execução lá é a medida.
 
 ## Regras de autoria
+
+O que o laboratório aprendeu escrevendo e importando definições. Leia esta seção antes de escrever
+a sua.
 
 **O formato do YAML é o da AWS.** A AWS define o formato do arquivo de definição do workflow para o
 MWAA Serverless, que o valida antes de executar. A seção *YAML support* do guia descreve o formato,
@@ -211,16 +296,17 @@ versões recomeça. O grupo de logs leva o nome do workflow e guarda os logs de 
 
 | O portal diz | O que aconteceu | Saída |
 |---|---|---|
-| `ValidationException: Code not found in specified S3 location` | o save mandou o local de código que o editor preenche, *Operator files zip S3 location*, sem arquivo lá; o editor preenche o campo num workflow novo, vazio ou importado, mesmo sem task Python ou Bash | envie o arquivo da task em *Settings → Storage*; num workflow sem código (só comandos Bash inline, ou nenhuma task Python ou Bash), esvazie o campo antes do save, e o save não manda o `Code` (2026-10-11) |
-| `ContainerArguments: Container argument is required` | o editor, e não a API, exige argumentos numa task de processamento | separe o comando em programa (`ContainerEntrypoint`) e argumentos |
-| dois workflows com o mesmo nome | dois saves passaram juntos pela conferência do nome, a 2 s um do outro | apague um; fora disso, o nome é conferido |
+| `ValidationException: Code not found in specified S3 location` | o editor preenche o campo *Operator files zip S3 location* num workflow novo, vazio ou importado, mesmo sem task Python ou Bash, e o save o enviou sem nenhum arquivo nesse local | envie o arquivo da task em *Settings → Storage*; num workflow sem código (só comandos Bash inline, ou nenhuma task Python ou Bash), esvazie o campo antes de salvar, e o save não manda o `Code` (2026-10-11) |
+| `ContainerArguments: Container argument is required` | o editor exige argumentos numa task de processamento, embora a API não os exija | separe o comando em programa (`ContainerEntrypoint`) e argumentos (`ContainerArguments`) |
+| dois workflows com o mesmo nome | dois saves feitos a 2 s um do outro passaram juntos pela conferência do nome | apague um; fora dessa corrida, o nome é conferido |
 
 **A primeira linha do YAML é o layout do editor**, um comentário JSON como
-`# {"wait_for_file":{"x":120,"y":200},...}`. Mantenha-a, e não ponha outro comentário num arquivo
-que vai ser importado.
+`# {"wait_for_file":{"x":120,"y":200},...}`, com a posição de cada task no desenho. Mantenha-a, e
+não ponha outro comentário num arquivo que vai ser importado.
 
-**Os templates são renderizados quando a execução é criada**, só com `macros`,
-`ti`/`task_instance`, `params`, `ds`, `ds_nodash`, `ts` e `ts_nodash`:
+**Os templates são renderizados quando a execução é criada.** Um template é um trecho entre
+`{{ }}` que o serviço troca por um valor ao criar a execução, com a sintaxe Jinja do Airflow; o
+serviço conhece só `macros`, `ti`/`task_instance`, `params`, `ds`, `ds_nodash`, `ts` e `ts_nodash`:
 
 - `{{ ts_nodash }}` é a meia-noite do dia numa execução manual, então duas execuções no mesmo dia
   colidem nele;
@@ -235,10 +321,12 @@ que vai ser importado.
 como texto. `retries` vale 1 por padrão e no máximo 3: escreva `retries: 0` em cada task durante o
 desenvolvimento, ou uma falha roda duas vezes. `execution_timeout` vai até 3.600 s.
 
-**O sensor de arquivo.** `S3KeySensor` com `wildcard_match: true`, `poke_interval: 30`,
-`timeout: 600` e `soft_fail: true`:
+**O sensor de arquivo.** Um sensor é uma task que espera uma condição, conferindo-a de tempos em
+tempos. O `S3KeySensor` com `wildcard_match: true`, `poke_interval: 30`, `timeout: 600` e
+`soft_fail: true` espera até 10 minutos por um arquivo que case com o padrão, conferindo a cada 30
+s, e termina a execução sem erro se nada chegar:
 
-- o `mkdir` de um space deixa um marcador de pasta de zero bytes, `inbox/`, e `inbox/*` casa com
+- o `mkdir` de um espaço deixa um marcador de pasta de zero bytes, `inbox/`, e `inbox/*` casa com
   ele. Observe `inbox/?*`, que pede um caractere depois da barra, a menos que uma task seguinte
   apague o prefixo inteiro;
 - `soft_fail` termina com `SUCCESS` uma execução de caixa de entrada vazia, depois do timeout. A
@@ -248,12 +336,17 @@ desenvolvimento, ou uma falha roda duas vezes. `execution_timeout` vai até 3.60
 
 ## Uma task de processamento
 
-O formulário *SageMaker Processing* do portal não tem campo para `NetworkConfig`, para as chaves
-KMS nem para as etiquetas, e um job sem eles pode ser recusado pelas regras do ambiente. Escreva o
-`config` inteiro da task no YAML e importe-o.
+Uma task de processamento inicia um job de processamento do SageMaker: um contêiner com a imagem
+escolhida, numa instância à parte, que recebe entradas do S3, roda um comando e devolve as saídas
+ao S3. O `config` da task é a chamada `CreateProcessingJob` inteira, em YAML.
 
-**O que o ambiente exige do job.** No laboratório, o limite de permissões dos papéis de projeto
-exige em todo job:
+O formulário *SageMaker Processing* do portal não tem campo para `NetworkConfig`, para as chaves
+KMS nem para as etiquetas, e um job sem eles pode ser recusado pelas regras do ambiente. Escreva
+o `config` inteiro da task no YAML e importe-o
+([Uma definição de exemplo](#uma-definicao-de-exemplo)).
+
+**O que o ambiente exige do job.** No laboratório, o limite de permissões dos papéis de projeto, a
+política que a infraestrutura põe por cima de cada papel, exige em todo job:
 
 - `NetworkConfig.VpcConfig`: as duas sub-redes privadas e o grupo de segurança do projeto;
 - `EnableNetworkIsolation: true`: o contêiner não tem rede nem credenciais da AWS;
@@ -266,9 +359,9 @@ e o `KmsKeyId` da saída, a chave do projeto. Outro ambiente pode exigir outra l
 `CreateProcessingJob` no log da task a nomeia.
 
 **As entradas e as saídas ficam em `/opt/ml/processing/`.** O SageMaker baixa cada
-`ProcessingInput` antes do comando começar e envia cada `ProcessingOutput` depois que ele termina,
-como o papel do projeto. O código é mais uma entrada: a pasta que o `package-job` grava, copiada
-para o S3 do projeto.
+`ProcessingInput` para uma pasta de lá antes de o comando começar e envia cada `ProcessingOutput`
+ao S3 depois que ele termina, como o papel do projeto. O código é mais uma entrada: a pasta que o
+`package-job` grava, copiada para o S3 do projeto.
 
 **O usuário do contêiner não grava na pasta de saída.** A imagem do laboratório roda como
 `sagemaker-user` (uid 1000), e a plataforma cria cada pasta montada como root com modo 755; uma
@@ -295,7 +388,7 @@ task:
 
 - **O interpretador é o da imagem do job**, e não o do worker.
 - **A entrada é uma pasta, e não um arquivo.** Um `ProcessingInput` baixa um prefixo do S3, e um
-  módulo de extensão não é importado de um `.zip` no `sys.path`.
+  módulo de extensão (um pacote com código compilado) não é importado de um `.zip` no `sys.path`.
 - **A precedência é a inversa da do worker.** O `PYTHONPATH` vem antes do `site-packages` da
   imagem, então um pacote presente nos dois esconderia a cópia da imagem. A pasta leva só o que a
   imagem não tem, e as versões do projeto têm de ser iguais às da imagem em tudo o que os dois
@@ -305,7 +398,7 @@ task:
    - Ele tem um `pyproject.toml` e um `uv.lock` em dia.
    - O `requires-python` dele admite o Python da imagem.
    - O código próprio dele é Python puro, e roda como `python -m meu_pacote` (um `__main__.py`).
-2. **Gere o arquivo de ambiente da imagem** num space que roda a imagem do job e copie-o para a
+2. **Gere o arquivo de ambiente da imagem** num espaço que roda a imagem do job e copie-o para a
    máquina que empacota ([A imagem do job](#a-imagem-do-job)):
 
    ```shell
@@ -320,10 +413,11 @@ task:
    ```
 
    A pasta de saída ainda não pode existir. `--platform` vale `x86_64-manylinux_2_28` por padrão,
-   que pede glibc 2.28 ou mais nova na imagem; `ldd --version` num space diz a glibc. A imagem da
-   casa tem o `onnxruntime` 1.30.0, que não publica wheel anterior a `manylinux_2_28` (medido em
-   2026-10-11), então `manylinux2014` não a descreve. Num space, o `uv` pode não achar o Python que
-   o projeto pede ([O Python que o `uv` usa](#o-python-que-o-uv-usa)).
+   a etiqueta dos wheels para Linux x86_64 com glibc 2.28 ou mais nova; `ldd --version` num espaço
+   diz a glibc da imagem. A imagem do laboratório tem o `onnxruntime` 1.30.0, que não publica wheel
+   anterior a `manylinux_2_28` (medido em 2026-10-11), então `manylinux2014` não a descreve. Num
+   espaço, o `uv` pode não achar o Python que o projeto pede
+   ([O Python que o `uv` usa](#o-python-que-o-uv-usa)).
 4. **Se ele apontar uma discordância**, cole o bloco que ele imprime no `pyproject.toml` do projeto,
    rode `uv lock` e repita o passo 3:
 
@@ -351,7 +445,7 @@ task:
        s3://<bucket do projeto>/<domínio>/<projeto>/shared/jobs/meu-projeto-0.2.0/
    ```
 
-   Num space com o `~/shared/` do projeto, a mesma cópia é
+   Num espaço com o `~/shared/` do projeto, a mesma cópia é
    `mkdir -p ~/shared/jobs && cp -r /tmp/meu-projeto-0.2.0 ~/shared/jobs/`. O `shared/` grava no
    prefixo um marcador de zero bytes por pasta, e um job baixou um prefixo assim sem problema
    (2026-10-11).
@@ -406,16 +500,18 @@ pyarrow 24.0.0 from /opt/awsds/venv/lib/python3.13/site-packages/pyarrow, extens
 
 O pacote Python puro e o módulo de extensão vieram da pasta, e o `pyarrow` do ambiente da imagem;
 as saídas, um JSON e uma tabela Parquet, são byte a byte as da execução local. A pasta foi gravada
-num space por um script com os mesmos passos do `uv`, e nenhuma pasta do `package-job` rodou num
-job ainda. Num space simulado, o `package-job` gravou os mesmos 176 arquivos, iguais a menos de
+num espaço por um script com os mesmos passos do `uv`, e nenhuma pasta do `package-job` rodou num
+job ainda. Num espaço simulado, o `package-job` gravou os mesmos 176 arquivos, iguais a menos de
 três metadados do projeto: o caminho temporário do wheel, a hora da construção e os hashes dos
 dois.
 
-**O workflow apaga a origem, e não o job**: um contêiner isolado não alcança o S3. A terceira task
-é um `S3DeleteObjectsOperator` no prefixo da caixa de entrada, depois da task de processamento.
+**Quem apaga a origem é o workflow, e não o job**: um contêiner isolado não alcança o S3. Por isso
+a terceira task da definição de exemplo é um `S3DeleteObjectsOperator` no prefixo da caixa de
+entrada, depois da task de processamento.
 
-**Imprima contagens e caminhos, nunca dados.** A saída do contêiner vai para um grupo de logs da
-conta inteira ([As peças](#as-pecas)).
+**No código do job, imprima contagens e caminhos, nunca dados.** A saída do contêiner vai para um
+grupo de logs da conta inteira, que todo papel de projeto da conta pode ler
+([As peças](#as-pecas)).
 
 **O custo e a duração de uma execução** (medido no laboratório em 2026-10-11): cerca de 15 minutos e
 0,03 USD. O job passou cerca de 7,5 dos seus 8 minutos baixando a imagem do laboratório, de 6,97 GB,
@@ -507,6 +603,9 @@ meu-job:
 
 ## O código de uma task Python ou Bash
 
+Uma task Python chama uma função sua no worker; uma task Bash roda um comando lá. O código das duas
+viaja num `.zip`, o `Code` do workflow, que o `package-task` monta a partir de um projeto `uv`.
+
 **Estado no laboratório**: funciona desde 2026-10-11. Uma task Python com um `.zip` leu a amostra,
 gravou o resultado e apagou a origem. O `.zip` foi montado pela receita
 [à mão](#a-mao-sem-o-pacote), e nenhum `.zip` do `package-task` rodou num worker ainda. Antes, o
@@ -515,8 +614,9 @@ S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
 
 ### O que o worker espera
 
-- **Um arquivo ou um `.zip`.** Um `.py`, um `.sh` ou um `.zip` com vários arquivos; no máximo
-  250 MB, descompactado também, e 75 GB de código por conta.
+- **Um arquivo ou um `.zip`.** O worker recebe o código como um único `.py`, um único `.sh` ou um
+  `.zip` com vários arquivos, de no máximo 250 MB, compactado e descompactado; uma conta guarda até
+  75 GB de código.
 - **Tudo na raiz do `.zip`**: os seus módulos, os seus pacotes e cada pacote de terceiros. O worker
   extrai o `.zip` em `/usr/local/airflow/dags`, que está no `sys.path`, então um módulo na raiz é
   importado pelo nome.
@@ -590,10 +690,11 @@ S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
 
 **O que ele faz**, cada passo uma regra do worker:
 
-1. `uv export --locked --no-dev --no-emit-project --prune <nome> ...` grava o fechamento travado
-   como arquivo de requisitos. `--locked` recusa um lock desatualizado, e `--prune` tira cada
-   pacote do worker junto com as dependências que só ele usa: o `boto3` leva o `s3transfer` e o
-   `jmespath`, e o `urllib3`, de que o `requests` também precisa, fica.
+1. `uv export --locked --no-dev --no-emit-project --prune <nome> ...` grava o fechamento travado,
+   a lista de todas as dependências nas versões do `uv.lock`, como arquivo de requisitos.
+   `--locked` recusa um lock desatualizado, e `--prune` tira cada pacote do worker junto com as
+   dependências que só ele usa: o `boto3` leva o `s3transfer` e o `jmespath`, e o `urllib3`, de que
+   o `requests` também precisa, fica.
 2. `uv pip install --target <pasta> --no-deps --only-binary :all: --python-version <X.Y>
    --python-platform <ETIQUETA> --requirements <arquivo>` instala os wheels do alvo para esse
    fechamento, com os hashes do lock. `--only-binary` recusa uma distribuição de código-fonte, que
@@ -656,7 +757,7 @@ com o módulo de entrada e os arquivos de `--include` juntos.
 
 - **No portal**, *Settings → Storage → Python/Bash Operator Files* envia arquivos, e o *operator
   files S3 location* ao lado é onde eles são guardados (`dev/operatorFiles/` por padrão), e não uma
-  origem a ler. O guia: um arquivo é guardado como está, vários são compactados num `.zip`, só
+  origem a ler. O guia diz: um arquivo é guardado como está, vários são compactados num `.zip`, só
   `.py`, `.sh` e `.zip` são aceitos, e o `.zip` fica abaixo de 250 MB. Medido no laboratório: um
   `.zip` guardado como foi enviado, com a versão S3 fixada e o sha256 igual ao do `.zip` construído.
 - **Pela API** (`create-workflow --code`, ou o `awscc` do Terraform a partir da 1.99.0), o objeto
@@ -672,7 +773,7 @@ então trocar o objeto no S3 não muda nada até o workflow ser salvo ou importa
 
 ### À mão, sem o pacote
 
-Para um projeto que o uv não gerencia:
+Para um projeto que o `uv` não gerencia, os mesmos passos no shell:
 
 ```shell
 rm -rf build && mkdir build
@@ -710,7 +811,7 @@ o `BashOperator` do Airflow, cujo código, no `apache-airflow-providers-standard
 ### O comando
 
 **`set -euo pipefail`** abre um comando de várias linhas: sem ele, só a saída do último passo
-conta.
+conta, e um passo que falha no meio passa despercebido.
 
 **O Jinja** renderiza o comando, inline ou num arquivo `.sh`
 ([Regras de autoria](#regras-de-autoria)): um `{#` sem fecho, como o de `${#lista[@]}`, é um erro
@@ -804,11 +905,12 @@ awsds-workflows render --placeholders salvo.yaml --values-file valores.json
 awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*' > valores.json
 ```
 
-- **A leitura da conta** (`--profile`) roda só chamadas de leitura do STS, do IAM, do EC2 e, com
-  `--image-name`, do SageMaker, e pede `--subnet-name`, o padrão do `Name` das sub-redes privadas do
-  projeto (`awsds-sandbox-private-*` no laboratório). Numa conta com mais de um projeto, `--project`
+- **A leitura da conta** (`--profile`) usa o `aws` da máquina, num perfil que alcança a conta do
+  projeto, e roda só chamadas de leitura: do STS, do IAM, do EC2 e, com `--image-name`, do
+  SageMaker. Ela pede `--subnet-name`, o padrão do `Name` das sub-redes privadas do projeto
+  (`awsds-sandbox-private-*` no laboratório). Numa conta com mais de um projeto, `--project`
   escolhe o id.
-- **No ambiente alvo** o IAM e o SageMaker não responderam a partir de um space (leituras de
+- **No ambiente alvo** o IAM e o SageMaker não responderam a partir de um espaço (leituras de
   2026-09-21 e 2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
   escreve de dentro de um espaço do projeto
   ([Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco)), e o `values` de uma
@@ -892,6 +994,8 @@ awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
   valores da conta.
 
 ## Como ler uma execução
+
+As perguntas que uma execução deixa, e onde está a resposta de cada uma.
 
 | Pergunta | Leitura |
 |---|---|

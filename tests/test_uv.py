@@ -40,7 +40,7 @@ def test_a_missing_interpreter_is_refused_with_the_uv_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Com os downloads de Python desligados, uma pasta que pede um Python que o ``uv`` não acha é
-    recusada com a mensagem que a documentação cita, como num space."""
+    recusada com a mensagem que a documentação cita, como num espaço."""
     (tmp_path / ".python-version").write_text("3.99\n", encoding="utf-8")
     monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
     monkeypatch.delenv("UV_PYTHON", raising=False)

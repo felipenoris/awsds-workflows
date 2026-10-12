@@ -1,9 +1,10 @@
 """[public] A pasta de código de um job de processamento do SageMaker, para a imagem que o job
 nomeia.
 
-O job roda o interpretador da imagem sem rede, então cada dependência do projeto ou já está no
-ambiente da imagem ou viaja na entrada de código; nada é instalado na execução. Três regras
-separam essa entrada do ``.zip`` de uma task (``awsds_workflows.package_task``):
+Um job de processamento roda um contêiner com a imagem que a task escolhe, sem rede: o
+interpretador é o da imagem, e cada dependência do projeto ou já está no ambiente da imagem ou
+viaja na entrada de código do job, uma pasta baixada do S3; nada é instalado na execução. Três
+regras separam essa pasta do ``.zip`` de uma task (``awsds_workflows.package_task``):
 
 - O interpretador é o da imagem do job, e não o do worker: o da SageMaker Distribution na imagem
   padrão, ou o ambiente que uma imagem customizada traz.
@@ -14,9 +15,13 @@ separam essa entrada do ``.zip`` de uma task (``awsds_workflows.package_task``):
   que a imagem não tem, e as versões do projeto têm de ser iguais às da imagem em tudo o que os
   dois compartilham.
 
+``build_folder`` compara o fechamento travado do projeto, a lista das dependências nas versões do
+``uv.lock``, com o ambiente da imagem, recusa uma versão que discorda e grava a pasta com o projeto
+e os pacotes que a imagem não tem, em wheels do interpretador e da plataforma do job.
+
 O ambiente da imagem chega num arquivo de requisitos, uma linha ``nome==versão`` por pacote, com um
-marcador PEP 508 opcional. Num space que roda a imagem do job, sem internet, com o interpretador
-que o job vai chamar:
+marcador PEP 508 opcional. Gere-o num espaço que roda a imagem do job, sem internet, com o
+interpretador que o job vai chamar:
 
 .. code-block:: shell
 
@@ -32,7 +37,7 @@ conda, é recusada: ignorada, ela faria o pacote parecer ausente da imagem e ent
 A plataforma padrão, ``x86_64-manylinux_2_28``, pede glibc 2.28 ou mais nova na imagem. A imagem do
 laboratório tem o ``onnxruntime`` 1.30.0, que não publica wheel anterior a ``manylinux_2_28``
 (medido em 2026-10-11), então ``manylinux2014`` não a descreve; numa outra imagem, ``ldd --version``
-no space diz a glibc.
+no espaço diz a glibc.
 
 Medido em 2026-10-11 sobre a imagem do laboratório, ``awsds-sandbox-dev-env``, e um projeto que
 dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock novo discordou da imagem em
@@ -40,7 +45,7 @@ dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock novo discordo
 impresso e um novo ``uv lock``, 12 pacotes vieram da imagem e só o ``petl`` entrou na pasta,
 de 1,2 MB.
 
-Num job do laboratório, em 2026-10-11, uma pasta com essa forma, gravada num space por um script
+Num job do laboratório, em 2026-10-11, uma pasta com essa forma, gravada num espaço por um script
 com os mesmos passos do ``uv``, rodou sem rede: o ``petl`` (Python puro) e o módulo de extensão do
 ``msgspec`` foram importados da pasta, e o ``pyarrow`` do ambiente da imagem. Nenhuma pasta
 gravada por ``build_folder`` rodou num job até essa data.

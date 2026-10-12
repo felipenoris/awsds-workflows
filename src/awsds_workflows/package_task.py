@@ -1,22 +1,24 @@
 """[public] O ``.zip`` de código de uma task Python ou Bash de um workflow do MWAA Serverless.
 
-O worker recebe o código de uma task como um único ``.py``, ``.sh`` ou ``.zip``, extrai o ``.zip``
-em ``/usr/local/airflow/dags``, que está no ``sys.path``, e não tem internet. Por isso o ``.zip``
-leva tudo na raiz: o pacote do projeto e cada dependência que o ``uv.lock`` do projeto fixa, em
-wheels do interpretador e da plataforma do worker, o módulo de entrada que o ``python_callable`` de
-uma task Python nomeia e os arquivos que uma task Bash chama, como um script ou um binário. Os
-pacotes que o worker já traz ficam de fora, com cada dependência que só eles usam.
+Uma task Python ou Bash roda no worker, a máquina que o MWAA Serverless prepara para cada
+execução, sem internet. O código dela chega num único ``.py``, ``.sh`` ou ``.zip``, que o worker
+extrai em ``/usr/local/airflow/dags``, uma pasta do ``sys.path``. Por isso o ``.zip`` leva tudo na
+raiz: o pacote do projeto, cada dependência que o ``uv.lock`` do projeto fixa, em wheels do
+interpretador e da plataforma do worker, o módulo de entrada que o ``python_callable`` de uma task
+Python nomeia e os arquivos que uma task Bash chama, como um script ou um binário. Os pacotes que
+o worker já traz ficam de fora, com cada dependência que só eles usam.
 
 ``build_archive`` roda na máquina com internet, onde o ``uv`` alcança o PyPI; o ``.zip`` é enviado
-depois ao workflow, em *Settings → Storage → Python/Bash Operator Files*. O alvo é o worker, o
-mesmo com qualquer imagem que os jobs do projeto usem.
+depois ao workflow, em *Settings → Storage → Python/Bash Operator Files*. O alvo é sempre o
+worker, qualquer que seja a imagem dos jobs do projeto.
 
 Os passos, cada um com a regra do worker que cumpre:
 
-1. ``uv export --locked --no-dev --no-emit-project --prune <nome> ...`` grava o fechamento travado
-   como arquivo de requisitos. ``--locked`` recusa um lock desatualizado, e ``--prune`` tira cada
-   pacote do worker junto com as dependências que só ele usa: o ``boto3`` leva o ``s3transfer`` e o
-   ``jmespath``, e o ``urllib3``, de que o ``requests`` também precisa, fica.
+1. ``uv export --locked --no-dev --no-emit-project --prune <nome> ...`` grava o fechamento travado,
+   a lista de todas as dependências nas versões do ``uv.lock``, como arquivo de requisitos.
+   ``--locked`` recusa um lock desatualizado, e ``--prune`` tira cada pacote do worker junto com
+   as dependências que só ele usa: o ``boto3`` leva o ``s3transfer`` e o ``jmespath``, e o
+   ``urllib3``, de que o ``requests`` também precisa, fica.
 2. ``uv pip install --target --no-deps --only-binary :all:`` com ``--python-version`` e
    ``--python-platform`` instala os wheels do worker para esse fechamento, com os hashes do lock.
    ``--only-binary`` recusa uma distribuição de código-fonte, que seria compilada para esta
@@ -102,13 +104,14 @@ WORKER_PROVIDED = (
     "aws-cryptography-internal-dynamodb",
     "aws-cryptography-internal-primitives",
 )
-"""[public] Os pacotes que o worker já traz, da tabela do guia lida em 2026-10-11.
+"""[public] Os pacotes que o worker já traz, da tabela do guia lida em 2026-10-11; eles ficam fora
+do ``.zip``.
 
-A cópia do worker vence a do ``.zip`` numa task Python, como o guia diz: no laboratório, em
-2026-10-11, o PyYAML 6.0.2 do worker foi importado no lugar do 6.0.1 de um ``.zip``. Numa task
+Numa task Python, a cópia do worker vence a do ``.zip``, como o guia diz e o laboratório mediu em
+2026-10-11: o PyYAML 6.0.2 do worker foi importado no lugar do 6.0.1 de um ``.zip``. Numa task
 Bash que roda ``python3 -m`` a partir de ``/usr/local/airflow/dags``, a pasta vem antes no
-``sys.path``, e a cópia do ``.zip`` venceria (não medido); sem esses pacotes no ``.zip``, as duas
-tasks importam os do worker. O código da task é escrito contra as versões do worker: o Airflow
+``sys.path``, e a cópia do ``.zip`` venceria (não medido). Sem esses pacotes no ``.zip``, as duas
+tasks importam os do worker, então o código da task é escrito contra as versões dele: o Airflow
 3.0.6, o provider da Amazon 9.32.0 e o ``boto3`` 1.43.1.
 """
 
