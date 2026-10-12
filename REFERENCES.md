@@ -12,6 +12,12 @@ pacote repete.
 - As regras do repositório e o molde da documentação e da CI: <https://github.com/felipenoris/serialize-db>
 - O PR #110 do AWS-DataScience, fonte das leituras de 2026-10-11 sobre o job com dependências e o
   `uv` num space (lido em 2026-10-11): <https://github.com/felipenoris/AWS-DataScience/pull/110>
+- O log da etapa 6i do AWS-DataScience, fonte das leituras de 2026-10-11 sobre a task Bash com um
+  `.zip`, o worker de cada task e a cópia do código a cada save (lido em 2026-10-12):
+  <https://github.com/felipenoris/AWS-DataScience/blob/main/docs/log/log-stage-06i-sandbox-orchestration.md>
+- Os exemplos do AWS-DataScience, com o `compare` das definições que o portal salvou (lido em
+  2026-10-12):
+  <https://github.com/felipenoris/AWS-DataScience/blob/main/examples/sandbox-orchestration/README.md>
 
 ## MWAA Serverless
 
@@ -81,7 +87,8 @@ pacote repete.
 
 - O `BashOperator` e o `SubprocessHook` do `apache-airflow-providers-standard`, lidos no código dos
   wheels 1.6.0 e 1.20.0 em 2026-10-11: o `template_ext`, o `bash -c`, a pasta temporária, o `env`
-  e o `append_env` e os códigos de saída. A API JSON do PyPI deu os endereços dos wheels:
+  e o `append_env` e os códigos de saída; o 1.6.0 relido em 2026-10-12, no `_is_inline_command`.
+  A API JSON do PyPI deu os endereços dos wheels:
   <https://pypi.org/pypi/apache-airflow-providers-standard/1.6.0/json> e
   <https://pypi.org/pypi/apache-airflow-providers-standard/json>
 - As constraints do Airflow 3.0.6 para o Python 3.12, que fixam o

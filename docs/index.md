@@ -47,8 +47,8 @@ Os termos desta página, na ordem em que um workflow os usa.
 
 **O workflow e a sua definição.** Na página *Workflows* de um projeto, um workflow é descrito por
 um arquivo YAML, o arquivo de definição do workflow: ele lista as tasks, os parâmetros de cada uma e
-a ordem entre elas. Quem o executa é o MWAA Serverless: a cada execução ele prepara um worker, roda
-as tasks nele e grava os logs. A definição fica no bucket do projeto, e o portal a reescreve a cada
+a ordem entre elas. Quem o executa é o MWAA Serverless: ele prepara um worker para cada task, roda
+a task nele e grava os logs. A definição fica no bucket do projeto, e o portal a reescreve a cada
 save ([As peças](#as-pecas)).
 
 **As tasks e os operadores.** Cada task da definição é um operador do Airflow, uma classe que sabe
@@ -60,8 +60,8 @@ fazer uma coisa, com os parâmetros dela. Três tipos de task entram nos workflo
 | uma task Python ou Bash | `PythonOperator`, `BashOperator` | no worker | um `.zip` com o seu código e as dependências, montado pelo `package-task` |
 | uma task de processamento | `SageMakerProcessingOperator` | num job de processamento do SageMaker, na imagem que a task nomeia | uma pasta de código no S3, montada pelo `package-job` |
 
-**O worker** é a máquina pequena que o MWAA Serverless prepara para uma execução, com Python 3.12,
-o Airflow e sem internet. Uma task Python ou Bash roda nele. Uma task de processamento roda nele só
+**O worker** é a máquina pequena que o MWAA Serverless prepara para cada task, com Python 3.12, o
+Airflow e sem internet. Uma task Python ou Bash roda nele. Uma task de processamento roda nele só
 o operador: o trabalho de verdade acontece num job de processamento do SageMaker, um contêiner
 que a AWS inicia numa instância à parte, com a imagem que a task escolhe, e que no laboratório
 roda isolado da rede.
@@ -165,6 +165,11 @@ gravou.
 Python 3.12, Airflow 3.0.6, o provider da Amazon 9.32.0 e o `boto3` 1.43.1, e não tem internet nem
 proxy. Uma task ocupa o worker durante toda a sua duração, a espera de um sensor incluída, e custa
 0,088 USD por task-hora, com mínimo de um minuto.
+
+Cada task tem o seu worker: duas tasks da mesma execução rodaram em sub-redes diferentes, e o log
+de cada task abre com `Preparing the execution environment.` (medido no laboratório em
+2026-10-11). Por isso um arquivo que uma task grava no disco não chega à seguinte (não medido):
+passe os dados de uma task a outra pelo S3.
 
 ## A imagem do job
 
@@ -274,7 +279,8 @@ responde. O que o laboratório leu no CloudTrail, nos logs de fluxo e no log do 
   an internal server error`, e só um evento de atividade de rede do CloudTrail, com `errorCode`
   `VpceAccessDenied`, nomeia a recusa. Com o bucket admitido, o mesmo workflow rodou.
 - **A internet não responde**: uma task que tentou o PyPI falhou em cerca de 2 s, na resolução do
-  nome, que o firewall de DNS da VPC do laboratório recusa.
+  nome, que o firewall de DNS da VPC do laboratório recusa. O Python do worker lê essa recusa como
+  `[Errno 16] Device or resource busy`, e não como um nome que não existe.
 - **A imagem do job é baixada pela plataforma**, fora da rede do projeto, então um job isolado não
   precisa de endpoint do ECR.
 
@@ -531,6 +537,10 @@ dois.
 a terceira task da definição de exemplo é um `S3DeleteObjectsOperator` no prefixo da caixa de
 entrada, depois da task de processamento.
 
+**Um arquivo por vez na caixa de entrada.** A remoção apaga o prefixo inteiro, então um arquivo que
+chega entre o download do job e a remoção é apagado sem ser processado, e só volta pela versão
+anterior que o bucket versionado guarda.
+
 **No código do job, imprima contagens e caminhos, nunca dados.** A saída do contêiner vai para um
 grupo de logs da conta inteira, que todo papel de projeto da conta pode ler
 ([As peças](#as-pecas)).
@@ -628,11 +638,11 @@ meu-job:
 Uma task Python chama uma função sua no worker; uma task Bash roda um comando lá. O código das duas
 viaja num `.zip`, o `Code` do workflow, que o `package-task` monta a partir de um projeto `uv`.
 
-**Estado no laboratório**: funciona desde 2026-10-11. Uma task Python com um `.zip` leu a amostra,
-gravou o resultado e apagou a origem. O `.zip` foi montado pela receita
-[à mão](#a-mao-sem-o-pacote), e nenhum `.zip` do `package-task` rodou num worker ainda. Antes, o
-worker falhava ao preparar o ambiente, antes de qualquer task: a política do endpoint de gateway do
-S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
+**Estado no laboratório**: funciona desde 2026-10-11. Uma task Python e uma task Bash, cada uma com
+um `.zip`, leram a amostra, gravaram o resultado e apagaram a origem. Os dois `.zip` foram montados
+pela receita [à mão](#a-mao-sem-o-pacote), e nenhum `.zip` do `package-task` rodou num worker
+ainda. Antes, o worker falhava ao preparar o ambiente, antes de qualquer task: a política do
+endpoint de gateway do S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
 
 ### O que o worker espera
 
@@ -790,8 +800,10 @@ com o módulo de entrada e os arquivos de `--include` juntos.
 --target ./package sua-dependencia`): rodada noutra plataforma, ela instala os wheels daquela
 plataforma para todo pacote compilado. Use o `package-task`, ou a receita à mão abaixo.
 
-**Uma versão nova do código pede um save novo.** O workflow roda a cópia tirada no último save,
-então trocar o objeto no S3 não muda nada até o workflow ser salvo ou importado de novo.
+**Uma versão nova do código pede um envio e um save.** O workflow roda a cópia que o serviço tirou
+no último save, da versão S3 que o `Code` fixa, então trocar o objeto no S3 por fora do portal não
+muda o que roda. Cada save tira uma cópia nova, mesmo um que só muda a descrição do workflow
+(medido no laboratório em 2026-10-11).
 
 ### À mão, sem o pacote
 
@@ -814,8 +826,10 @@ find build -name __pycache__ -type d -prune -exec rm -rf {} +
 
 ## Uma task Bash
 
-**Estado no laboratório**: uma task Bash com comandos inline rodou em 2026-10-11 e mostrou o
-ambiente do worker. Nenhuma task Bash com `Code` rodou ainda.
+**Estado no laboratório**: funciona desde 2026-10-11. Tasks com comandos inline mostraram o
+ambiente do worker, e um workflow com um `.zip` montado à mão rodou um módulo do `.zip` com
+`python3 -m` e um script do `.zip` pelo nome. Nenhum `.zip` do `package-task` rodou numa task Bash
+ainda.
 
 Uma task Bash roda um comando do shell no worker: comandos inline, um script, um módulo Python com
 `python3 -m` ou um binário. O código que ela chama viaja no `Code` do workflow, que o `package-task`
@@ -826,9 +840,9 @@ o `BashOperator` do Airflow, cujo código, no `apache-airflow-providers-standard
 | | Uma task Python | Uma task Bash |
 |---|---|---|
 | A task nomeia | uma função, `python_callable: <módulo>.<função>` | um comando, `bash_command` |
-| Como roda | a função é chamada no processo da task | `bash -c "<comando>"`, num subprocesso |
+| Como roda | a função é chamada no processo da task | num subprocesso, `bash -c "<comando>"`, ou `bash` numa cópia do script chamado pelo nome |
 | Sucesso | a função volta sem exceção | a saída 0; a saída 99 pula a task, e qualquer outra a falha |
-| O código do `.zip` | importado pelo nome, porque `/usr/local/airflow/dags` está no `sys.path` | chamado em `/usr/local/airflow/dags`, pelo caminho inteiro ou depois de um `cd`, porque a pasta de trabalho é outra |
+| O código do `.zip` | importado pelo nome, porque `/usr/local/airflow/dags` está no `sys.path` | um módulo, com `python3 -m`, porque o `PYTHONPATH` começa por `/usr/local/airflow/dags`; um script ou um binário, pelo caminho nessa pasta, porque a pasta de trabalho é outra |
 
 ### O comando
 
@@ -844,11 +858,15 @@ worker e as variáveis da credencial (lido no código do operador, não medido).
 
 ### O ambiente do worker
 
-O laboratório leu o ambiente em 2026-10-11, numa task com comandos inline:
+O laboratório leu o ambiente em 2026-10-11, em tasks com comandos inline, num workflow sem `Code` e
+num com um `.zip`:
 
 - a pasta de trabalho é temporária, `/var/tmp/airflowtmp…`, e não `/usr/local/airflow/dags`, onde
-  o `.zip` é extraído; o guia diz que um script roda em `/usr/local/airflow/dags`, o que nenhuma
-  execução mediu;
+  o `.zip` é extraído. O guia diz que um script roda em `/usr/local/airflow/dags`, mas o script
+  chamado pelo nome rodou de uma cópia numa pasta temporária
+  ([O código do `.zip` no comando](#o-codigo-do-zip-no-comando));
+- com um `.zip`, o `PYTHONPATH` começa por `/usr/local/airflow/dags`, que aparece duas vezes, e
+  segue com os pacotes do worker, `/opt/mwaa-serverless-venv/lib/python3.12/site-packages`;
 - o `python3` do `PATH` é o do worker, `/opt/mwaa-serverless-venv/bin/python3` 3.12.14, com o
   `boto3` 1.43.1 e os outros pacotes que o worker traz;
 - os processos que a task abre recebem a credencial do papel do projeto, sessão
@@ -884,14 +902,18 @@ run_project:
   retries: 0
 ```
 
-- **`python3 -m meu_pacote`** pede um `__main__.py` no pacote. A pasta de trabalho vem antes no
-  `sys.path`, então um pacote do `.zip` venceria o do worker com o mesmo nome (não medido), o
-  contrário de uma task Python; o `package-task` deixa os do worker de fora.
-- **Um script do `.zip`** roda como `bash /usr/local/airflow/dags/run.sh <argumentos>`. Um
-  `bash_command` que termina em `.sh` ou `.bash` é, para o Airflow, o nome de um template: o
-  conteúdo do arquivo passa pelo Jinja e roda fora do `.zip`, de uma cópia numa pasta temporária ou
-  por `bash -c`, conforme a versão do provider, e o `$0` não aponta para o `.zip`. Nenhuma das duas
-  formas rodou no worker.
+- **`python3 -m meu_pacote`** pede um `__main__.py` no pacote, e `python3 -m meu_pacote.modulo`
+  roda um módulo dele; o laboratório rodou um módulo assim, depois do `cd` do exemplo. O
+  `PYTHONPATH` da task começa por `/usr/local/airflow/dags`, então o `python3` acharia o pacote
+  mesmo sem o `cd` (não medido). Pela mesma ordem, um pacote do `.zip` venceria o do worker com o
+  mesmo nome (não medido), o contrário de uma task Python; o `package-task` deixa os do worker de
+  fora.
+- **Um script do `.zip`** roda como `bash /usr/local/airflow/dags/run.sh <argumentos>` (não
+  medido). Um `bash_command` que termina em `.sh` ou `.bash`, como `run.sh`, é para o Airflow o
+  nome de um template: o worker passou o arquivo do `.zip` pelo Jinja para uma cópia numa pasta
+  temporária e rodou `bash` nela (medido no laboratório em 2026-10-11). Essa forma não leva
+  argumentos, que fariam o comando deixar de terminar em `.sh`; o `$0` dela não aponta para o
+  `.zip`, e as regras do Jinja de [O comando](#o-comando) valem para o arquivo.
 - **Um binário** é Linux x86_64 e, de preferência, estático, porque a glibc do worker não é
   documentada. O `.zip` guarda o bit de execução, mas a extração pelo `zipfile` do Python o
   descarta, e o serviço não diz como extrai: copie o binário para a pasta de trabalho e dê
@@ -1012,6 +1034,9 @@ awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
   o acrescentou a cada save lido no laboratório, e o serviço o ignora, com o aviso
   `ignored attributes: is_paused_upon_creation` na resposta de cada `update-workflow`
   (2026-09-10).
+- **O `compare` de seis definições salvas** contra os arquivos importados imprimiu só essa linha e
+  as mudanças feitas de propósito, entre elas uma descrição escrita no portal, que entra como a
+  chave `description` do workflow (medido no laboratório em 2026-10-12).
 - **Uma mudança que deve ficar** entra à mão na cópia versionada, com os placeholders no lugar dos
   valores da conta.
 
