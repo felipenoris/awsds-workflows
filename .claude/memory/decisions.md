@@ -213,6 +213,35 @@ Claude's choices inside that decision, named in the PR:
 `docs/index.md` ("O Python que o `uv` usa", the refusal tables, the job with dependencies, "Como
 ler uma execução", "Limpeza"), `src/awsds_workflows/package_job.py`, `tests/test_uv.py`.
 
+## AWS-DataScience adopts the package
+
+On 2026-10-12, in a session of the AWS-DataScience repository, the user asked to adapt the guidance
+on creating workflows to this package, so that AWS-DataScience's support scripts could be deleted
+("Adapte as orientações sobre criação de workflows utilizando a ferramenta do repositório
+`https://github.com/felipenoris/awsds-workflows`. Com isso, poderemos eliminar os scripts de apoio
+do AWS-DataScience."). AWS-DataScience's PR #113 rewrote its runbook
+`docs/plan/runbooks/serverless-workflows.md` around the CLI, with a section on the tool (§T),
+deleted `render.py`, `package-uv.sh` and `package-uv-job.py`, and renamed the placeholders of its
+example YAML to this package's names. The same day the user answered the three choices that
+session put to them:
+
+- "pode utilizar a main do pacote": the runbook installs the package by git URL from `main`, with
+  no commit pinned, and updates it with `uv tool upgrade awsds-workflows`. A change to a CLI
+  option or to a message on `main` therefore reaches that runbook, which quotes both and names the
+  commits it was measured at (`937a66a` and `3499530`);
+- "tudo bem ficar o zip": AWS-DataScience's `operators/build.sh` stays, because its Python archive
+  vendors PyYAML to show the worker's copy winning (its Stage 6i verification viii), and
+  `package-task` prunes PyYAML by design;
+- "tudo bem em relação às mensagens de erro": the runbook's refusal tables quote this package's
+  pt-BR messages, keep only the rows with a way through specific to the lab, and link this
+  documentation for the rest.
+
+Then the user asked this session to fix what this repository needed ("Pode corrigir o que for
+necessário no awsds-workflows"). The measurements behind the adoption are in `packaging.md` ("The
+port verified against the original scripts") and `environments.md` ("The build host").
+
+`docs/index.md` ("Instalação", "A imagem do job", "Regras de autoria"), `README.md`.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.
@@ -231,14 +260,15 @@ Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user'
 - **The placeholders are generic**: `ACCOUNT_ID` replaces `SANDBOX_ACCOUNT_ID`; `JOB_IMAGE_URI`
   (the image's full URI, read with `--image-name` for a custom image) replaces `REGISTRY_ACCOUNT_ID`
   plus `IMAGE_DIGEST`; `JOB_PYTHON`, the interpreter path, is new; `DEMO_PREFIX`, which only
-  AWS-DataScience's exercise used, is gone. AWS-DataScience's examples keep the old names until they
-  switch to the package.
+  AWS-DataScience's exercise used, is gone. AWS-DataScience's examples took these names on
+  2026-10-12 ("AWS-DataScience adopts the package").
 - **`--subnet-name` is required with `--profile`**: the lab's pattern `awsds-sandbox-private-*` is
   the documented example, not a default.
 - **`--omit PACOTE`, repeatable, replaces the `OMIT` variable** of `package-uv.sh`, and
   **`job-constraints` is a subcommand** where the script had `--constraints`.
-- **The messages and the printed output are pt-BR** (the language rule), so the refusal tables of
-  AWS-DataScience's runbook no longer quote the package's own messages; `uv`'s stay English.
+- **The messages and the printed output are pt-BR** (the language rule); `uv`'s stay English.
+  AWS-DataScience's runbook quotes them in pt-BR since 2026-10-12, which the user accepted for that
+  runbook ("AWS-DataScience adopts the package").
 - **The CI runs on Ubuntu only**, since the package runs on Linux; serialize-db's runs on Ubuntu and
   Windows.
 - **`uv` is not a dependency**: it is called as a program, and the house image refuses a change of

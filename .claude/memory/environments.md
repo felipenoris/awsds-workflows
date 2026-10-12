@@ -19,6 +19,14 @@ read the same 67 on CPython 3.12.3 (the runner's `/usr/bin/python3.12`), 3.13.16
 with `setup-uv` setting `UV_PYTHON` from the matrix; its uv 0.13.0 warns that the
 `uv-build>=0.12.10,<0.13.0` of `[build-system]` does not contain the current uv version.
 
+On 2026-10-12, on the user's laptop with uv 0.12.13, `uv tool upgrade awsds-workflows` moved a tool
+installed from a git URL with no revision to the commit `main` gained after the install: a local
+bare repository stood for GitHub, with `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR` in a scratch folder. The
+installed commit is the `commit_id` of the tool environment's `direct_url.json`; `uv tool list
+--show-version-specifiers` prints the source URL and the version, 0.1.0, but no commit.
+AWS-DataScience's runbook installs the package this way, from `main` (`decisions.md`,
+"AWS-DataScience adopts the package").
+
 ## The AWS-DataScience lab
 
 The Sandbox account of AWS-DataScience, `us-west-2`, a SageMaker Unified Studio project where every

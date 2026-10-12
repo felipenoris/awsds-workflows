@@ -153,3 +153,20 @@ On 2026-10-11, on the project the lab measured (`petl`, `requests`, `boto3`, `py
   vendored, five packages from the environment), and both differ only in the project's `RECORD`,
   `direct_url.json` and `uv_cache.json`, the three files that also differ between the two builds of
   the old code.
+- **AWS-DataScience's adoption, 2026-10-12** (its PR #113, `decisions.md`, "AWS-DataScience adopts
+  the package"), on the user's macOS laptop with uv 0.12.13: the package at `937a66a` and again at
+  `3499530`, the `main` after PR #9, against the scripts at AWS-DataScience's `c0baddd`, with the
+  same results at both commits.
+  - `package-job` on `awsds-demo-deps`, the house environment as `uv export --frozen --no-dev
+    --no-emit-project --no-hashes` of `images/dev-env/python` with its header and its `# via`
+    annotations (1,983 lines): the same 176 files, equal but for the project's `RECORD`,
+    `direct_url.json` and `uv_cache.json` and petl's `RECORD`.
+  - `job-constraints` over that file: the 452 versions `package-uv-job.py --constraints` printed.
+  - `package-task` on a throwaway project (`petl`, `requests`, `boto3`, `pyyaml`,
+    `requires-python >=3.12`, an entry module): the same 278 entries as `package-uv.sh`.
+  - `render`, on AWS-DataScience's twelve YAML files of `examples/sandbox-orchestration/` with their
+    placeholders renamed to this package's names (`ACCOUNT_ID`, `JOB_IMAGE_URI`, `DEMO_PREFIX`
+    written out as `<DOMAIN_ID>/<PROJECT_ID>/shared/orchestration-demo`): byte for byte what
+    `render.py` printed from the old files, with the lab's values read by `--profile` and with
+    fake values from a file; `--placeholders` gave each file back, and `values` read the values
+    `render.py --values` read.

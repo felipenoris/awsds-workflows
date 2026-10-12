@@ -27,6 +27,8 @@ uv tool install git+https://github.com/felipenoris/awsds-workflows
 awsds-workflows --help
 ```
 
+O `uv tool upgrade awsds-workflows` traz o commit mais novo da `main`.
+
 ## Desenvolvimento e testes
 
 ```shell
