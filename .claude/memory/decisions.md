@@ -162,7 +162,8 @@ SageMaker keeps in `dev/workflows/` of the project's bucket. Claude answered tha
 and S3 the deployed copy, and offered a comparison that reads the two YAML files and shows only the
 real differences, with PyYAML as a dependency. At 23:47 UTC the user answered "sim, pode incluir".
 
-Claude's choices inside that decision, named in the PR, each waiting on the user's confirmation:
+Claude's choices inside that decision, named in PR #7, which the user confirmed on 2026-10-12 at
+02:13 UTC, after the merge, with "sim, ficou bom assim":
 
 - **The module and the subcommand are `compare`, the function `compare_definitions`**, which takes
   two paths, as `render.load_values` does, and refuses a missing file, a file that is not YAML and
