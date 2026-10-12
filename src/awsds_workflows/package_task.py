@@ -198,9 +198,10 @@ def build_archive(
         script ``.sh`` ou o binário que uma task Bash chama; uma pasta não é aceita.
     :return: o ``.zip`` gravado, com o tamanho e os nomes da raiz.
     :raises awsds_workflows.errors.RefusalError: quando falta o ``uv.lock``, o módulo de entrada,
-        um arquivo de ``include`` ou a pasta do ``.zip``, quando o ``uv`` recusa o lock ou uma
-        dependência sem wheel para o alvo, quando o projeto não é Python puro, quando um arquivo
-        tem o nome de outro que já está na raiz e quando o conteúdo passa do limite do worker.
+        um arquivo de ``include`` ou a pasta do ``.zip``, quando o ``uv`` não acha o Python que o
+        projeto pede, quando ele recusa o lock ou uma dependência sem wheel para o alvo, quando o
+        projeto não é Python puro, quando um arquivo tem o nome de outro que já está na raiz e
+        quando o conteúdo passa do limite do worker.
     """
     # Os caminhos absolutos, porque o uv roda dentro da pasta do projeto.
     project = project.resolve()

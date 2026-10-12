@@ -40,6 +40,11 @@ dependia de ``petl``, ``requests``, ``boto3`` e ``pyyaml``: o lock novo discordo
 impresso e um novo ``uv lock``, 12 pacotes vieram da imagem e só o ``petl`` entrou na pasta,
 de 1,2 MB.
 
+Num job do laboratório, em 2026-10-11, uma pasta com essa forma, gravada num space por um script
+com os mesmos passos do ``uv``, rodou sem rede: o ``petl`` (Python puro) e o módulo de extensão do
+``msgspec`` foram importados da pasta, e o ``pyarrow`` do ambiente da imagem. Nenhuma pasta
+gravada por ``build_folder`` rodou num job até essa data.
+
 Exemplo:
 
 .. code-block:: python
@@ -206,8 +211,9 @@ def build_folder(
     :raises awsds_workflows.errors.RefusalError: quando falta o ``uv.lock`` ou o arquivo de
         ambiente, quando a pasta de saída já existe, quando o lock e a imagem discordam numa
         versão (a mensagem traz o bloco ``[tool.uv] constraint-dependencies`` que alinha o
-        projeto à imagem), quando o ``uv`` recusa o lock ou uma dependência sem wheel para o alvo
-        e quando o projeto não é Python puro.
+        projeto à imagem), quando o ``uv`` não acha o Python que o projeto pede, quando ele
+        recusa o lock ou uma dependência sem wheel para o alvo e quando o projeto não é Python
+        puro.
     """
     # Os caminhos absolutos, porque o uv roda dentro da pasta do projeto.
     project = project.resolve()

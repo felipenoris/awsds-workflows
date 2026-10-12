@@ -10,6 +10,8 @@ pacote repete.
 - O runbook de que o pacote saiu:
   <https://github.com/felipenoris/AWS-DataScience/blob/main/docs/plan/runbooks/serverless-workflows.md>
 - As regras do repositório e o molde da documentação e da CI: <https://github.com/felipenoris/serialize-db>
+- O PR #110 do AWS-DataScience, fonte das leituras de 2026-10-11 sobre o job com dependências e o
+  `uv` num space (lido em 2026-10-11): <https://github.com/felipenoris/AWS-DataScience/pull/110>
 
 ## MWAA Serverless
 

@@ -1,12 +1,15 @@
-"""``awsds_workflows._uv``: a recusa de uma chamada que falha, do ``uv`` ausente, de um wheel que
-não é Python puro, e a limpeza do que o ``uv pip install --target`` deixa.
+"""``awsds_workflows._uv``: a recusa de uma chamada que falha, do ``uv`` ausente, de um Python que o
+``uv`` não acha e de um wheel que não é Python puro, o ``UV_PYTHON`` que chega ao ``uv``, e a
+limpeza do que o ``uv pip install --target`` deixa.
 
-Nenhum teste precisa do PyPI: a chamada que falha é uma opção que o ``uv`` não conhece, e o wheel
-impuro é um nome de arquivo gravado por um dublê de ``run``.
+Nenhum teste precisa do PyPI: a chamada que falha é uma opção que o ``uv`` não conhece, o Python
+que o ``uv`` não acha é o 3.99 de um ``.python-version`` com os downloads de Python desligados, e o
+wheel impuro é um nome de arquivo gravado por um dublê de ``run``.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -30,6 +33,31 @@ def test_a_missing_uv_is_refused(
     monkeypatch.setenv("PATH", "")
     with pytest.raises(RefusalError, match="o uv não está no PATH"):
         _uv.run(["--version"])
+
+
+def test_a_missing_interpreter_is_refused_with_the_uv_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Com os downloads de Python desligados, uma pasta que pede um Python que o ``uv`` não acha é
+    recusada com a mensagem que a documentação cita, como num space."""
+    (tmp_path / ".python-version").write_text("3.99\n", encoding="utf-8")
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.delenv("UV_PYTHON", raising=False)
+    with pytest.raises(RefusalError, match="No interpreter found for Python 3.99"):
+        _uv.run(["venv", str(tmp_path / "venv")], cwd=tmp_path)
+
+
+def test_uv_python_reaches_the_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """O ``UV_PYTHON`` do processo chega ao ``uv`` e nomeia o interpretador que ele não acharia."""
+    (tmp_path / ".python-version").write_text("3.99\n", encoding="utf-8")
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    _uv.run(["venv", str(tmp_path / "venv")], cwd=tmp_path)
+    assert (tmp_path / "venv" / "pyvenv.cfg").is_file()
 
 
 def test_an_impure_wheel_is_refused(

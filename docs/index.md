@@ -11,7 +11,7 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 
 | Seção | Para quem | O que traz |
 |---|---|---|
-| [Instalação](#instalacao) | todos | o pacote na máquina que empacota |
+| [Instalação](#instalacao) | todos | o pacote na máquina que empacota, e o Python que o `uv` usa nela |
 | [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
@@ -39,6 +39,32 @@ uv add git+https://github.com/felipenoris/awsds-workflows            # ou como d
 O pacote pede o Python 3.12 ou mais novo, é testado no 3.12, no 3.13 e no 3.14, e chama o `uv`
 como programa. A única dependência é o `packaging`, que avalia os marcadores do ambiente da imagem.
 
+### O Python que o `uv` usa
+
+O `package-task` e o `package-job` rodam o `uv` na pasta do projeto, e o `uv` precisa de um
+interpretador que o projeto aceite: o que o `.python-version` dele nomeia ou, sem esse arquivo, um
+que satisfaça o `requires-python`. O `uv` baixa o que não acha, a menos que os downloads de Python
+estejam desligados.
+
+Num space do laboratório, a imagem desliga esses downloads (`UV_PYTHON_DOWNLOADS=never`), e o `uv`
+acha só o Python da distribuição, `/opt/conda/bin/python` 3.12. O interpretador do job,
+`/opt/awsds/venv/bin/python` 3.13, fica fora dos caminhos de busca dele, e um projeto que pede o
+3.13 é recusado com `No interpreter found for Python 3.13`. A variável `UV_PYTHON` do `uv` nomeia o
+interpretador, e o pacote a repassa a cada chamada do `uv`:
+
+```shell
+UV_PYTHON=/opt/awsds/venv/bin/python awsds-workflows package-job ~/src/meu-projeto \
+    /tmp/meu-projeto-0.2.0 --environment ambiente.txt --python 3.13
+```
+
+Medido num space simulado em 2026-10-11, com o `uv` 0.12.17 da imagem do laboratório, os downloads
+desligados, só um CPython 3.12 no `PATH` e um 3.13 fora dele: o `uv tool install` instalou o pacote
+no 3.12, sem ler o `.python-version` da pasta em que rodou; sem o `UV_PYTHON`, o `package-job` e o
+`package-task` pararam no `uv export --locked` de um projeto que pedia o 3.13; com ele, gravaram a
+pasta e o `.zip`. Com os downloads ligados, o `uv` baixou o CPython 3.13.15, e o `package-job`
+gravou os mesmos arquivos, diferentes só em metadados da instalação (2026-10-12). Num space de
+verdade, o pacote ainda não rodou.
+
 ## As peças
 
 | O quê | Onde | Nota |
@@ -46,7 +72,7 @@ como programa. A única dependência é o `packaging`, que avalia os marcadores 
 | o arquivo de definição do workflow | `s3://<bucket do projeto>/<domínio>/<projeto>/dev/workflows/<nome>.yaml` | gravado pelo portal a cada save; *View code* o mostra |
 | o `.zip` de uma task Python ou Bash | `.../dev/operatorFiles/<arquivo>` | enviado em *Settings → Storage*; um `.zip` é guardado como foi enviado, e o workflow fixa a versão S3 dele |
 | a cópia do código que o serviço guarda | `mwaa-serverless-code-files-<conta da AWS>-<região>-prod`, um bucket do serviço (lido no CloudTrail em 2026-10-11) | tirada a cada save, fora do bucket do projeto, e cifrada com a chave do projeto; o worker a busca pelo endpoint de gateway do S3 ([A rede](#a-rede)) |
-| os logs das tasks | `/aws/mwaa-serverless/<domínio>-<projeto>/<workflow>`, um stream por tentativa de task | por projeto, sem retenção; o grupo sobrevive ao workflow |
+| os logs das tasks | `/aws/mwaa-serverless/<domínio>-<projeto>/<workflow>`, um stream por tentativa de task | por projeto, sem retenção; o grupo existe desde o primeiro save, antes de qualquer execução, e sobrevive ao workflow |
 | a saída do contêiner de um job | `/aws/sagemaker/ProcessingJobs`, stream `<job>/algo-1-<n>` | da conta inteira: todo papel de projeto da conta pode lê-la |
 | a identidade | o papel do projeto, `datazone_usr_role_<projeto>_<ambiente>`, sessão `AmazonMWAAServerless` no worker e `SageMaker` dentro de um job | |
 | a rede | as sub-redes privadas e o grupo de segurança do projeto, injetados pelo portal | sem rota padrão: a AWS é alcançada pelos endpoints de VPC |
@@ -172,7 +198,7 @@ versões recomeça. O grupo de logs leva o nome do workflow e guarda os logs de 
 
 | O portal diz | O que aconteceu | Saída |
 |---|---|---|
-| `ValidationException: Code not found in specified S3 location` | o save mandou o local de código que o editor preenche, *Operator files zip S3 location*, sem arquivo lá; um workflow novo e vazio também o manda | envie o arquivo da task em *Settings → Storage*; num workflow sem código (só comandos Bash inline, ou nenhuma task Python ou Bash), esvazie o campo, e o save não manda o `Code` (2026-10-11) |
+| `ValidationException: Code not found in specified S3 location` | o save mandou o local de código que o editor preenche, *Operator files zip S3 location*, sem arquivo lá; o editor preenche o campo num workflow novo, vazio ou importado, mesmo sem task Python ou Bash | envie o arquivo da task em *Settings → Storage*; num workflow sem código (só comandos Bash inline, ou nenhuma task Python ou Bash), esvazie o campo antes do save, e o save não manda o `Code` (2026-10-11) |
 | `ContainerArguments: Container argument is required` | o editor, e não a API, exige argumentos numa task de processamento | separe o comando em programa (`ContainerEntrypoint`) e argumentos |
 | dois workflows com o mesmo nome | dois saves passaram juntos pela conferência do nome, a 2 s um do outro | apague um; fora disso, o nome é conferido |
 
@@ -283,7 +309,8 @@ task:
    A pasta de saída ainda não pode existir. `--platform` vale `x86_64-manylinux_2_28` por padrão,
    que pede glibc 2.28 ou mais nova na imagem; `ldd --version` num space diz a glibc. A imagem da
    casa tem o `onnxruntime` 1.30.0, que não publica wheel anterior a `manylinux_2_28` (medido em
-   2026-10-11), então `manylinux2014` não a descreve.
+   2026-10-11), então `manylinux2014` não a descreve. Num space, o `uv` pode não achar o Python que
+   o projeto pede ([O Python que o `uv` usa](#o-python-que-o-uv-usa)).
 4. **Se ele apontar uma discordância**, cole o bloco que ele imprime no `pyproject.toml` do projeto,
    rode `uv lock` e repita o passo 3:
 
@@ -295,9 +322,10 @@ task:
    ]
    ```
 
-   O bloco fixa cada pacote que o projeto compartilha com a imagem na versão da imagem. Quando um
-   limite inferior do projeto passa de uma versão da imagem, esse lock falha, e a dependência não
-   serve a esta imagem: ela pede outra versão, outro pacote ou outra imagem.
+   O bloco fixa cada pacote que o projeto compartilha com a imagem na versão da imagem, o que também
+   põe os testes do projeto nas versões que o job importa. Quando um limite inferior do projeto
+   passa de uma versão da imagem, esse lock falha, e a dependência não serve a esta imagem: ela
+   pede outra versão, outro pacote ou outra imagem.
    `awsds-workflows job-constraints --environment ambiente.txt --python 3.12` imprime cada versão
    da imagem como requisito, para `uv pip compile -c` ou `uv add -c`.
 5. **Leia o que ele imprimiu**: a pasta e o tamanho, o que vem da imagem, o que a pasta leva e a
@@ -310,6 +338,10 @@ task:
        s3://<bucket do projeto>/<domínio>/<projeto>/shared/jobs/meu-projeto-0.2.0/
    ```
 
+   Num space com o `~/shared/` do projeto, a mesma cópia é
+   `mkdir -p ~/shared/jobs && cp -r /tmp/meu-projeto-0.2.0 ~/shared/jobs/`. O `shared/` grava no
+   prefixo um marcador de zero bytes por pasta, e um job baixou um prefixo assim sem problema
+   (2026-10-11).
 7. **Nomeie a pasta no `config` do job**, ao lado das exigências do ambiente, e importe a
    definição:
 
@@ -338,11 +370,33 @@ task:
 | `... não é nome==versão` | o arquivo de ambiente veio do `pip freeze` | gere-o com `uv pip list --format freeze` |
 | `não é Python puro` | o projeto tem módulos de extensão | construa o wheel dele na plataforma do alvo |
 | `no wheels with a matching platform tag` | uma dependência da pasta não publica wheel para o alvo | outra versão, outro pacote ou outra imagem |
+| `No interpreter found for Python <versão>` | o `uv` não acha o Python que o projeto pede e não pode baixá-lo | `UV_PYTHON` com o interpretador do job ([O Python que o `uv` usa](#o-python-que-o-uv-usa)) |
 
 **Medido em 2026-10-11** com a imagem do laboratório, num projeto descartável que dependia de
 `petl`, `requests`, `boto3` e `pyyaml`: o lock novo discordou da imagem em `boto3`, `botocore`,
 `charset-normalizer`, `idna` e `urllib3`; com o bloco impresso e um novo `uv lock`, 12 pacotes
 vieram da imagem e só o `petl` entrou na pasta, de 1,2 MB.
+
+**Medido num job em 2026-10-11**, com a imagem do laboratório, num projeto que dependia do `petl`
+(Python puro), do `msgspec` (um módulo de extensão) e do `pyarrow`, que a imagem tem. O lock novo
+discordou da imagem no `pyarrow`, 26.0.0 no lock e 24.0.0 na imagem; com o bloco e um novo
+`uv lock`, a pasta levou o projeto, o `petl` 1.7.29 e o `msgspec` 0.22.0, em 176 arquivos e
+1.735.841 bytes. O job a recebeu como entrada de código, sem rede, e o contêiner imprimiu de onde
+importou cada pacote:
+
+```
+python 3.13.15 at /opt/awsds/venv/bin/python
+petl 1.7.29 from /opt/ml/processing/code/petl
+msgspec 0.22.0 from /opt/ml/processing/code/msgspec, extension _core.cpython-313-x86_64-linux-gnu.so
+pyarrow 24.0.0 from /opt/awsds/venv/lib/python3.13/site-packages/pyarrow, extension lib.cpython-313-x86_64-linux-gnu.so
+```
+
+O pacote Python puro e o módulo de extensão vieram da pasta, e o `pyarrow` do ambiente da imagem;
+as saídas, um JSON e uma tabela Parquet, são byte a byte as da execução local. A pasta foi gravada
+num space por um script com os mesmos passos do `uv`, e nenhuma pasta do `package-job` rodou num
+job ainda. Num space simulado, o `package-job` gravou os mesmos 176 arquivos, iguais a menos de
+três metadados do projeto: o caminho temporário do wheel, a hora da construção e os hashes dos
+dois.
 
 **O workflow apaga a origem, e não o job**: um contêiner isolado não alcança o S3. A terceira task
 é um `S3DeleteObjectsOperator` no prefixo da caixa de entrada, depois da task de processamento.
@@ -352,7 +406,11 @@ conta inteira ([As peças](#as-pecas)).
 
 **O custo e a duração de uma execução** (medido no laboratório em 2026-10-11): cerca de 15 minutos e
 0,03 USD. O job passou cerca de 7,5 dos seus 8 minutos baixando a imagem do laboratório, de 6,97 GB,
-antes de o contêiner começar, e a task de processamento ocupa o worker durante o job inteiro.
+antes de o contêiner começar, e a task de processamento ocupa o worker durante o job inteiro. No
+job com dependências, a task ocupou o worker 791 s para um comando de um segundo: cerca de 3
+minutos de provisionamento antes do `ProcessingStartTime`, 7 de download da imagem e 2,5 depois do
+`ProcessingEndTime` até o job ler `Completed`, o estado que o operador espera. A pasta com as
+dependências não mudou o custo da execução, cerca de 0,03 USD.
 
 ### Uma definição de exemplo
 
@@ -509,6 +567,7 @@ S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
 | Ele diz | Significado | O que fazer |
 |---|---|---|
 | `The lockfile at uv.lock needs to be updated` | o `pyproject.toml` mudou depois do lock | `uv lock` no projeto |
+| `No interpreter found for Python <versão>` | o `uv` não acha o Python que o projeto pede e não pode baixá-lo | `UV_PYTHON` com um interpretador que o projeto aceite ([O Python que o `uv` usa](#o-python-que-o-uv-usa)) |
 | `no wheels with a matching platform tag` | uma dependência não publica wheel para o alvo | ela não viaja no `.zip`: outra versão ou outro pacote |
 | `não é Python puro` | o projeto tem módulos de extensão | construa o wheel dele na plataforma do alvo |
 | `acima do limite de 250000000 bytes do worker` | o `.zip` é grande demais | `--omit` mais pacotes, ou corte dependências |
@@ -806,6 +865,10 @@ conseguiu renderizar ao criar a execução ([Regras de autoria](#regras-de-autor
 execução. Uma task que falhou roda de novo uma vez com o `retries` padrão: leia a duração da task,
 e não a da execução.
 
+**O estado da execução atrasa o das tasks.** O `RunState` do `get-workflow-run` leu `QUEUED` até as
+23:06:16Z, depois de o sensor terminar e com o job já sendo criado (2026-10-11). Leia o progresso
+nas tasks, com o `list-task-instances`.
+
 ## Limpeza
 
 - **Apague um workflow** na página *Workflows*. O grupo de logs dele fica, sem retenção.
@@ -814,3 +877,5 @@ e não a da execução.
 - **Um job de processamento não pode ser apagado**: ele continua listado.
 - **Os `.zip` de código** em `dev/operatorFiles/` ficam com todas as versões, porque o bucket é
   versionado.
+- **As pastas de código** em `shared/jobs/` ficam, uma por versão; apague uma só quando nenhuma
+  definição a nomeia.
