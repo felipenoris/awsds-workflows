@@ -139,6 +139,39 @@ DataZone failure ends without JSON, where the first version printed nine values
 
 `scripts/space_values.py`, `tests/test_space_values.py`, `docs/index.md`.
 
+## The comparison of definitions
+
+On 2026-10-11 at 23:26 UTC the user asked how to reconcile the definition kept in git with the one
+SageMaker keeps in `dev/workflows/` of the project's bucket. Claude answered that git is the source
+and S3 the deployed copy, and offered a comparison that reads the two YAML files and shows only the
+real differences, with PyYAML as a dependency. At 23:47 UTC the user answered "sim, pode incluir".
+
+Claude's choices inside that decision, named in the PR, each waiting on the user's confirmation:
+
+- **The module and the subcommand are `compare`, the function `compare_definitions`**, which takes
+  two paths, as `render.load_values` does, and refuses a missing file, a file that is not YAML and
+  a document that is not a mapping. It does not restore the placeholders: the documentation chains
+  `render --placeholders` and `compare`.
+- **The output is one line per side of a difference**: `- path: value` for what only the first file
+  has, `+ path: value` for what only the second has, and a changed value gives both. The path joins
+  keys with `.` and list positions with `[i]`, the value is JSON on one line, and the order follows
+  the first file's keys, then the keys only the second has.
+- **Values compare with their type** (`true` and `1` differ), and **lists by position**.
+- **`compare` exits 0 with or without differences** and prints "as definições têm o mesmo
+  conteúdo" when there are none; 1 stays a refusal and 2 a usage error.
+- **`pyyaml>=6` is a floor**, like `packaging>=24`; `uv` resolved 6.0.3 on 2026-10-12.
+
+On the lab's two pairs of an imported template and the definition the portal saved
+(AWS-DataScience's `examples/sandbox-orchestration/devenv-job/` and `definitions/`, read on
+2026-10-12), `compare_definitions` printed only `+ demo-devenv-job.is_paused_upon_creation: false`,
+where a text `diff` of the project pair, the layout line left out, printed 107 lines. The service
+ignores that key: each `update-workflow` answered `ignored attributes: is_paused_upon_creation`
+(AWS-DataScience's stage 6d, 2026-09-10). `tests/test_compare.py` repeats the portal's changes on
+a definition of its own.
+
+`src/awsds_workflows/compare.py`, `src/awsds_workflows/cli.py`, `tests/test_compare.py`,
+`docs/index.md` ("A definição que o portal salvou").
+
 ## The findings of AWS-DataScience's PR #110
 
 On 2026-10-11 at 23:50 UTC the user asked whether the documentation and the code needed updating

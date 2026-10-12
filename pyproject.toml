@@ -8,11 +8,13 @@ authors = [
 ]
 requires-python = ">=3.12"
 # O packaging avalia os marcadores PEP 508 do ambiente da imagem do job para o interpretador e a
-# plataforma do job (awsds_workflows.package_job). A versão é mínima, e não fixa, para o pacote
-# instalar ao lado de um ambiente que fixa a sua. O uv é chamado como programa e não entra como
+# plataforma do job (awsds_workflows.package_job), e o PyYAML lê as definições de workflow que o
+# compare compara (awsds_workflows.compare). As versões são mínimas, e não fixas, para o pacote
+# instalar ao lado de um ambiente que fixa as suas. O uv é chamado como programa e não entra como
 # dependência: a máquina que empacota já o tem.
 dependencies = [
     "packaging>=24",
+    "pyyaml>=6",
 ]
 
 [project.scripts]

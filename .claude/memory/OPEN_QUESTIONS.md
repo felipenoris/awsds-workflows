@@ -11,6 +11,10 @@ nomeia esse lugar.
   `render` por arquivo, os nomes genéricos dos placeholders, o `--subnet-name` obrigatório com
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
   `docs/index.md` como runbook. Fecha com a resposta do usuário no PR.
+- **As escolhas do `compare` esperam o usuário.** A lista está em `decisions.md`, "The comparison
+  of definitions": o nome, a entrada por caminho, as linhas `-` e `+` com o valor em JSON, o tipo
+  na comparação, as listas por posição e a saída 0 com ou sem diferenças. Fecha com a resposta do
+  usuário no PR #7.
 - **A rede do alvo para um workflow.** As leituras do serialize-db a partir de um space do alvo
   (2026-09-21 e 2026-09-23) acharam o endpoint de gateway do S3 e endpoints de interface para STS,
   Redshift, Glue, Athena, Secrets Manager e DataZone; SageMaker, KMS, IAM, Lake Formation e S3

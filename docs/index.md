@@ -7,7 +7,8 @@ SageMaker, que não tem internet, e nada é instalado onde o código roda.
 Esta página é o procedimento. Cada passo foi medido em outubro de 2026 no laboratório, uma conta
 de testes em `us-west-2` com uma imagem customizada, `awsds-sandbox-dev-env`. A referência de
 cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.package_job`,
-`awsds_workflows.render`, `awsds_workflows.errors` e `awsds_workflows.cli`.
+`awsds_workflows.render`, `awsds_workflows.compare`, `awsds_workflows.errors` e
+`awsds_workflows.cli`.
 
 | Seção | Para quem | O que traz |
 |---|---|---|
@@ -16,11 +17,11 @@ cada módulo está no menu: `awsds_workflows.package_task`, `awsds_workflows.pac
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
-| [Regras de autoria](#regras-de-autoria) | cientista de dados | o editor, a importação, os templates, o sensor |
+| [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os templates, o sensor |
 | [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, e a pasta de código com `package-job` |
 | [O código de uma task Python ou Bash](#o-codigo-de-uma-task-python-ou-bash) | cientista de dados | o `.zip` com `package-task`, e uma task Python |
 | [Uma task Bash](#uma-task-bash) | cientista de dados | o `BashOperator`: o comando, o ambiente do worker e o código que ele chama |
-| [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders, o `render` e os valores lidos de dentro de um espaço |
+| [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders, o `render`, os valores lidos de dentro de um espaço e o `compare` com a definição que o portal salvou |
 | [Como ler uma execução](#como-ler-uma-execucao) | todos | uma leitura por pergunta |
 | [Limpeza](#limpeza) | todos | o que fica depois de um workflow |
 
@@ -37,7 +38,8 @@ uv add git+https://github.com/felipenoris/awsds-workflows            # ou como d
 ```
 
 O pacote pede o Python 3.12 ou mais novo, é testado no 3.12, no 3.13 e no 3.14, e chama o `uv`
-como programa. A única dependência é o `packaging`, que avalia os marcadores do ambiente da imagem.
+como programa. As dependências são o `packaging`, que avalia os marcadores do ambiente da imagem, e
+o PyYAML, que lê as definições que o `compare` compara.
 
 ### O Python que o `uv` usa
 
@@ -183,6 +185,17 @@ públicos e não responderam. Se o worker do alvo usar a mesma rede, uma task de
 alcança o `CreateProcessingJob`; a primeira execução no alvo é a medida.
 
 ## Regras de autoria
+
+**O formato do YAML é o da AWS.** A AWS define o formato do arquivo de definição do workflow para o
+MWAA Serverless, que o valida antes de executar. A seção *YAML support* do guia descreve o formato,
+com um exemplo e os templates Jinja2, e não publica um esquema:
+[MWAA Serverless, YAML support](https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/mwaas-concepts.html#yaml-dag-authoring).
+Cada task é um operador do Airflow com os parâmetros dele, nos limites que o serviço impõe. O
+conversor de DAGs Python para YAML da AWS,
+[`python-to-yaml-dag-converter-mwaa-serverless`](https://github.com/awslabs/python-to-yaml-dag-converter-mwaa-serverless),
+escreve DAGs compatíveis com o [dag-factory](https://github.com/astronomer/dag-factory) 1.0, a
+biblioteca da Astronomer que monta DAGs do Airflow a partir de YAML e que o worker traz instalada
+(lido em 2026-10-11).
 
 **Crie vazio, depois importe.** Na página *Workflows*, crie um workflow e use *Actions → Import
 definition file* com a definição preenchida pelo `render`. Os formulários do editor não expressam
@@ -777,7 +790,8 @@ run_tool:
 Uma definição versionada guarda cada valor da conta como placeholder, `<NOME>`, e o portal precisa
 dos valores reais. O `render` preenche os placeholders e imprime o resultado na tela; nada do que
 ele imprime volta para o repositório. Uma definição que o portal salvou faz o caminho inverso com
-`--placeholders`, e a cópia versionada então se compara com o arquivo importado.
+`--placeholders`, e o `compare` a confronta com a cópia versionada
+([A definição que o portal salvou](#a-definicao-que-o-portal-salvou)).
 
 **Os valores vêm de um arquivo JSON, da conta, ou dos dois.** Quando vêm dos dois, os do arquivo
 completam e substituem os da conta:
@@ -842,6 +856,40 @@ ponto (lidos em 2026-10-11). Num espaço do laboratório, em 2026-10-11, o scrip
 JSON, byte a byte, que o `values` com `--profile` imprimiu para a mesma conta, as sub-redes na
 ordem das zonas inclusive. No ambiente alvo, onde o `Project()` funciona (2026-10-11), o script
 ainda não rodou.
+
+### A definição que o portal salvou
+
+O portal grava a definição a cada save, e ela difere da cópia versionada no texto mesmo quando diz
+o mesmo: as chaves reordenadas, os textos longos dobrados em várias linhas e as listas em bloco.
+Para ver o que uma mudança feita no portal mudou, copie a definição salva para `salvo.yaml`, de
+*View code* ou do arquivo em `dev/workflows/` no bucket do projeto ([As peças](#as-pecas)),
+devolva os placeholders e compare:
+
+```shell
+awsds-workflows render --placeholders salvo.yaml --values-file valores.json > /tmp/salvo.yaml
+awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
+```
+
+```
+- meu-job.tasks.run_project.config.ProcessingResources.ClusterConfig.InstanceType: "ml.t3.medium"
++ meu-job.tasks.run_project.config.ProcessingResources.ClusterConfig.InstanceType: "ml.m5.large"
++ meu-job.is_paused_upon_creation: false
+```
+
+- **O `compare` lê as duas definições como YAML** e imprime só as diferenças de conteúdo: os
+  comentários, o layout do editor inclusive, a ordem das chaves, as aspas e a forma dos textos e
+  das listas não contam. Os valores se comparam com o tipo, então `0` e `"0"` diferem, e as listas
+  posição a posição.
+- **Cada diferença** sai com o caminho das chaves e o valor em JSON: `-` para o que só a primeira
+  definição tem e `+` para o que só a segunda tem; um valor que mudou dá as duas linhas. O comando
+  termina com 0 com ou sem diferenças, e com 1 quando um arquivo falta, não é YAML ou não é um
+  mapeamento.
+- **`is_paused_upon_creation: false`** aparece em toda comparação com uma definição salva: o portal
+  o acrescentou a cada save lido no laboratório, e o serviço o ignora, com o aviso
+  `ignored attributes: is_paused_upon_creation` na resposta de cada `update-workflow`
+  (2026-09-10).
+- **Uma mudança que deve ficar** entra à mão na cópia versionada, com os placeholders no lugar dos
+  valores da conta.
 
 ## Como ler uma execução
 
