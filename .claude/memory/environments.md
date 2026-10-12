@@ -139,15 +139,123 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
 - **No internet and no proxy** (`Network is unreachable`). S3 names resolve public and connect
   through the gateway endpoint; interface endpoints exist for STS, the three Redshift APIs and the
   workgroup host, Glue, Athena, Secrets Manager and DataZone; KMS, IAM, SageMaker, Lake Formation and
-  S3 Tables resolve public and time out (probes of 2026-09-21 and 2026-09-23, from a space).
+  S3 Tables resolve public and time out (probes of 2026-09-21 and 2026-09-23, from a space; the
+  SageMaker name probed is not the API's, "A space on 2026-10-12" below).
 - `uv`, `git` and `aws` on the `PATH`, no `gh`, no `~/shared`, no `~/.aws/config`; system Python
   3.12.14 in `/opt/conda` (2026-09-21); container credentials lasting about an hour; `AWS_REGION`
   and `AWS_DEFAULT_REGION` both `sa-east-1`.
 - **The job image** starts as the SageMaker default image, SageMaker Distribution 4.15; the target
-  cannot create custom images yet (user statement of 2026-10-11).
+  cannot create custom images yet (user statement of 2026-10-11). The distribution's tags on public
+  ECR run to 4.5.2: the 4.x line holds 4.0 to 4.5, each version also tagged
+  `<major>.<minor>-cpu`, beside `4-cpu` and `latest-cpu`, and no 4.15 (read 2026-10-12 with the
+  anonymous token, `https://public.ecr.aws/v2/sagemaker/sagemaker-distribution/tags/list`).
+  Which version the target's space runs waits on the user.
+- **A space on 2026-10-12** (the user, 17:39 UTC, in `~/shared/<user>/workflows`):
+  `/opt/conda/bin/python --version` printed `Python 3.12.14`; `id` printed
+  `uid=1000(sagemaker-user) gid=100(users) groups=100(users)`; `sudo -n true` succeeded, so the
+  space's sudo needs no password; `mount | grep -i shared` printed
+  `s3fs on /mnt/custom-file-systems/s3/shared type fuse.s3fs (rw,nosuid,nodev,relatime,user_id=0,group_id=0,allow_other)`,
+  a mount the 2026-09-21 probe did not find; the public SSM
+  parameter `/aws/service/sagemaker-distribution/ecr-account-id` answered with an AWS account, the
+  registry of the distribution's `sagemaker-distribution-prod` in `sa-east-1`; and `aws sagemaker
+  list-processing-jobs --max-results 1 --cli-connect-timeout 5` printed `{"ProcessingJobSummaries":
+  []}` with exit 0, so the SageMaker API answers from a space. The 2026-09-21 and 2026-09-23 probes
+  had resolved `sagemaker.sa-east-1.amazonaws.com` (serialize-db's `probes/space.py` builds
+  `<service>.<region>.amazonaws.com`), a name the API does not use: botocore 1.43.111 calls
+  `https://api.sagemaker.sa-east-1.amazonaws.com` (read 2026-10-12), the private DNS name of the
+  `sagemaker.api` interface endpoint the target's Terraform declares. At 18:07 UTC the files the
+  user copied into `~/shared/<user>/orchestration-demo/` were listed by `aws s3 ls` under
+  `s3://<bucket>/<domain>/<project>/shared/<user>/orchestration-demo/`, so `~/shared` is the
+  `shared/` folder of the project's prefix in the project bucket.
+- **The first workflow run, 2026-10-12** (the user, 18:12 UTC): `demo-devenv-job`, imported in the
+  portal from the definition rendered for the target (image `sagemaker-distribution-prod:4.5.2-cpu`,
+  no KMS key, the folders under `shared/<user>/orchestration-demo/`). `wait_for_file` passed, so the
+  worker listed the inbox in S3. `run_project` failed in 1.5 s with `AccessDeniedException` on
+  `sagemaker:DescribeProcessingJob` for the proposed name `demo-devenv-20261012T181230`, as
+  `assumed-role/datazone_usr_role_<project>_<environment>/AmazonMWAAServerless`, `because no
+  identity-based policy allows the sagemaker:DescribeProcessingJob action`: the worker runs as the
+  project role, reaches the SageMaker API, and wrote the task's log, which the portal showed. It is
+  the lab's first refusal of 2026-10-10 (`docs/index.md`, "A permissão do projeto"); no job was
+  created, and the message names no service control policy and no permissions boundary.
+- **The target's Terraform** (the user's current version, sent on 2026-10-12 and read that day):
+  the domain, the blueprint configurations (Tooling, DataLake, MLExperiments), a project profile
+  that deploys Tooling and DataLake on create, and the project are CloudFormation stacks. The VPC
+  has no internet route, only a Transit Gateway route to another account's VPC; it has interface
+  endpoints with private DNS for `sagemaker.api`, `sagemaker.runtime`, `sts`, `ecr.api`,
+  `ecr.dkr`, `glue`, `redshift`, `redshift-data`, `logs`, `secretsmanager`, `datazone`, the Studio
+  endpoint, `ssm`, `ssmmessages` and `athena`, an S3 gateway endpoint with no endpoint policy, and
+  no KMS endpoint. The project bucket defaults to SSE-KMS with the account's customer key, and the
+  Tooling blueprint configuration sets no permissions boundary. It passes `terraform validate` on
+  its own with the providers its lock file pins (aws 5.100.0, time 0.14.0). The copy on the user's
+  laptop, a commit of 2026-09-04 read first that day, lagged it in 17 files and lacked 3, among
+  them the Redshift module's `security_group_id` output, so it failed `validate`. The grant of
+  `docs/index.md` ("A permissão do projeto") went to the user as adjusted copies of the current
+  version (a new file in its compute module and a `project_role_names` variable), `terraform
+  validate` passing and the rendered policy equal to the documented one. Not applied yet.
+- **The first Python task, 2026-10-12** (the user, 19:16 UTC): `demo-python-operator`, the lab's
+  definition rendered for the target (the folders under `shared/<user>/orchestration-demo/python/`),
+  imported in the portal, its `.zip` uploaded in *Settings → Storage* before the save. The `.zip`
+  was the first archive of `package-task` on a worker: built on the build host from a copy of the
+  lab's `awsds-demo-job` with `petl==1.7.28` as its one dependency and the lab's `demo_tasks.py` as
+  the entry module, 152 entries and 261,205 bytes, with `awsds_demo_job`, `demo_tasks.py`, `petl`
+  and their `dist-info` at the root and no PyYAML. `run_project`'s log printed `Preparing the
+  execution environment.` at 19:16:27.970Z and `Execution environment is ready.` 0.1 s later, so
+  the worker got the code's copy; then `python 3.12.14 at /opt/mwaa-serverless-venv/bin/python3`,
+  `caller arn:aws:sts::<account>:assumed-role/datazone_usr_role_<project>_<environment>/AmazonMWAAServerless`,
+  `import petl: 1.7.28 from /usr/local/airflow/dags/petl/__init__.py`,
+  `import yaml: 6.0.2 from /opt/mwaa-serverless-venv/lib64/python3.12/site-packages/yaml/__init__.py`,
+  `sample.csv: 10 rows -> s3://<bucket>/<domain>/<project>/shared/<user>/orchestration-demo/python/outbox/20261012T191631Z/sample.result.json; source deleted`
+  and `1 object(s) processed`, and `Task finished` with exit code 0 in 2.44 s, on a worker whose
+  host name is a private `ip-10-…` address. The result's sha256, read in a space with `sha256sum`,
+  is `1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191`, the lab's of 2026-10-11.
+  The worker fetched the service's copy of the code, which the lab's endpoint allow-list had
+  refused, presumably through the S3 gateway endpoint the target's Terraform declares with no
+  policy; it reached STS; and it listed, read, wrote and deleted objects in the project's folder.
+  With the region set, boto3 1.43.1 calls STS at `https://sts.sa-east-1.amazonaws.com`, the private
+  DNS name of the target's `sts` interface endpoint; botocore 1.43.111 reads `AWS_DEFAULT_REGION`
+  and not `AWS_REGION`, and with only `AWS_REGION` set its STS client calls the global
+  `https://sts.amazonaws.com` (probed on the build host, 2026-10-12). The lab's worker set both.
+- **The first Bash task, 2026-10-12** (the user, 19:34 to 19:38 UTC): `demo-bash-operator`, the
+  lab's definition rendered for the target (the folders under
+  `shared/<user>/orchestration-demo/bash/`) with a fourth task, `probe_bash`, inline and with no
+  dependency, that printed what `docs/index.md` marked as not measured; the `.zip` was uploaded in
+  *Settings → Storage* before the save. It came from `package-task --include reach_pypi.sh
+  --include probe.sh` over a copy of the lab's `awsds-demo-job` with `petl==1.7.28` and
+  `six==1.16.0`: 161 entries and 272,943 bytes, the two scripts stored as 0o100755 and `six.py` as
+  0o100644. Each task ran on a worker with its own host name, a private `ip-10-…` address.
+  `probe_bash` (19:34:56Z to 19:35:09Z, exit 0 in 11.74 s) printed the working directory
+  `/var/tmp/airflowtmp…` and the lab's `PYTHONPATH`; `ls -ln /usr/local/airflow/dags` showed every
+  entry owned by uid and gid 997, `probe.sh` and `reach_pypi.sh` as `-rwxr-xr-x`, `six.py` and the
+  DAG file `<uuid>.py` (806 bytes) as `-rw-r--r--`, and the folders `awsds_demo_job`, `petl`, the
+  three `dist-info`, `ex_<uuid>`, `logs` and `__pycache__`, so the worker's extraction keeps the
+  modes the `.zip` stores. With no `cd`, `python3 -m awsds_demo_job.s3 --help` printed the module's
+  `usage:` line; `petl` 1.7.28 was imported from `/usr/local/airflow/dags/petl/__init__.py` and
+  `six` 1.16.0 from `/usr/local/airflow/dags/six.py`, though the worker's Airflow 3.0.6 needs a
+  `six` of its own (`apache-airflow-core` requires `python-dateutil`, which requires `six`, and
+  Airflow's constraints for Python 3.12 pin `six` 1.17.0; PyPI metadata read 2026-10-12, the
+  worker's copy not printed), so a Bash task's `python3` imports the `.zip`'s copy first.
+  `bash /usr/local/airflow/dags/probe.sh um dois` printed `$0 = /usr/local/airflow/dags/probe.sh`,
+  the arguments `um dois` and the task's working directory, and
+  `/usr/local/airflow/dags/probe.sh tres`, executed directly, printed the same with `tres` and
+  exited 0. `run_command` (19:35:31Z to 19:35:43Z, exit 0 in 9.21 s) printed
+  `cwd /var/tmp/airflowtmp…`, the same `PYTHONPATH`,
+  `python 3.12.14 at /opt/mwaa-serverless-venv/bin/python3` and
+  `sample.csv: 10 rows -> s3://<bucket>/<domain>/<project>/shared/<user>/orchestration-demo/bash/outbox/20261012T193536Z/sample.result.json; source deleted`;
+  the result's sha256, read in a space, is the Python task's `1b2bc4d7…a248191`. `reach_pypi`
+  (19:36:19Z to 19:38:18Z), whose `bash_command` is `reach_pypi.sh`, ran as
+  `['/usr/bin/bash', 'tmp….sh']` after `Tmp dir root location: /var/tmp`, the script rendered into
+  a temporary copy as in the lab. It printed no proxy variable, `pypi.org` resolved to a public
+  address, `urllib: URLError(OSError(101, 'Network is unreachable'))` and `urllib: 43 s` (the
+  script's timeout is 10 s per connection), then pip 23.2.1, the worker's, with
+  `[Errno 101] Network is unreachable` on `/simple/pip/` and `/simple/six/` and `pip: 64 s`; the
+  command exited 1 and the task failed in 116.23 s, as designed, so the run ended `FAILED`. The
+  lab's DNS firewall had refused the name in about 2 s (errno 16). The user said at 19:47 UTC that
+  the target has no internet for now.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
-alvo para um workflow"): they were taken from a space, and the worker's network was never read.
+alvo para um workflow"): the worker's code fetch and its S3, STS, SageMaker and log calls answered
+on 2026-10-12, a task's attempt at PyPI failed with errno 101, and the job's own path, from the
+image pull on, was never read.
 
 ## The project space
 
@@ -174,6 +282,27 @@ space ran the script on 2026-10-11; no target space has.
   names by the role's `KmsKeyId` tag and its pass 2 (2026-10-11) by its id; the bucket
   `awsds-sandbox-smus-projects` (06i's 0.1, and the `DomainBucketName` tag of the domain's first
   project role, 06a, 2026-08-22). In this lab the environment's subnet order is the zone order.
+- **The script in a target space** (the user, 2026-10-12, 17:15 UTC, run as `python
+  space_values.py` in `~/shared/<user>/workflows`, a folder the 2026-09-21 probe did not have):
+  exit 1 with `o ambiente <ambiente> não tem kmsKeyArn`. `Project()` and the SDK's DataZone calls
+  worked; the default Tooling environment's provisioned resources were `SageMakerSpacesDomain`,
+  `ScheduleGroupName`, `allowConnectionToUserGovernedEmrClusters`, `athenaOutputUri`,
+  `athenaSparkWorkGroupName`, `athenaWorkGroupName`, `cloudFormationStackId`,
+  `enableNetworkIsolation`, `enableS3AccessGrantsForTools`,
+  `enableTrustedIdentityPropagationPermissions`, `enableUserBackgroundSessions`,
+  `enableWorkflowsConfigV2`, `glueNetworkConnection0` to `glueNetworkConnection2`,
+  `isDefaultToolingEnvironment`, `logGroupArn`, `logGroupName`, `logGroupRetention`,
+  `nonGitProjectRepositoryLocation`, `privateSubnets`, `s3BucketArn`, `s3BucketPath`,
+  `sageMakerDomainId`, `securityGroup`, `systemRole-AmazonBedrockLambdaExecutionRoleArn`,
+  `systemRole-AmazonBedrockServiceRoleArn`, `userRoleArn`, `userRoleName` and `vpcId`. The
+  target's project has no project KMS key. The SDK 1.1.35 takes that case as normal: its
+  `RemoteExecutionClient` reads `kmsKeyArn` with a `None` default and creates its training job
+  without `KmsKeyId` and `VolumeKmsKeyId` (read 2026-10-12), so the script prints the other nine
+  values and a warning since then. `CreateProcessingJob`'s API reference lists both fields as
+  optional and does not say what encrypts the volume and the output without them (read
+  2026-10-12). At 17:39 UTC the script of this branch, run as `python space_values.py >
+  valores.json` in the same folder, printed the warning on stderr and the nine values; the order of
+  the subnets against the zones was not read there.
 - **The metadata file** `/opt/ml/metadata/resource-metadata.json` is where a space writes the
   project's data; AWS's user guide ("Accessing metadata") names only `ProjectS3Path`. The SDK reads
   a field at the file's root, then in `AdditionalMetadata`

@@ -18,7 +18,9 @@ depois para o ambiente do SageMaker, que não tem internet.
 
 Os valores de ``render`` e ``values`` vêm de ``--values-file``, de ``--profile`` (a leitura da
 conta, que pede ``--subnet-name``) ou dos dois, e então os do arquivo completam e substituem os da
-conta. Uma recusa imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
+conta. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o papel do projeto não tem a
+etiqueta ``KmsKeyId``, e o arquivo também não, o comando avisa na saída de erro e segue. Uma recusa
+imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
 O ``compare`` termina com 0 com ou sem diferenças.
 
 Exemplo:
@@ -48,6 +50,12 @@ from awsds_workflows import compare, package_job, package_task, render
 from awsds_workflows.errors import RefusalError
 
 __all__ = ["main"]
+
+# O aviso, na saída de erro, de uma leitura da conta sem a chave KMS do projeto.
+_NO_KEY_WARNING = (
+    "o papel do projeto não tem a etiqueta KmsKeyId, a chave KMS do projeto: os valores saem sem "
+    "PROJECT_KEY_ID"
+)
 
 
 def main(
@@ -361,7 +369,8 @@ def _values_from(
     arguments: argparse.Namespace,
 ) -> dict[str, str]:
     """[private] Os valores da conta, quando há ``--profile``, completados e substituídos pelos
-    do arquivo, quando há ``--values-file``."""
+    do arquivo, quando há ``--values-file``, com um aviso na saída de erro quando a leitura da
+    conta termina sem ``PROJECT_KEY_ID``."""
     if arguments.profile is None and arguments.values_file is None:
         raise RefusalError("nomeie de onde vêm os valores: --values-file, --profile ou os dois")
 
@@ -377,6 +386,10 @@ def _values_from(
         )
     if arguments.values_file is not None:
         values.update(render.load_values(arguments.values_file))
+
+    # O aviso vem depois do arquivo, que pode dar a chave que o papel não tem.
+    if arguments.profile is not None and "PROJECT_KEY_ID" not in values:
+        print(_NO_KEY_WARNING, file=sys.stderr)
     return values
 
 

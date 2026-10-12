@@ -14,12 +14,15 @@ AWS-DataScience's `docs/REFERENCES.md`):
   `BashOperator` script runs there, while an inline command ran in a temporary folder, a script
   named as the command ran from a rendered copy in one, and a Bash task's `PYTHONPATH` starts
   with `/usr/local/airflow/dags`, before the worker's `site-packages` (2026-10-11,
-  `environments.md`); `python_callable` is `<module>.<function>`;
+  `environments.md`); a script called by its full path ran with the task's temporary folder as
+  its working directory (the target, 2026-10-12); `python_callable` is `<module>.<function>`;
 - dependencies are vendored at the archive's root for Linux x86_64 and Python 3.12;
 - the pre-installed set (Airflow 3.0.6, Amazon provider 9.32.0, boto3 1.43.1, dag-factory 1.0.0, and
-  PyYAML, lz4 and the AWS Encryption SDK family) wins over any bundled version, measured in a Python
-  task on 2026-10-11: the worker's PyYAML 6.0.2 imported over the archive's 6.0.1
-  (`environments.md`);
+  PyYAML, lz4 and the AWS Encryption SDK family) wins over any bundled version in a Python task,
+  measured on 2026-10-11: the worker's PyYAML 6.0.2 imported over the archive's 6.0.1
+  (`environments.md`); in a Bash task's `python3` the archive's copy wins, measured in the target
+  on 2026-10-12: `six` 1.16.0 imported from the `.zip`, though Airflow 3.0.6 needs a `six` of its
+  own (`environments.md`, "The first Bash task");
 - a 1 vCPU / 3 GiB worker, no internet by default, the execution role's credentials available to the
   task; 0.088 USD per task-hour, one-minute minimum;
 - one worker per task, not per run: two tasks of one run ran in different subnets, and each
@@ -56,7 +59,8 @@ lab's `bash_command: reach_pypi.sh` ran as `['/usr/bin/bash', 'tmp6wm8sj1x.sh']`
   `not bash_command.endswith(template_ext)` (`_is_inline_command`, re-read 2026-10-12), so a
   script's name followed by arguments runs inline, and the script form takes no argument.
 - `cwd` defaults to `None`, and the subprocess hook then works in a new `TemporaryDirectory` with
-  the prefix `airflowtmp`, the `/var/tmp/airflowtmp…` the lab read.
+  the prefix `airflowtmp`, the `/var/tmp/airflowtmp…` the lab read on 2026-10-11 and the target on
+  2026-10-12.
 - `env`, when given, replaces the task's environment unless `append_env` is true.
 - Exit 0 succeeds, `skip_on_exit_code` (99 by default) skips, and any other code fails.
 
@@ -67,15 +71,19 @@ Python's `zipfile.ZipFile.write` stores each file's mode in `external_attr` (a 0
 022), while Info-ZIP's `unzip` keeps it (probed 2026-10-11 on CPython 3.12.3 and 3.13.16, and
 UnZip 6.00). `build_archive` copies the entry module and the `include` files with `shutil.copy2`,
 which keeps the mode, so a script or a binary arrives executable when the extractor honors the
-mode; how the service extracts is not documented.
+mode; how the service extracts is not documented. The worker keeps the mode: in the target's
+first Bash task, on 2026-10-12, the two `include` scripts read `-rwxr-xr-x` in
+`/usr/local/airflow/dags`, `six.py` and the DAG file `-rw-r--r--`, every entry owned by uid and
+gid 997, and a script executed by its path ran (`environments.md`, "The first Bash task").
 
 ## The processing job's folder
 
 - A `ProcessingInput` downloads an S3 prefix into a path under `/opt/ml/processing/`, and an
   extension module cannot be imported from a zip on `sys.path`, so the job's code is a folder.
-- `PYTHONPATH` comes before the image's site-packages, so a package in both shadows the image's
-  copy: the folder holds only what the image lacks, at equal versions for everything shared
-  (AWS-DataScience documents the numpy failure in `images/dev-env/python/pyproject.toml`).
+- `PYTHONPATH` comes before the image's site-packages, as in a Bash task's `python3` on the worker
+  and unlike a Python task, so a package in both shadows the image's copy: the folder holds only
+  what the image lacks, at equal versions for everything shared (AWS-DataScience documents the
+  numpy failure in `images/dev-env/python/pyproject.toml`).
 - The house image holds `onnxruntime` 1.30.0, which publishes no wheel older than `manylinux_2_28`
   (measured 2026-10-11), so its glibc is at least 2.28 and `manylinux2014` cannot describe it;
   `JOB_PLATFORM` is `x86_64-manylinux_2_28`.

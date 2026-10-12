@@ -79,8 +79,8 @@ ela mudou.
 
 **O laboratório e o ambiente alvo.** O laboratório é a conta de testes em que cada passo desta
 página foi medido, nas datas que a página cita. O ambiente alvo é o SageMaker Unified Studio em que
-os workflows vão rodar: lá nenhum workflow rodou ainda, e a página diz o que a primeira execução
-vai medir.
+os workflows vão rodar: lá uma task Python e uma task Bash rodaram em 2026-10-12, e a página diz o
+que ainda não foi medido.
 
 **O primeiro workflow**, na ordem das seções: instale o pacote; leia onde cada peça fica e qual é a
 imagem do job; peça à infraestrutura a permissão e a rede; escreva a definição pelas regras de
@@ -205,11 +205,13 @@ arquivo, com o cabeçalho e as anotações `# via` que o `uv` escreve, foi aceit
 e pelo `job-constraints`, que leu 452 versões para o CPython 3.13 em `x86_64-manylinux_2_28`
 (medido em 2026-10-12).
 
-**Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo,
-a versão do Python de `/opt/conda/bin/python` e o usuário do contêiner. A imagem do laboratório
+**Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo
+e o usuário do contêiner de um job. Num espaço do ambiente alvo, em 2026-10-12,
+`/opt/conda/bin/python` era o CPython 3.12.14 e o usuário era `sagemaker-user` (uid 1000), com
+`sudo` sem senha; a versão da distribuição que o espaço roda não foi lida. A imagem do laboratório
 roda como `sagemaker-user` (uid 1000), e o `sudo` dela funciona dentro de um job (medido em
-2026-10-11); a distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário, e o
-primeiro job no ambiente alvo é a medida.
+2026-10-11); a distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário num
+job, e o primeiro job no ambiente alvo é a medida.
 
 ## A permissão do projeto
 
@@ -225,7 +227,12 @@ o `SageMakerProcessingOperator`, por dois motivos medidos no laboratório em 202
   `AmazonDataZoneProject`. A segunda execução falha com `AccessDeniedException` em
   `sagemaker:AddTags`.
 
-A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois casos. Ela permite
+No ambiente alvo, a primeira execução, em 2026-10-12, falhou do mesmo jeito em
+`DescribeProcessingJob`, antes de existir um job.
+
+A política abaixo, anexada a cada papel de projeto que roda jobs, cobre os dois casos. O papel nasce
+com o ambiente Tooling do projeto e se chama `datazone_usr_role_<projeto>_<ambiente>`; quem
+mantém a conta com Terraform anexa a política a esse nome depois que o projeto existe. Ela permite
 o `DescribeProcessingJob` de um job sem etiqueta de projeto e o `AddTags` só da etiqueta do próprio
 projeto, num job sem etiqueta ou com a do chamador; os jobs de outro projeto ficam fora de alcance.
 `<REGION>` e `<ACCOUNT_ID>` são a região e a conta do projeto.
@@ -286,9 +293,18 @@ responde. O que o laboratório leu no CloudTrail, nos logs de fluxo e no log do 
 
 No ambiente alvo, as leituras feitas a partir de um espaço (2026-09-21 e 2026-09-23) encontraram o
 endpoint de gateway do S3 e endpoints de interface para STS, Redshift, Glue, Athena, Secrets
-Manager e DataZone; os nomes do SageMaker, do KMS e do IAM resolveram para endereços públicos e não
-responderam. Se o worker do ambiente alvo usar a mesma rede, uma task de processamento não alcança
-o `CreateProcessingJob`; a primeira execução lá é a medida.
+Manager e DataZone; os nomes do KMS e do IAM resolveram para endereços públicos e não responderam.
+O nome do SageMaker que elas testaram, `sagemaker.sa-east-1.amazonaws.com`, também não respondeu,
+mas a API atende em `api.sagemaker.sa-east-1.amazonaws.com`. Em 2026-10-12, de um espaço do
+projeto, o SageMaker respondeu a uma listagem de jobs e o SSM a uma leitura de parâmetro. No mesmo
+dia, na primeira execução de um workflow lá, o worker listou a pasta de entrada no S3, chamou a API
+do SageMaker, que recusou o pedido por permissão, e gravou o log da task. Numa task Python, o
+worker recebeu a cópia do código, chamou o STS e leu, gravou e apagou objetos na pasta do projeto.
+Numa task Bash, um script que tentou o PyPI não achou variável de proxy, resolveu `pypi.org` para
+um endereço público e falhou com `[Errno 101] Network is unreachable` depois de 43 s no urllib,
+com 10 s de timeout por conexão, e de 64 s no pip; no laboratório, a mesma tentativa falhou em
+cerca de 2 s. O caminho do job, do download da imagem à gravação da saída, ainda não foi medido no
+ambiente alvo.
 
 ## Regras de autoria
 
@@ -417,10 +433,10 @@ task:
 - **O interpretador é o da imagem do job**, e não o do worker.
 - **A entrada é uma pasta, e não um arquivo.** Um `ProcessingInput` baixa um prefixo do S3, e um
   módulo de extensão (um pacote com código compilado) não é importado de um `.zip` no `sys.path`.
-- **A precedência é a inversa da do worker.** O `PYTHONPATH` vem antes do `site-packages` da
-  imagem, então um pacote presente nos dois esconderia a cópia da imagem. A pasta leva só o que a
-  imagem não tem, e as versões do projeto têm de ser iguais às da imagem em tudo o que os dois
-  compartilham.
+- **A precedência é a do `python3` de uma task Bash, e a inversa da de uma task Python.** O
+  `PYTHONPATH` vem antes do `site-packages` da imagem, então um pacote presente nos dois esconderia
+  a cópia da imagem. A pasta leva só o que a imagem não tem, e as versões do projeto têm de ser
+  iguais às da imagem em tudo o que os dois compartilham.
 
 1. **Prepare o projeto.**
    - Ele tem um `pyproject.toml` e um `uv.lock` em dia.
@@ -640,9 +656,16 @@ viaja num `.zip`, o `Code` do workflow, que o `package-task` monta a partir de u
 
 **Estado no laboratório**: funciona desde 2026-10-11. Uma task Python e uma task Bash, cada uma com
 um `.zip`, leram a amostra, gravaram o resultado e apagaram a origem. Os dois `.zip` foram montados
-pela receita [à mão](#a-mao-sem-o-pacote), e nenhum `.zip` do `package-task` rodou num worker
-ainda. Antes, o worker falhava ao preparar o ambiente, antes de qualquer task: a política do
-endpoint de gateway do S3 recusava o bucket da cópia do código ([A rede](#a-rede)).
+pela receita [à mão](#a-mao-sem-o-pacote). Antes, o worker falhava ao preparar o ambiente, antes de
+qualquer task: a política do endpoint de gateway do S3 recusava o bucket da cópia do código
+([A rede](#a-rede)).
+
+**Estado no ambiente alvo**: uma task Python funciona desde 2026-10-12, com um `.zip` do
+`package-task` de 261.205 bytes, o projeto do laboratório com o `petl` 1.7.28. O worker, um
+CPython 3.12.14, importou o `petl` do `.zip`, em `/usr/local/airflow/dags`, e o PyYAML 6.0.2 dos
+pacotes dele, e o resultado saiu igual ao do laboratório, com o mesmo sha256. Uma task Bash
+funciona desde o mesmo dia, com um `.zip` do `package-task` que leva também dois scripts de
+`--include` ([Uma task Bash](#uma-task-bash)).
 
 ### O que o worker espera
 
@@ -828,8 +851,13 @@ find build -name __pycache__ -type d -prune -exec rm -rf {} +
 
 **Estado no laboratório**: funciona desde 2026-10-11. Tasks com comandos inline mostraram o
 ambiente do worker, e um workflow com um `.zip` montado à mão rodou um módulo do `.zip` com
-`python3 -m` e um script do `.zip` pelo nome. Nenhum `.zip` do `package-task` rodou numa task Bash
-ainda.
+`python3 -m` e um script do `.zip` pelo nome.
+
+**Estado no ambiente alvo**: funciona desde 2026-10-12, com um `.zip` do `package-task`: o projeto
+do laboratório com o `petl` 1.7.28 e o `six` 1.16.0, e dois scripts de `--include`. Um módulo do
+`.zip` rodou com `python3 -m`, com e sem o `cd`; um script rodou pelo nome, pelo caminho inteiro e
+executado direto; e o resultado saiu igual ao do laboratório, com o mesmo sha256. A task que
+tentou o PyPI falhou, como esperado, porque o ambiente alvo não tem internet ([A rede](#a-rede)).
 
 Uma task Bash roda um comando do shell no worker: comandos inline, um script, um módulo Python com
 `python3 -m` ou um binário. O código que ela chama viaja no `Code` do workflow, que o `package-task`
@@ -859,14 +887,17 @@ worker e as variáveis da credencial (lido no código do operador, não medido).
 ### O ambiente do worker
 
 O laboratório leu o ambiente em 2026-10-11, em tasks com comandos inline, num workflow sem `Code` e
-num com um `.zip`:
+num com um `.zip`. O ambiente alvo leu a mesma pasta de trabalho, o mesmo `PYTHONPATH` e o mesmo
+`python3` em 2026-10-12, numa task com um `.zip` do `package-task`:
 
 - a pasta de trabalho é temporária, `/var/tmp/airflowtmp…`, e não `/usr/local/airflow/dags`, onde
   o `.zip` é extraído. O guia diz que um script roda em `/usr/local/airflow/dags`, mas o script
-  chamado pelo nome rodou de uma cópia numa pasta temporária
-  ([O código do `.zip` no comando](#o-codigo-do-zip-no-comando));
+  chamado pelo nome rodou de uma cópia numa pasta temporária, e o chamado pelo caminho inteiro, na
+  pasta de trabalho da task ([O código do `.zip` no comando](#o-codigo-do-zip-no-comando));
 - com um `.zip`, o `PYTHONPATH` começa por `/usr/local/airflow/dags`, que aparece duas vezes, e
   segue com os pacotes do worker, `/opt/mwaa-serverless-venv/lib/python3.12/site-packages`;
+- os arquivos do `.zip` chegam com o modo que o `.zip` guarda, todos de um usuário do worker (uid e
+  gid 997), então um script de `--include` chega executável (medido no ambiente alvo);
 - o `python3` do `PATH` é o do worker, `/opt/mwaa-serverless-venv/bin/python3` 3.12.14, com o
   `boto3` 1.43.1 e os outros pacotes que o worker traz;
 - os processos que a task abre recebem a credencial do papel do projeto, sessão
@@ -904,29 +935,28 @@ run_project:
 
 - **`python3 -m meu_pacote`** pede um `__main__.py` no pacote, e `python3 -m meu_pacote.modulo`
   roda um módulo dele; o laboratório rodou um módulo assim, depois do `cd` do exemplo. O
-  `PYTHONPATH` da task começa por `/usr/local/airflow/dags`, então o `python3` acharia o pacote
-  mesmo sem o `cd` (não medido). Pela mesma ordem, um pacote do `.zip` venceria o do worker com o
-  mesmo nome (não medido), o contrário de uma task Python; o `package-task` deixa os do worker de
-  fora.
-- **Um script do `.zip`** roda como `bash /usr/local/airflow/dags/run.sh <argumentos>` (não
-  medido). Um `bash_command` que termina em `.sh` ou `.bash`, como `run.sh`, é para o Airflow o
-  nome de um template: o worker passou o arquivo do `.zip` pelo Jinja para uma cópia numa pasta
-  temporária e rodou `bash` nela (medido no laboratório em 2026-10-11). Essa forma não leva
-  argumentos, que fariam o comando deixar de terminar em `.sh`; o `$0` dela não aponta para o
-  `.zip`, e as regras do Jinja de [O comando](#o-comando) valem para o arquivo.
+  `PYTHONPATH` da task começa por `/usr/local/airflow/dags`, então o `python3` acha o pacote mesmo
+  sem o `cd`, e um pacote do `.zip` vence o do worker com o mesmo nome, o contrário de uma task
+  Python. No ambiente alvo, em 2026-10-12, um módulo do `.zip` rodou sem o `cd`, e o `python3` da
+  task importou o `six` 1.16.0 do `.zip` no lugar do `six` de que o Airflow do worker depende. O
+  `package-task` deixa os pacotes do worker de fora.
+- **Um script do `.zip`** roda pelo caminho, com `bash` na frente ou, porque o worker mantém o bit
+  de execução, sem ele: `bash /usr/local/airflow/dags/run.sh <argumentos>` ou
+  `/usr/local/airflow/dags/run.sh <argumentos>`. O `$0` é esse caminho, e a pasta de trabalho é a
+  da task (medido no ambiente alvo em 2026-10-12). Um `bash_command` que termina em `.sh` ou
+  `.bash`, como `run.sh`, é para o Airflow o nome de um template: o worker passou o arquivo do
+  `.zip` pelo Jinja para uma cópia numa pasta temporária e rodou `bash` nela (medido no laboratório
+  em 2026-10-11 e no ambiente alvo em 2026-10-12). Essa forma não leva argumentos, que fariam o
+  comando deixar de terminar em `.sh`; o `$0` dela não aponta para o `.zip`, e as regras do Jinja
+  de [O comando](#o-comando) valem para o arquivo.
 - **Um binário** é Linux x86_64 e, de preferência, estático, porque a glibc do worker não é
-  documentada. O `.zip` guarda o bit de execução, mas a extração pelo `zipfile` do Python o
-  descarta, e o serviço não diz como extrai: copie o binário para a pasta de trabalho e dê
-  `chmod +x` lá.
+  documentada. O `.zip` guarda o bit de execução, e o worker o mantém ao extrair (medido no
+  ambiente alvo em 2026-10-12, com um script executado direto), então o binário roda pelo caminho:
 
 ```yaml
 run_tool:
   operator: airflow.providers.standard.operators.bash.BashOperator
-  bash_command: |
-    set -euo pipefail
-    cp /usr/local/airflow/dags/minha-ferramenta .
-    chmod +x minha-ferramenta
-    ./minha-ferramenta --dia {{ ds }}
+  bash_command: /usr/local/airflow/dags/minha-ferramenta --dia {{ ds }}
   retries: 0
 ```
 
@@ -954,8 +984,13 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   SageMaker. Ela pede `--subnet-name`, o padrão do `Name` das sub-redes privadas do projeto
   (`awsds-sandbox-private-*` no laboratório). Numa conta com mais de um projeto, `--project`
   escolhe o id.
-- **No ambiente alvo** o IAM e o SageMaker não responderam a partir de um espaço (leituras de
-  2026-09-21 e 2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
+- **Um projeto sem chave KMS própria**, como o do ambiente alvo em 2026-10-12, não dá
+  `PROJECT_KEY_ID`. Quando o papel não tem a etiqueta `KmsKeyId`, ou a tem vazia, a leitura da
+  conta dá os outros valores, e o `render` e o `values` avisam na saída de erro, como o script de
+  [Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco). Uma definição que nomeia
+  `<PROJECT_KEY_ID>` é então recusada pelo `render`.
+- **No ambiente alvo** o IAM não respondeu a partir de um espaço (leituras de 2026-09-21 e
+  2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
   escreve de dentro de um espaço do projeto
   ([Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco)), e o `values` de uma
   máquina que alcança a conta também; os valores da imagem entram à mão.
@@ -993,15 +1028,18 @@ python space_values.py > valores.json
   (`s3BucketPath`) e os recursos com que o SDK cria um job (`userRoleArn`, `securityGroup`,
   `privateSubnets` e `kmsKeyArn`). O SDK escolhe o endpoint do DataZone e as credenciais.
 - **As sub-redes** saem na ordem do ambiente; o `values` as ordena pela zona, que só o EC2 informa.
-- **Um valor que o ambiente não dá** termina o script com 1, sem JSON, e a mensagem lista o que
+- **A chave KMS do projeto**, `kmsKeyArn`, só existe num projeto com chave própria. Sem ela, o JSON
+  sai sem `PROJECT_KEY_ID`, com um aviso na saída de erro, e o script termina com 0.
+- **Outro valor que o ambiente não dá** termina o script com 1, sem JSON, e a mensagem lista o que
   falta e os recursos que o ambiente tem. Uma recusa do DataZone também termina sem JSON, com o
   rastro do Python na saída de erro.
 
 Os nomes dos recursos vêm do código do SDK `sagemaker-studio` 1.1.35, igual ao da 1.1.32 nesse
 ponto (lidos em 2026-10-11). Num espaço do laboratório, em 2026-10-11, o script imprimiu o mesmo
 JSON, byte a byte, que o `values` com `--profile` imprimiu para a mesma conta, as sub-redes na
-ordem das zonas inclusive. No ambiente alvo, onde o `Project()` funciona (2026-10-11), o script
-ainda não rodou.
+ordem das zonas inclusive. Num espaço do ambiente alvo, em 2026-10-12, o ambiente Tooling tinha
+`userRoleArn`, `securityGroup`, `privateSubnets` e `s3BucketPath`, e não tinha `kmsKeyArn`; sem a
+chave, o script imprimiu os outros nove valores.
 
 ### A definição que o portal salvou
 

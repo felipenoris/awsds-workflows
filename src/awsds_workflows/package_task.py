@@ -38,8 +38,12 @@ cerca de 0,9 MB, com o projeto, ``tasks.py``, o ``petl`` e o ``requests`` com ``
 ``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. No laboratório,
 em 2026-10-11, ``.zip`` com a mesma forma, montados à mão, rodaram numa task Python, que importou
 o ``petl`` de ``/usr/local/airflow/dags``, e numa task Bash, depois que a política do endpoint de
-gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do código. Nenhum
-``.zip`` gravado por ``build_archive`` rodou num worker até essa data.
+gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do código. No ambiente
+alvo, em 2026-10-12, um ``.zip`` gravado por ``build_archive``, com o projeto do laboratório e o
+``petl`` 1.7.28, rodou numa task Python: o worker, um CPython 3.12.14, importou o ``petl`` de
+``/usr/local/airflow/dags`` e o ``yaml`` 6.0.2 dos pacotes dele. No mesmo dia, outro, com dois
+scripts de ``include``, rodou numa task Bash, e o worker manteve o bit de execução dos scripts ao
+extrair o ``.zip``.
 
 Exemplo:
 
@@ -111,9 +115,10 @@ Numa task Python, a cópia do worker vence a do ``.zip``, como o guia diz e o la
 2026-10-11: o PyYAML 6.0.2 do worker foi importado no lugar do 6.0.1 de um ``.zip``. Numa task
 Bash, o ``PYTHONPATH`` começa por ``/usr/local/airflow/dags``, antes dos pacotes do worker
 (medido no laboratório em 2026-10-11), então, num ``python3`` que a task roda, a cópia do
-``.zip`` venceria (não medido). Sem esses pacotes no ``.zip``, as duas tasks importam os do
-worker, então o código da task é escrito contra as versões dele: o Airflow 3.0.6, o provider da
-Amazon 9.32.0 e o ``boto3`` 1.43.1.
+``.zip`` vence: no ambiente alvo, em 2026-10-12, o ``six`` 1.16.0 de um ``.zip`` foi importado no
+lugar do ``six`` de que o Airflow do worker depende. Sem esses pacotes no ``.zip``, as duas tasks
+importam os do worker, então o código da task é escrito contra as versões dele: o Airflow 3.0.6,
+o provider da Amazon 9.32.0 e o ``boto3`` 1.43.1.
 """
 
 ARCHIVE_LIMIT_BYTES = 250_000_000

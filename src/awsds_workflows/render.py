@@ -9,17 +9,18 @@ e para o portal, nunca para o repositório.
 
 Os valores vêm de um arquivo JSON (``load_values``), da conta pelo ``aws`` (``read_values``), ou dos
 dois, e então os do arquivo completam e substituem os da conta. A leitura da conta chama o STS, o
-IAM, o EC2 e, para uma imagem customizada, o SageMaker; onde essas APIs não respondem, como no
-ambiente alvo, que não tem endpoint para o IAM nem para o SageMaker (leituras de 2026-09-21 e
-2026-09-23, a partir de um espaço), os valores vêm só do arquivo. Os valores que dependem da imagem
-do job, como ``JOB_IMAGE_URI`` e o interpretador, vêm do arquivo quando a imagem é a padrão.
+IAM, o EC2 e, para uma imagem customizada, o SageMaker; onde essas APIs não respondem, como num
+espaço do ambiente alvo, de onde o IAM não respondeu (leituras de 2026-09-21 e 2026-09-23), os
+valores vêm só do arquivo. Os valores que dependem da imagem do job, como ``JOB_IMAGE_URI`` e o
+interpretador, vêm do arquivo quando a imagem é a padrão.
 
 Os nomes que ``read_values`` preenche:
 
 - ``REGION`` e ``ACCOUNT_ID``: a região do perfil e a conta da credencial;
 - ``PROJECT_ROLE_NAME``, ``PROJECT_ID``, ``DOMAIN_ID``, ``PROJECTS_BUCKET`` e ``PROJECT_KEY_ID``:
   o papel do projeto, ``datazone_usr_role_<projeto>_<ambiente>``, e as etiquetas que o SageMaker
-  Unified Studio põe nele;
+  Unified Studio põe nele; ``PROJECT_KEY_ID`` só quando a etiqueta ``KmsKeyId`` existe e não é
+  vazia, porque um projeto pode não ter chave KMS própria, como o do ambiente alvo em 2026-10-12;
 - ``PROJECT_SG``: o grupo de segurança ``datazone-<projeto>-<escopo>`` que o blueprint Tooling
   cria na VPC do projeto;
 - ``SUBNET_AZ1`` e ``SUBNET_AZ2``: as sub-redes da VPC do projeto cujo nome casa com o padrão dado,
@@ -186,7 +187,8 @@ def read_values(
         pede o id.
     :param image_name: o nome da imagem customizada registrada no SageMaker, que dá
         ``JOB_IMAGE_URI``; ``None`` com a imagem padrão.
-    :return: o valor de cada placeholder, pelo nome sem ``<`` e ``>``.
+    :return: o valor de cada placeholder, pelo nome sem ``<`` e ``>``; sem ``PROJECT_KEY_ID``
+        quando o papel não tem a etiqueta ``KmsKeyId`` ou a tem vazia.
     :raises awsds_workflows.errors.RefusalError: quando o ``aws`` falta ou uma chamada falha, quando
         o perfil não tem região, quando não há exatamente um papel de projeto, um grupo de
         segurança ou ao menos duas sub-redes, e quando a imagem não está fixada por digest.
@@ -204,9 +206,11 @@ def read_values(
         "PROJECT_ID": project_id,
         "DOMAIN_ID": tags["AmazonDataZoneDomain"],
         "PROJECTS_BUCKET": tags["DomainBucketName"],
-        "PROJECT_KEY_ID": tags["KmsKeyId"],
         "PROJECT_SG": _project_security_group(profile, region, vpc, project_id, tags),
     }
+    # Um valor vazio seria recusado por restore_placeholders, então conta como ausente.
+    if tags.get("KmsKeyId"):
+        values["PROJECT_KEY_ID"] = tags["KmsKeyId"]
     subnets = _project_subnets(profile, region, vpc, subnet_name)
     values["SUBNET_AZ1"] = subnets[0]
     values["SUBNET_AZ2"] = subnets[1]
