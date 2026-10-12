@@ -240,7 +240,25 @@ Then the user asked this session to fix what this repository needed ("Pode corri
 necessário no awsds-workflows"). The measurements behind the adoption are in `packaging.md` ("The
 port verified against the original scripts") and `environments.md` ("The build host").
 
-`docs/index.md` ("Instalação", "A imagem do job", "Regras de autoria"), `README.md`.
+On 2026-10-12 at 01:44 UTC, in this repository's project, the user asked to check what else needed
+revising after that commit (`40caedb`) and to revise the code and the documentation as needed
+("Verifique se algo a mais precisa ser revisado neste repositório awsds-workflows considerando os
+ajustes do commit. Revise o que for necessário no código e documentação."). No behavior changed:
+everything the runbook quotes exists in this repository, read that day at AWS-DataScience's
+`c40f8b4`: the subcommands `render`, `values`, `compare`, `package-job`, `job-constraints` and
+`package-task`; the options `--profile`, `--subnet-name`, `--image-name`, `--project`,
+`--placeholders`, `--values-file`, `--environment`, `--python`, `--platform`, `--include` and
+`--omit`; the messages `já existe: nomeie uma pasta nova`, `acima do limite de 250000000 bytes do
+worker`, `já está na raiz do .zip`, `não há uv.lock em`, `não é Python puro` and `o lock do
+projeto e o ambiente da imagem discordam`, and the printed `próximo passo`; the placeholder names;
+`scripts/space_values.py`; and the anchors `#os-valores-de-dentro-de-um-espaco`,
+`#a-pasta-de-codigo-com-package-job` and `#o-zip-com-package-task` of the `pdoc` site. The
+documentation and the docstrings of `package_task` were behind the lab's stage log, and were
+brought to it (`environments.md`, "The AWS-DataScience lab").
+
+`docs/index.md` ("Instalação", "A imagem do job", "Regras de autoria", and on the second request
+"Os conceitos", "As peças", "A rede", "O código de uma task Python ou Bash", "Uma task Bash", "A
+definição que o portal salvou"), `README.md`, `src/awsds_workflows/package_task.py`.
 
 ## Design choices of the first session
 

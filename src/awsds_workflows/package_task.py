@@ -1,7 +1,7 @@
 """[public] O ``.zip`` de código de uma task Python ou Bash de um workflow do MWAA Serverless.
 
 Uma task Python ou Bash roda no worker, a máquina que o MWAA Serverless prepara para cada
-execução, sem internet. O código dela chega num único ``.py``, ``.sh`` ou ``.zip``, que o worker
+task, sem internet. O código dela chega num único ``.py``, ``.sh`` ou ``.zip``, que o worker
 extrai em ``/usr/local/airflow/dags``, uma pasta do ``sys.path``. Por isso o ``.zip`` leva tudo na
 raiz: o pacote do projeto, cada dependência que o ``uv.lock`` do projeto fixa, em wheels do
 interpretador e da plataforma do worker, o módulo de entrada que o ``python_callable`` de uma task
@@ -35,11 +35,11 @@ Medido em 2026-10-11 num projeto que dependia de ``petl``, ``requests``, ``boto3
 cerca de 0,9 MB, com o projeto, ``tasks.py``, o ``petl`` e o ``requests`` com ``certifi``,
 ``charset_normalizer``, ``idna`` e ``urllib3``; sem ``boto3``, ``botocore``, ``s3transfer``,
 ``jmespath`` ou ``yaml``; os módulos compilados do ``charset_normalizer`` com a etiqueta
-``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. No laboratório, um
-``.zip`` com a mesma forma, montado à mão, rodou numa task Python em 2026-10-11, depois que a
-política do endpoint de gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do
-código: o ``petl`` foi importado de ``/usr/local/airflow/dags``. Nenhum ``.zip`` gravado por
-``build_archive`` rodou num worker até essa data.
+``cp312-cp312-manylinux2014_x86_64``, e ``cpython-313`` com ``python="3.13"``. No laboratório,
+em 2026-10-11, ``.zip`` com a mesma forma, montados à mão, rodaram numa task Python, que importou
+o ``petl`` de ``/usr/local/airflow/dags``, e numa task Bash, depois que a política do endpoint de
+gateway do S3 passou a admitir o bucket em que o serviço guarda a cópia do código. Nenhum
+``.zip`` gravado por ``build_archive`` rodou num worker até essa data.
 
 Exemplo:
 
@@ -109,10 +109,11 @@ do ``.zip``.
 
 Numa task Python, a cópia do worker vence a do ``.zip``, como o guia diz e o laboratório mediu em
 2026-10-11: o PyYAML 6.0.2 do worker foi importado no lugar do 6.0.1 de um ``.zip``. Numa task
-Bash que roda ``python3 -m`` a partir de ``/usr/local/airflow/dags``, a pasta vem antes no
-``sys.path``, e a cópia do ``.zip`` venceria (não medido). Sem esses pacotes no ``.zip``, as duas
-tasks importam os do worker, então o código da task é escrito contra as versões dele: o Airflow
-3.0.6, o provider da Amazon 9.32.0 e o ``boto3`` 1.43.1.
+Bash, o ``PYTHONPATH`` começa por ``/usr/local/airflow/dags``, antes dos pacotes do worker
+(medido no laboratório em 2026-10-11), então, num ``python3`` que a task roda, a cópia do
+``.zip`` venceria (não medido). Sem esses pacotes no ``.zip``, as duas tasks importam os do
+worker, então o código da task é escrito contra as versões dele: o Airflow 3.0.6, o provider da
+Amazon 9.32.0 e o ``boto3`` 1.43.1.
 """
 
 ARCHIVE_LIMIT_BYTES = 250_000_000

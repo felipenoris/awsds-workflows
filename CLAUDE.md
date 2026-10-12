@@ -304,7 +304,9 @@ this repository's `.claude/memory/lessons.md` and its rule here, in the same com
 - **A lab fact the documentation repeats is read against the lab's stage log before an answer or a
   change relies on it**: AWS-DataScience's `docs/log/log-stage-06i-sandbox-orchestration.md` kept
   measuring after `docs/index.md` was ported, and the page said the `.zip` was blocked the evening
-  the lab ran one (2026-10-11).
+  the lab ran one (2026-10-11); a rewrite of the page reads each "Estado no laboratório" line and
+  each "não medido" against that log first, since keeping every fact keeps the stale ones too
+  (2026-10-12).
 - **A documented behavior becomes a test assertion only after a probe reproduces it**: run a ten-line
   probe first, assert the observed value, record the rest in the session report (2026-09-19).
 - **A claim of "writes nothing" or "needs nothing" is verified in a stripped environment**: no `AWS_*`
@@ -484,6 +486,14 @@ installed from `main` among them ("AWS-DataScience adopts the package" in
 original scripts on the lab's files (`.claude/memory/packaging.md`), corrected `docs/index.md` on
 an import over a saved workflow from the lab's stage log, and added `uv tool upgrade` to the
 installation, measured (`.claude/memory/environments.md`, "The build host").
+
+A session on branch `claude/runbook-followup-r95ohb` (2026-10-12) checked what else the adoption
+called for, by the user's request ("AWS-DataScience adopts the package" in
+`.claude/memory/decisions.md`). No behavior changed, since everything AWS-DataScience's runbook
+quotes exists here; `docs/index.md` and the docstrings of `package_task` were brought to the
+lab's stage log on the Bash task over a `.zip`, one worker per task, a code snapshot per save,
+errno 16, `compare` over the saved definitions and the inbox consumed one drop at a time
+(`.claude/memory/environments.md`).
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session", and Claude's choices in "The comparison of definitions");

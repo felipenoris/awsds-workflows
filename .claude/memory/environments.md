@@ -70,6 +70,33 @@ step of the runbook was measured in October 2026 (its stage log
   (`<uuid>.py`), an `ex_<uuid>` folder and `logs/`. A task that tried PyPI failed in about 2 s at
   name resolution: the VPC's DNS firewall answered `NXDOMAIN`, which the worker's resolver reported
   as errno 16.
+- **One worker per task**: in run `b7FgLsjotHxaCde` the tasks `caller_identity` and `reach_pypi`
+  ran on workers in the az1 and az2 private subnets, and each task's log, in every run, opens with
+  `Preparing the execution environment.` (2026-10-11).
+- **A Bash task over a `.zip`** (run `xn9EZ2kgVIMcI7h`, 2026-10-11, the stage log's pass 5): the
+  workflow `demo-bash-operator`, its `Code` a `.zip` built by hand (`operators/build.sh`:
+  `reach_pypi.sh` and the project's package at the root, 4,849 bytes). The inline `run_command`
+  printed `cwd /var/tmp/airflowtmp…` and
+  `PYTHONPATH=/usr/local/airflow/dags:/usr/local/airflow/dags:/opt/mwaa-serverless-venv/lib/python3.12/site-packages`,
+  then ran `cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 ...`, `SUCCESS` in 9 s;
+  `reach_pypi`, whose `bash_command` is `reach_pypi.sh`, ran as
+  `['/usr/bin/bash', 'tmp6wm8sj1x.sh']`, the script rendered as a template into a temporary file,
+  and failed as designed in 13 s. The import into the saved probe's editor was refused at the save
+  (`ConflictException`) and uploaded the archive all the same; the probe was deleted, and the next
+  save created the workflow.
+- **Every save takes a new code snapshot** (the stage's verification vii, 2026-10-11): a save that
+  only set the description (`UpdateWorkflow`, the code pinned to the same S3 version) made a new
+  workflow version and moved `CodeSnapshottedAt` from 21:35:48Z to 21:42:08Z; the description
+  landed in the definition as the DAG's `description` key.
+- **`compare` over the lab's saved definitions** (2026-10-12, AWS-DataScience's
+  `examples/sandbox-orchestration/README.md`): each of the six definitions the portal saved,
+  against the file it was imported from, printed `is_paused_upon_creation: false`, and two printed
+  an edit made on purpose besides: verification vii's description, and a command the probe's
+  template changed after its run.
+- **The inbox contract** (the stage's decision 4, taken by the user on 2026-10-12): the inbox is
+  consumed as a prefix, one drop at a time; a file that lands between the job's download and
+  `remove_source` is deleted unprocessed and stays only as a noncurrent version of the versioned
+  bucket.
 - **A save with no code**: the editor pre-fills *Operator files zip S3 location*, and with no file
   there the save is refused with `ValidationException: Code not found in specified S3 location`;
   emptying the field makes the save send `code` null (2026-10-11).
