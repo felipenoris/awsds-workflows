@@ -139,6 +139,31 @@ DataZone failure ends without JSON, where the first version printed nine values
 
 `scripts/space_values.py`, `tests/test_space_values.py`, `docs/index.md`.
 
+## The findings of AWS-DataScience's PR #110
+
+On 2026-10-11 at 23:50 UTC the user asked whether the documentation and the code needed updating
+after AWS-DataScience's PR #110 (merged as `c0baddd`), which ran a processing job over a uv project
+with dependencies, and after an error in a space: `package-uv-job.py` stopped with `No interpreter
+found for Python 3.14`, the space's Python downloads being off. Claude reproduced the error's second
+half in a simulated space: `package-job` and `package-task` stop the same way when the project asks
+for a Python the space's uv cannot find, and uv's own `UV_PYTHON` naming the job's interpreter
+unblocks both with no code change (`packaging.md`, "The interpreter `uv` needs"). On a decision
+card, at 00:03:45 UTC on 2026-10-12, the user chose "Só a doc" (Claude's recommendation: a draft PR
+with `docs/index.md`, the docstring of `package_job` and the memory; in a space, uv's own
+`UV_PYTHON`) over "Doc e opção" (a `--uv-python` option on `package-job` and `package-task` that
+passes the interpreter to uv) and "Nada agora".
+
+Claude's choices inside that decision, named in the PR:
+
+- **A test holds what the documentation promises**: `tests/test_uv.py` checks that `UV_PYTHON`
+  reaches the uv call and that a missing interpreter is refused with the message the refusal tables
+  quote.
+- **The `:raises` fields of `build_folder` and `build_archive` name the missing interpreter**, and
+  `_uv`'s docstring says that uv inherits the process's environment.
+
+`docs/index.md` ("O Python que o `uv` usa", the refusal tables, the job with dependencies, "Como
+ler uma execução", "Limpeza"), `src/awsds_workflows/package_job.py`, `tests/test_uv.py`.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

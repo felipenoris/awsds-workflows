@@ -1,8 +1,10 @@
 """[private] As chamadas ao ``uv`` que os dois empacotadores fazem.
 
-O ``uv`` é o programa que estiver no ``PATH``. Uma chamada que termina com erro vira
-``awsds_workflows.errors.RefusalError`` com a saída de erro do ``uv``, onde ele diz que o lock está
-desatualizado ou que uma dependência não publica wheel para a plataforma pedida.
+O ``uv`` é o programa que estiver no ``PATH``, e herda o ambiente do processo: as variáveis do
+``uv``, como o ``UV_PYTHON`` que nomeia o interpretador, valem para cada chamada. Uma chamada que
+termina com erro vira ``awsds_workflows.errors.RefusalError`` com a saída de erro do ``uv``, onde
+ele diz que o lock está desatualizado, que uma dependência não publica wheel para a plataforma
+pedida ou que não acha o Python que o projeto pede.
 """
 
 from __future__ import annotations
