@@ -87,6 +87,12 @@ missing one "ainda não medido". The same review asked for the code against the 
 and for simplicity; its changes keep the behavior and the CLI, and are a commit of the same PR,
 by the user's choice of 2026-10-12 ("Um PR" over "Dois PRs"), as the repository's git rule asks.
 
+On 2026-10-12 at 02:49 UTC the user asked whether the `pdoc` site could be in dark mode ("o pdoc
+poderia ser em "dark-mode" ?"), and at 02:56 UTC chose "Sempre escuro" over "Seguir o sistema",
+the decision card's recommendation: every reader sees the site dark, whatever their system's
+setting. The colors are in `docs/theme/`, the folder pdoc reads with `-t`: pdoc 16.0.0's
+`dark-mode` example for the page and Pygments' `monokai` for the code, as in that example.
+
 ## The supported Python versions
 
 On 2026-10-11 at 20:55 UTC the user asked that the package be compatible with Python 3.12 and that

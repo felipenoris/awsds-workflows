@@ -37,13 +37,14 @@ uv run pytest
 uv run pytest -m "not network"
 uv run ruff check
 uv run ruff format --check
-uv run pdoc awsds_workflows --docformat restructuredtext -o site
+uv run pdoc awsds_workflows --docformat restructuredtext -t docs/theme -o site
 ```
 
 O `uv sync --all-groups` instala em `.venv/` o Python 3.13 do `.python-version`, o pacote e os
 grupos `dev` (o `pytest` e o `ruff`) e `docs` (o `pdoc`). Os testes marcados `network` travam e
 constroem projetos de teste com o `uv` e precisam do PyPI; `-m "not network"` os pula. O `pdoc`
-grava o site em `site/`, a mesma geração que o workflow `docs.yml` publica a cada push na `main`.
+grava o site em `site/`, a mesma geração que o workflow `docs.yml` publica a cada push na `main`;
+o `-t docs/theme` traz as cores escuras do site.
 
 O workflow [`tests.yml`](.github/workflows/tests.yml) roda o Ruff e os testes nos Pythons 3.12,
 3.13 e 3.14. Para rodar os testes em outra versão sem trocar o `.venv/`, o `--isolated` usa um

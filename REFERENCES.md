@@ -99,5 +99,10 @@ pacote repete.
 
 - O `uv`: <https://docs.astral.sh/uv/>
 - O `pdoc`: <https://pdoc.dev/>
+- O exemplo `dark-mode` do pdoc 16.0.0, lido em 2026-10-12, de onde vêm as cores escuras do
+  `theme.css` de `docs/theme/` e o estilo `monokai` do destaque do código:
+  <https://raw.githubusercontent.com/mitmproxy/pdoc/v16.0.0/examples/dark-mode/README.md>,
+  <https://raw.githubusercontent.com/mitmproxy/pdoc/v16.0.0/examples/dark-mode/theme.css> e
+  <https://raw.githubusercontent.com/mitmproxy/pdoc/v16.0.0/examples/dark-mode/syntax-highlighting.css>
 - A API JSON do PyPI, consultada em 2026-10-11 para saber se os nomes candidatos estavam livres
   (todos responderam 404): <https://pypi.org/pypi/awsds-workflows/json>
