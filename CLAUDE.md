@@ -496,9 +496,8 @@ errno 16, `compare` over the saved definitions and the inbox consumed one drop a
 (`.claude/memory/environments.md`).
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
-("Design choices of the first session", and Claude's choices in "The comparison of definitions");
-the first workflow in the target with the SageMaker Distribution 4.15, which measures the network
-question and the image's facts; a Bash task over a `package-task` archive, which measures what the
-Bash section marks as not measured; the first run of `scripts/space_values.py` in a target space;
-`package-job` run in a lab space and its folder in a job. Each one is an item in
-`.claude/memory/OPEN_QUESTIONS.md`.
+("Design choices of the first session"); the first workflow in the target with the SageMaker
+Distribution 4.15, which measures the network question and the image's facts; a Bash task over a
+`package-task` archive, which measures what the Bash section marks as not measured; the first run of
+`scripts/space_values.py` in a target space; `package-job` run in a lab space and its folder in a
+job. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.
