@@ -91,6 +91,8 @@ JOB_PLATFORM = "x86_64-manylinux_2_28"
 """[public] A plataforma padrão do job, Linux x86_64 com glibc 2.28 ou mais nova, no formato do
 ``--python-platform`` do ``uv``."""
 
+# Um requisito nome==versão: o nome, a versão e, depois de ";", o marcador PEP 508; a "\" no fim
+# continua a linha nos hashes que o uv export escreve abaixo dela.
 _PIN = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;\\]+)(?:\s*;\s*([^\\]+?))?\s*\\?$")
 
 
@@ -223,18 +225,9 @@ def build_folder(
     # Os caminhos absolutos, porque o uv roda dentro da pasta do projeto.
     project = project.resolve()
     output = output.resolve()
-    if not (project / "uv.lock").is_file():
-        raise RefusalError(f"não há uv.lock em {project}: rode uv lock lá antes")
-    if output.exists():
-        raise RefusalError(f"{output} já existe: nomeie uma pasta nova, e nada é sobrescrito")
+    _check_inputs(project, output)
     in_environment = environment_versions(environment, python, platform)
-
-    # O fechamento travado do projeto, com os hashes, e a parte dele que vale para o job.
-    exported = _uv.run(
-        ["export", "--locked", "--no-dev", "--no-emit-project", "--no-header", "--quiet"],
-        cwd=project,
-    )
-    closure = _applicable(_read_pins(exported, "uv export"), _marker_environment(python, platform))
+    closure = _locked_closure(project, python, platform)
     from_environment, conflicts, vendored = _compare(closure, in_environment)
     if conflicts:
         raise RefusalError(_conflict_message(conflicts, from_environment, in_environment))
@@ -245,8 +238,7 @@ def build_folder(
         # Os pacotes que a imagem não tem, em wheels do job, com os hashes do lock.
         if vendored:
             requirements = Path(temporary) / "vendored.txt"
-            blocks = ["\n".join(vendored[name].lines) for name in sorted(vendored)]
-            requirements.write_text("\n".join(blocks) + "\n", encoding="utf-8")
+            _write_requirements(vendored, requirements)
             _uv.install_requirements(requirements, stage, python, platform)
 
         # O pacote do projeto, de um wheel construído a partir do pyproject.toml.
@@ -260,11 +252,44 @@ def build_folder(
         path=output,
         size_bytes=sum(path.stat().st_size for path in files),
         from_environment=from_environment,
-        vendored={name: vendored[name].version for name in sorted(vendored)},
+        vendored={name: pin.version for name, pin in vendored.items()},
         top_level=sorted(path.name for path in output.iterdir()),
         python=python,
         platform=platform,
     )
+
+
+def _check_inputs(
+    project: Path,
+    output: Path,
+) -> None:
+    """[private] Recusa, antes de qualquer download, o projeto sem ``uv.lock`` e a pasta de saída
+    que já existe."""
+    if not (project / "uv.lock").is_file():
+        raise RefusalError(f"não há uv.lock em {project}: rode uv lock lá antes")
+    if output.exists():
+        raise RefusalError(f"{output} já existe: nomeie uma pasta nova, e nada é sobrescrito")
+
+
+def _locked_closure(
+    project: Path,
+    python: str,
+    platform: str,
+) -> dict[str, _Pin]:
+    """[private] Os requisitos do fechamento travado do projeto que valem para o interpretador e a
+    plataforma do job, pelo nome normalizado, cada um com as linhas dos hashes."""
+    pins = _read_pins(_uv.export_closure(project), "uv export")
+    return _applicable(pins, _marker_environment(python, platform))
+
+
+def _write_requirements(
+    pins: dict[str, _Pin],
+    path: Path,
+) -> None:
+    """[private] Grava os requisitos em ``path`` como o ``uv export`` os escreveu, cada um com as
+    linhas dos hashes, que o ``uv pip install`` confere."""
+    blocks = ["\n".join(pin.lines) for pin in pins.values()]
+    path.write_text("\n".join(blocks) + "\n", encoding="utf-8")
 
 
 def _normalize(
@@ -348,7 +373,7 @@ def _compare(
     in_environment: dict[str, str],
 ) -> tuple[dict[str, str], dict[str, tuple[str, str]], dict[str, _Pin]]:
     """[private] Separa o fechamento do projeto no que a imagem já tem na mesma versão, no que ela
-    tem em outra versão e no que ela não tem."""
+    tem em outra versão e no que ela não tem, cada parte em ordem de nome."""
     from_environment: dict[str, str] = {}
     conflicts: dict[str, tuple[str, str]] = {}
     vendored: dict[str, _Pin] = {}

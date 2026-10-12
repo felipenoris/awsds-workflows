@@ -83,7 +83,8 @@ workflow, and keeps every other section, anchor, fact, measurement and date; the
 "espaço" (never "space") and "ambiente alvo" (never "o alvo" for the environment; "o alvo" stays
 for the platform a build targets); a measurement reads "medido no laboratório em <data>" and a
 missing one "ainda não medido". The same review asked for the code against the Python standards
-and for simplicity; its changes keep the behavior and the CLI, and go in a PR of their own.
+and for simplicity; its changes keep the behavior and the CLI, and are a commit of the same PR,
+as the repository's git rule asks, unless the user chooses a PR of their own.
 
 ## The supported Python versions
 

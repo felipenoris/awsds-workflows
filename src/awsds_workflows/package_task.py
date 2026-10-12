@@ -219,8 +219,9 @@ def build_archive(
         root = stage / "root"
 
         # O fechamento travado, sem o projeto e sem os pacotes do worker, em wheels do worker.
+        closure = _uv.export_closure(project, [*WORKER_PROVIDED, *omit])
         requirements = stage / "requirements.txt"
-        _export_closure(project, requirements, [*WORKER_PROVIDED, *omit])
+        requirements.write_text(closure, encoding="utf-8")
         _uv.install_requirements(requirements, root, python, platform)
 
         # O pacote do projeto, de um wheel construído a partir do pyproject.toml.
@@ -272,20 +273,6 @@ def _copy_to_root(
     if destination.exists():
         raise RefusalError(f"{path.name} já está na raiz do .zip: renomeie {path}")
     shutil.copy2(path, destination)
-
-
-def _export_closure(
-    project: Path,
-    requirements: Path,
-    pruned: list[str],
-) -> None:
-    """[private] Grava em ``requirements`` o fechamento travado do projeto, sem o próprio projeto
-    e sem os pacotes de ``pruned`` com as dependências que só eles usam."""
-    arguments = ["export", "--locked", "--no-dev", "--no-emit-project", "--no-header", "--quiet"]
-    for name in pruned:
-        arguments += ["--prune", name]
-    arguments += ["--output-file", str(requirements)]
-    _uv.run(arguments, cwd=project)
 
 
 def _write_archive(

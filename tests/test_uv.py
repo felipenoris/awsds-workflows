@@ -1,6 +1,7 @@
 """``awsds_workflows._uv``: a recusa de uma chamada que falha, do ``uv`` ausente, de um Python que o
-``uv`` não acha e de um wheel que não é Python puro, o ``UV_PYTHON`` que chega ao ``uv``, e a
-limpeza do que o ``uv pip install --target`` deixa.
+``uv`` não acha e de um wheel que não é Python puro, o ``UV_PYTHON`` que chega ao ``uv``, os
+argumentos do ``uv export`` dos empacotadores, e a limpeza do que o ``uv pip install --target``
+deixa.
 
 Nenhum teste precisa do PyPI: a chamada que falha é uma opção que o ``uv`` não conhece, o Python
 que o ``uv`` não acha é o 3.99 de um ``.python-version`` com os downloads de Python desligados, e o
@@ -58,6 +59,38 @@ def test_uv_python_reaches_the_call(
     monkeypatch.setenv("UV_PYTHON", sys.executable)
     _uv.run(["venv", str(tmp_path / "venv")], cwd=tmp_path)
     assert (tmp_path / "venv" / "pyvenv.cfg").is_file()
+
+
+def test_export_closure_prunes_each_name_inside_the_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """O ``uv export`` roda na pasta do projeto, com o lock travado, sem o projeto, sem o grupo
+    ``dev`` e com um ``--prune`` por pacote tirado, e o que ele imprime volta como texto."""
+    calls: list[tuple[list[str], object]] = []
+
+    def fake_run(
+        arguments: list[str],
+        **options: object,
+    ) -> str:
+        """Grava os argumentos e a pasta da chamada, e devolve um requisito."""
+        calls.append((arguments, options.get("cwd")))
+        return "petl==1.7.29\n"
+
+    monkeypatch.setattr(_uv, "run", fake_run)
+    text = _uv.export_closure(tmp_path, ["boto3", "pyyaml"])
+    assert text == "petl==1.7.29\n"
+    arguments, cwd = calls[0]
+    assert cwd == tmp_path
+    assert arguments[:6] == [
+        "export",
+        "--locked",
+        "--no-dev",
+        "--no-emit-project",
+        "--no-header",
+        "--quiet",
+    ]
+    assert arguments[6:] == ["--prune", "boto3", "--prune", "pyyaml"]
 
 
 def test_an_impure_wheel_is_refused(
