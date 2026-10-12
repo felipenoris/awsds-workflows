@@ -118,8 +118,13 @@ pacote repete.
   <https://pypi.org/pypi/apache-airflow-providers-standard/1.6.0/json> e
   <https://pypi.org/pypi/apache-airflow-providers-standard/json>
 - As constraints do Airflow 3.0.6 para o Python 3.12, que fixam o
-  `apache-airflow-providers-standard` 1.6.0 (lido em 2026-10-11):
+  `apache-airflow-providers-standard` 1.6.0 (lido em 2026-10-11), o `python-dateutil` 2.9.0.post0
+  e o `six` 1.17.0 (lidos em 2026-10-12):
   <https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt>
+- A dependência do Airflow no `six`, lida na API JSON do PyPI em 2026-10-12: o
+  `apache-airflow-core` 3.0.6 pede o `python-dateutil`, e o `python-dateutil` 2.9.0.post0 pede o
+  `six`: <https://pypi.org/pypi/apache-airflow-core/3.0.6/json> e
+  <https://pypi.org/pypi/python-dateutil/2.9.0.post0/json>
 - O `SageMakerProcessingOperator` do `apache-airflow-providers-amazon` 9.37.0, lido no código do
   wheel em 2026-10-12: o nome do job é descrito antes da criação, e só uma `ValidationException`
   conta como job ausente: <https://pypi.org/project/apache-airflow-providers-amazon/9.37.0/>

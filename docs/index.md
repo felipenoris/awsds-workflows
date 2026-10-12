@@ -79,8 +79,8 @@ ela mudou.
 
 **O laboratório e o ambiente alvo.** O laboratório é a conta de testes em que cada passo desta
 página foi medido, nas datas que a página cita. O ambiente alvo é o SageMaker Unified Studio em que
-os workflows vão rodar: lá a primeira task Python rodou em 2026-10-12, e a página diz o que ainda
-não foi medido.
+os workflows vão rodar: lá uma task Python e uma task Bash rodaram em 2026-10-12, e a página diz o
+que ainda não foi medido.
 
 **O primeiro workflow**, na ordem das seções: instale o pacote; leia onde cada peça fica e qual é a
 imagem do job; peça à infraestrutura a permissão e a rede; escreva a definição pelas regras de
@@ -298,7 +298,11 @@ projeto, o SageMaker respondeu a uma listagem de jobs e o SSM a uma leitura de p
 dia, na primeira execução de um workflow lá, o worker listou a pasta de entrada no S3, chamou a API
 do SageMaker, que recusou o pedido por permissão, e gravou o log da task. Numa task Python, o
 worker recebeu a cópia do código, chamou o STS e leu, gravou e apagou objetos na pasta do projeto.
-O caminho do job, do download da imagem à gravação da saída, ainda não foi medido no ambiente alvo.
+Numa task Bash, um script que tentou o PyPI não achou variável de proxy, resolveu `pypi.org` para
+um endereço público e falhou com `[Errno 101] Network is unreachable` depois de 43 s no urllib,
+com 10 s de timeout por conexão, e de 64 s no pip; no laboratório, a mesma tentativa falhou em
+cerca de 2 s. O caminho do job, do download da imagem à gravação da saída, ainda não foi medido no
+ambiente alvo.
 
 ## Regras de autoria
 
@@ -657,8 +661,9 @@ qualquer task: a política do endpoint de gateway do S3 recusava o bucket da có
 **Estado no ambiente alvo**: uma task Python funciona desde 2026-10-12, com um `.zip` do
 `package-task` de 261.205 bytes, o projeto do laboratório com o `petl` 1.7.28. O worker, um
 CPython 3.12.14, importou o `petl` do `.zip`, em `/usr/local/airflow/dags`, e o PyYAML 6.0.2 dos
-pacotes dele, e o resultado saiu igual ao do laboratório, com o mesmo sha256. Uma task Bash ainda
-não rodou lá.
+pacotes dele, e o resultado saiu igual ao do laboratório, com o mesmo sha256. Uma task Bash
+funciona desde o mesmo dia, com um `.zip` do `package-task` que leva também dois scripts de
+`--include` ([Uma task Bash](#uma-task-bash)).
 
 ### O que o worker espera
 
@@ -844,8 +849,13 @@ find build -name __pycache__ -type d -prune -exec rm -rf {} +
 
 **Estado no laboratório**: funciona desde 2026-10-11. Tasks com comandos inline mostraram o
 ambiente do worker, e um workflow com um `.zip` montado à mão rodou um módulo do `.zip` com
-`python3 -m` e um script do `.zip` pelo nome. Nenhum `.zip` do `package-task` rodou numa task Bash
-ainda.
+`python3 -m` e um script do `.zip` pelo nome.
+
+**Estado no ambiente alvo**: funciona desde 2026-10-12, com um `.zip` do `package-task`: o projeto
+do laboratório com o `petl` 1.7.28 e o `six` 1.16.0, e dois scripts de `--include`. Um módulo do
+`.zip` rodou com `python3 -m`, com e sem o `cd`; um script rodou pelo nome, pelo caminho inteiro e
+executado direto; e o resultado saiu igual ao do laboratório, com o mesmo sha256. A task que
+tentou o PyPI falhou, como esperado, porque o ambiente alvo não tem internet ([A rede](#a-rede)).
 
 Uma task Bash roda um comando do shell no worker: comandos inline, um script, um módulo Python com
 `python3 -m` ou um binário. O código que ela chama viaja no `Code` do workflow, que o `package-task`
@@ -875,14 +885,17 @@ worker e as variáveis da credencial (lido no código do operador, não medido).
 ### O ambiente do worker
 
 O laboratório leu o ambiente em 2026-10-11, em tasks com comandos inline, num workflow sem `Code` e
-num com um `.zip`:
+num com um `.zip`. O ambiente alvo leu a mesma pasta de trabalho, o mesmo `PYTHONPATH` e o mesmo
+`python3` em 2026-10-12, numa task com um `.zip` do `package-task`:
 
 - a pasta de trabalho é temporária, `/var/tmp/airflowtmp…`, e não `/usr/local/airflow/dags`, onde
   o `.zip` é extraído. O guia diz que um script roda em `/usr/local/airflow/dags`, mas o script
-  chamado pelo nome rodou de uma cópia numa pasta temporária
-  ([O código do `.zip` no comando](#o-codigo-do-zip-no-comando));
+  chamado pelo nome rodou de uma cópia numa pasta temporária, e o chamado pelo caminho inteiro, na
+  pasta de trabalho da task ([O código do `.zip` no comando](#o-codigo-do-zip-no-comando));
 - com um `.zip`, o `PYTHONPATH` começa por `/usr/local/airflow/dags`, que aparece duas vezes, e
   segue com os pacotes do worker, `/opt/mwaa-serverless-venv/lib/python3.12/site-packages`;
+- os arquivos do `.zip` chegam com o modo que o `.zip` guarda, todos de um usuário do worker (uid e
+  gid 997), então um script de `--include` chega executável (medido no ambiente alvo);
 - o `python3` do `PATH` é o do worker, `/opt/mwaa-serverless-venv/bin/python3` 3.12.14, com o
   `boto3` 1.43.1 e os outros pacotes que o worker traz;
 - os processos que a task abre recebem a credencial do papel do projeto, sessão
@@ -920,29 +933,28 @@ run_project:
 
 - **`python3 -m meu_pacote`** pede um `__main__.py` no pacote, e `python3 -m meu_pacote.modulo`
   roda um módulo dele; o laboratório rodou um módulo assim, depois do `cd` do exemplo. O
-  `PYTHONPATH` da task começa por `/usr/local/airflow/dags`, então o `python3` acharia o pacote
-  mesmo sem o `cd` (não medido). Pela mesma ordem, um pacote do `.zip` venceria o do worker com o
-  mesmo nome (não medido), o contrário de uma task Python; o `package-task` deixa os do worker de
-  fora.
-- **Um script do `.zip`** roda como `bash /usr/local/airflow/dags/run.sh <argumentos>` (não
-  medido). Um `bash_command` que termina em `.sh` ou `.bash`, como `run.sh`, é para o Airflow o
-  nome de um template: o worker passou o arquivo do `.zip` pelo Jinja para uma cópia numa pasta
-  temporária e rodou `bash` nela (medido no laboratório em 2026-10-11). Essa forma não leva
-  argumentos, que fariam o comando deixar de terminar em `.sh`; o `$0` dela não aponta para o
-  `.zip`, e as regras do Jinja de [O comando](#o-comando) valem para o arquivo.
+  `PYTHONPATH` da task começa por `/usr/local/airflow/dags`, então o `python3` acha o pacote mesmo
+  sem o `cd`, e um pacote do `.zip` vence o do worker com o mesmo nome, o contrário de uma task
+  Python. No ambiente alvo, em 2026-10-12, um módulo do `.zip` rodou sem o `cd`, e o `python3` da
+  task importou o `six` 1.16.0 do `.zip` no lugar do `six` de que o Airflow do worker depende. O
+  `package-task` deixa os pacotes do worker de fora.
+- **Um script do `.zip`** roda pelo caminho, com `bash` na frente ou, porque o worker mantém o bit
+  de execução, sem ele: `bash /usr/local/airflow/dags/run.sh <argumentos>` ou
+  `/usr/local/airflow/dags/run.sh <argumentos>`. O `$0` é esse caminho, e a pasta de trabalho é a
+  da task (medido no ambiente alvo em 2026-10-12). Um `bash_command` que termina em `.sh` ou
+  `.bash`, como `run.sh`, é para o Airflow o nome de um template: o worker passou o arquivo do
+  `.zip` pelo Jinja para uma cópia numa pasta temporária e rodou `bash` nela (medido no laboratório
+  em 2026-10-11 e no ambiente alvo em 2026-10-12). Essa forma não leva argumentos, que fariam o
+  comando deixar de terminar em `.sh`; o `$0` dela não aponta para o `.zip`, e as regras do Jinja
+  de [O comando](#o-comando) valem para o arquivo.
 - **Um binário** é Linux x86_64 e, de preferência, estático, porque a glibc do worker não é
-  documentada. O `.zip` guarda o bit de execução, mas a extração pelo `zipfile` do Python o
-  descarta, e o serviço não diz como extrai: copie o binário para a pasta de trabalho e dê
-  `chmod +x` lá.
+  documentada. O `.zip` guarda o bit de execução, e o worker o mantém ao extrair (medido no
+  ambiente alvo em 2026-10-12, com um script executado direto), então o binário roda pelo caminho:
 
 ```yaml
 run_tool:
   operator: airflow.providers.standard.operators.bash.BashOperator
-  bash_command: |
-    set -euo pipefail
-    cp /usr/local/airflow/dags/minha-ferramenta .
-    chmod +x minha-ferramenta
-    ./minha-ferramenta --dia {{ ds }}
+  bash_command: /usr/local/airflow/dags/minha-ferramenta --dia {{ ds }}
   retries: 0
 ```
 

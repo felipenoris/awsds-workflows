@@ -517,9 +517,14 @@ Terraform, built on the user's current version of it, in the Claude project's li
 there, the package's first archive on a worker, with no change to the target's Terraform: the code's
 copy reached the worker, STS answered, `petl` came from the archive and PyYAML 6.0.2 from the
 worker, and the result's sha256 was the lab's (`.claude/memory/environments.md`, "The target").
+At 19:35 UTC a Bash task over a `package-task` archive with two `--include` scripts ran there too:
+the worker kept the scripts' executable bit, a module ran with `python3 -m` without a `cd`, a
+script ran by its full path, the archive's `six` came before the worker's, the result's sha256 was
+the same, and the task that tried PyPI failed with errno 101 as designed
+(`.claude/memory/environments.md`, "The first Bash task").
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session"); the target's Terraform grant applied and a run that creates
-the job, which measures the image's facts and the job's path; a Bash task over a `package-task`
-archive, which measures what the Bash section marks as not measured; `package-job` run in a lab
-space and its folder in a job. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.
+the job, which measures the image's facts and the job's path; a Bash task whose `Code` is a lone
+`.py` or `.sh`, and one with `env` and no `append_env`; `package-job` run in a lab space and its
+folder in a job. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.

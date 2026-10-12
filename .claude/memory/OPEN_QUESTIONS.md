@@ -14,13 +14,14 @@ nomeia esse lugar.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
-  código, chamou o STS e leu, gravou e apagou objetos na pasta do projeto (`environments.md`, "The
-  target"). O Terraform do alvo (a versão atual do usuário, lida em 2026-10-12) declara endpoints de
-  interface com DNS privado para `sagemaker.api`, `logs`, `sts`, `ecr.api` e `ecr.dkr`, entre
-  outros, e nenhum para o KMS. As leituras do serialize-db de 2026-09-21 e 2026-09-23, em que o
-  SageMaker não respondeu, testaram `sagemaker.sa-east-1.amazonaws.com`, que não é o nome da API
-  (`api.sagemaker...`). Não medido no alvo: o caminho do job, do pull da imagem à gravação da saída.
-  Fecha com o primeiro job no alvo.
+  código, chamou o STS e leu, gravou e apagou objetos na pasta do projeto; às 19:36 UTC, numa task
+  Bash, uma tentativa de alcançar o PyPI falhou com `[Errno 101] Network is unreachable`
+  (`environments.md`, "The target"). O Terraform do alvo (a versão atual do usuário, lida em
+  2026-10-12) declara endpoints de interface com DNS privado para `sagemaker.api`, `logs`, `sts`,
+  `ecr.api` e `ecr.dkr`, entre outros, e nenhum para o KMS. As leituras do serialize-db de
+  2026-09-21 e 2026-09-23, em que o SageMaker não respondeu, testaram
+  `sagemaker.sa-east-1.amazonaws.com`, que não é o nome da API (`api.sagemaker...`). Não medido no
+  alvo: o caminho do job, do pull da imagem à gravação da saída. Fecha com o primeiro job no alvo.
 - **A imagem padrão do alvo como imagem do job.** O usuário a chamou de SageMaker Distribution 4.15
   (2026-10-11), e as tags públicas da distribuição vão até a 4.5.2, sem 4.15 (lidas em 2026-10-12).
   Num espaço do alvo, em 2026-10-12, `/opt/conda/bin/python` era o CPython 3.12.14, como em
@@ -46,15 +47,13 @@ nomeia esse lugar.
   medidos num space de verdade: o `uv tool install` do pacote no Python da distribuição, a recusa
   sem o `UV_PYTHON` e a pasta com ele. Fecha com o `package-job` rodado num space do laboratório e
   a pasta dele num job.
-- **Uma task Bash sobre um `.zip`.** Um `.zip` montado à mão rodou numa task Bash em 2026-10-11:
-  um módulo com `python3 -m`, depois de um `cd /usr/local/airflow/dags`, e um script chamado pelo
-  nome, que o worker renderizou numa cópia temporária (`environments.md`; `docs/index.md`, "O
-  código do `.zip` no comando"). Não medidos: um script chamado pelo caminho inteiro e a pasta
-  de trabalho dele; o `python3 -m` sem o `cd`, que o `PYTHONPATH` lido sugere; se um pacote do
-  `.zip` vence o do worker com o mesmo nome; o bit de execução depois da extração, que o `.zip` do
-  `package-task` guarda e o `zipfile` do Python descarta; onde o worker põe um `Code` que é um
-  `.py` ou um `.sh` sozinho; e o `env` sem `append_env`. Fecha com uma task Bash sobre um `.zip`
-  do `package-task` com `--include` que imprima cada um.
+- **Uma task Bash: o `Code` de um arquivo só e o `env`.** Uma task Bash sobre um `.zip` do
+  `package-task` com `--include` rodou no ambiente alvo em 2026-10-12 e mediu o resto do que este
+  item listava: o script pelo caminho inteiro e a pasta de trabalho dele, o `python3 -m` sem o `cd`,
+  o `six` do `.zip` importado no lugar do que o Airflow do worker traz e o bit de execução mantido
+  na extração (`environments.md`, "The first Bash task"; `docs/index.md`, "O código do `.zip` no
+  comando"). Não medidos: onde o worker põe um `Code` que é um `.py` ou um `.sh` sozinho, e o `env`
+  sem `append_env`, lido só no código do operador. Fecha com uma task que use cada um.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

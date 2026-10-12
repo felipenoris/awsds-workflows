@@ -215,10 +215,47 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   DNS name of the target's `sts` interface endpoint; botocore 1.43.111 reads `AWS_DEFAULT_REGION`
   and not `AWS_REGION`, and with only `AWS_REGION` set its STS client calls the global
   `https://sts.amazonaws.com` (probed on the build host, 2026-10-12). The lab's worker set both.
+- **The first Bash task, 2026-10-12** (the user, 19:34 to 19:38 UTC): `demo-bash-operator`, the
+  lab's definition rendered for the target (the folders under
+  `shared/<user>/orchestration-demo/bash/`) with a fourth task, `probe_bash`, inline and with no
+  dependency, that printed what `docs/index.md` marked as not measured; the `.zip` was uploaded in
+  *Settings → Storage* before the save. It came from `package-task --include reach_pypi.sh
+  --include probe.sh` over a copy of the lab's `awsds-demo-job` with `petl==1.7.28` and
+  `six==1.16.0`: 161 entries and 272,943 bytes, the two scripts stored as 0o100755 and `six.py` as
+  0o100644. Each task ran on a worker with its own host name, a private `ip-10-…` address.
+  `probe_bash` (19:34:56Z to 19:35:09Z, exit 0 in 11.74 s) printed the working directory
+  `/var/tmp/airflowtmp…` and the lab's `PYTHONPATH`; `ls -ln /usr/local/airflow/dags` showed every
+  entry owned by uid and gid 997, `probe.sh` and `reach_pypi.sh` as `-rwxr-xr-x`, `six.py` and the
+  DAG file `<uuid>.py` (806 bytes) as `-rw-r--r--`, and the folders `awsds_demo_job`, `petl`, the
+  three `dist-info`, `ex_<uuid>`, `logs` and `__pycache__`, so the worker's extraction keeps the
+  modes the `.zip` stores. With no `cd`, `python3 -m awsds_demo_job.s3 --help` printed the module's
+  `usage:` line; `petl` 1.7.28 was imported from `/usr/local/airflow/dags/petl/__init__.py` and
+  `six` 1.16.0 from `/usr/local/airflow/dags/six.py`, though the worker's Airflow 3.0.6 needs a
+  `six` of its own (`apache-airflow-core` requires `python-dateutil`, which requires `six`, and
+  Airflow's constraints for Python 3.12 pin `six` 1.17.0; PyPI metadata read 2026-10-12, the
+  worker's copy not printed), so a Bash task's `python3` imports the `.zip`'s copy first.
+  `bash /usr/local/airflow/dags/probe.sh um dois` printed `$0 = /usr/local/airflow/dags/probe.sh`,
+  the arguments `um dois` and the task's working directory, and
+  `/usr/local/airflow/dags/probe.sh tres`, executed directly, printed the same with `tres` and
+  exited 0. `run_command` (19:35:31Z to 19:35:43Z, exit 0 in 9.21 s) printed
+  `cwd /var/tmp/airflowtmp…`, the same `PYTHONPATH`,
+  `python 3.12.14 at /opt/mwaa-serverless-venv/bin/python3` and
+  `sample.csv: 10 rows -> s3://<bucket>/<domain>/<project>/shared/<user>/orchestration-demo/bash/outbox/20261012T193536Z/sample.result.json; source deleted`;
+  the result's sha256, read in a space, is the Python task's `1b2bc4d7…a248191`. `reach_pypi`
+  (19:36:19Z to 19:38:18Z), whose `bash_command` is `reach_pypi.sh`, ran as
+  `['/usr/bin/bash', 'tmp….sh']` after `Tmp dir root location: /var/tmp`, the script rendered into
+  a temporary copy as in the lab. It printed no proxy variable, `pypi.org` resolved to a public
+  address, `urllib: URLError(OSError(101, 'Network is unreachable'))` and `urllib: 43 s` (the
+  script's timeout is 10 s per connection), then pip 23.2.1, the worker's, with
+  `[Errno 101] Network is unreachable` on `/simple/pip/` and `/simple/six/` and `pip: 64 s`; the
+  command exited 1 and the task failed in 116.23 s, as designed, so the run ended `FAILED`. The
+  lab's DNS firewall had refused the name in about 2 s (errno 16). The user said at 19:47 UTC that
+  the target has no internet for now.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
 alvo para um workflow"): the worker's code fetch and its S3, STS, SageMaker and log calls answered
-on 2026-10-12, and the job's own path, from the image pull on, was never read.
+on 2026-10-12, a task's attempt at PyPI failed with errno 101, and the job's own path, from the
+image pull on, was never read.
 
 ## The project space
 
