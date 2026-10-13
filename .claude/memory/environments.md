@@ -253,6 +253,25 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   command exited 1 and the task failed in 116.23 s, as designed, so the run ended `FAILED`. The
   lab's DNS firewall had refused the name in about 2 s (errno 16). The user said at 19:47 UTC that
   the target has no internet for now.
+- **The worker, 2026-10-13** (the user, 02:32 UTC): `probe-worker`, an inline Bash task with no
+  `Code` (the Claude project's library, `alvo/etl/probe-worker.yaml`), imported in the portal and
+  run by hand; its run id `scheduled__2026-10-13T00:00:00+00:00` is a manual run's, as in the lab.
+  The task finished `success` in 13.3 s on a worker with a private `ip-10-…` host name. `df -h`
+  printed `/` as an `overlay` of 21G, 1.1G used and 19G free, with `/var/tmp` and
+  `/usr/local/airflow/dags` on it, and `/tmp` as a device of its own, `/dev/nvme2n1`, 9.7G; `dd`
+  wrote 1 GiB to `/var/tmp` in 3 s. `nproc` printed 2, `/proc/meminfo` `MemTotal: 4929824 kB` and
+  `MemAvailable: 3914296 kB`, and cgroup v1 `cpu.cfs_quota_us` -1 and `memory.limit_in_bytes`
+  9223372036854771712, so no limit below the machine's, against the guide's 1 vCPU and 3 GiB. `aws`,
+  `tar` and `unzip` are absent and `gzip` is `/usr/bin/gzip`. `python3` is 3.12.14 at
+  `/opt/mwaa-serverless-venv/bin/python3`, and `importlib.metadata.distributions()` gave 328
+  entries, each of 164 distributions twice (the venv's `lib` and `lib64` `site-packages` both on
+  `sys.path`, as the lab's `yaml` from `lib64` and `PYTHONPATH` with `lib` suggest [inferred]):
+  every `WORKER_PROVIDED` name, at Airflow 3.0.6, the Amazon provider 9.32.0, boto3 and botocore
+  1.43.1, dag-factory 1.0.0, PyYAML 6.0.2, lz4 4.4.4, aws-encryption-sdk 4.0.7 and the
+  `aws-cryptographic-material-providers` and `aws-cryptography-internal-*` family at 1.11.3; also
+  SQLAlchemy 1.4.54, redshift-connector 2.1.8, PyAthena 3.17.1, sagemaker_studio 1.0.27, pip
+  23.2.1 and `six` 1.17.0, so the 2026-10-12 Bash task's `six` 1.16.0 came from the `.zip`; no
+  pyarrow, duckdb, deltalake, pandas or numpy.
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
 alvo para um workflow"): the worker's code fetch and its S3, STS, SageMaker and log calls answered

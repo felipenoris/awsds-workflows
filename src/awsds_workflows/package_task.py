@@ -111,14 +111,15 @@ WORKER_PROVIDED = (
 """[public] Os pacotes que o worker já traz, da tabela do guia lida em 2026-10-11; eles ficam fora
 do ``.zip``.
 
-Numa task Python, a cópia do worker vence a do ``.zip``, como o guia diz e o laboratório mediu em
-2026-10-11: o PyYAML 6.0.2 do worker foi importado no lugar do 6.0.1 de um ``.zip``. Numa task
-Bash, o ``PYTHONPATH`` começa por ``/usr/local/airflow/dags``, antes dos pacotes do worker
-(medido no laboratório em 2026-10-11), então, num ``python3`` que a task roda, a cópia do
-``.zip`` vence: no ambiente alvo, em 2026-10-12, o ``six`` 1.16.0 de um ``.zip`` foi importado no
-lugar do ``six`` de que o Airflow do worker depende. Sem esses pacotes no ``.zip``, as duas tasks
-importam os do worker, então o código da task é escrito contra as versões dele: o Airflow 3.0.6,
-o provider da Amazon 9.32.0 e o ``boto3`` 1.43.1.
+Todos estavam no worker do ambiente alvo em 2026-10-13. Numa task Python, a cópia do worker vence
+a do ``.zip``, como o guia diz e o laboratório mediu em 2026-10-11: o PyYAML 6.0.2 do worker foi
+importado no lugar do 6.0.1 de um ``.zip``. Numa task Bash, o ``PYTHONPATH`` começa por
+``/usr/local/airflow/dags``, antes dos pacotes do worker (medido no laboratório em 2026-10-11),
+então, num ``python3`` que a task roda, a cópia do ``.zip`` vence: no ambiente alvo, em
+2026-10-12, o ``six`` 1.16.0 de um ``.zip`` foi importado no lugar do 1.17.0 do worker, de que o
+Airflow depende (lido em 2026-10-13). Sem esses pacotes no ``.zip``, as duas tasks importam os do
+worker, então o código da task é escrito contra as versões dele: o Airflow 3.0.6, o provider da
+Amazon 9.32.0 e o ``boto3`` 1.43.1.
 """
 
 ARCHIVE_LIMIT_BYTES = 250_000_000

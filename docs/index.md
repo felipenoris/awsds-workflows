@@ -163,8 +163,10 @@ gravou.
 
 **O worker**, segundo o guia da AWS do MWAA Serverless (lido em 2026-10-11), tem 1 vCPU e 3 GiB,
 Python 3.12, Airflow 3.0.6, o provider da Amazon 9.32.0 e o `boto3` 1.43.1, e não tem internet nem
-proxy. Uma task ocupa o worker durante toda a sua duração, a espera de um sensor incluída, e custa
-0,088 USD por task-hora, com mínimo de um minuto.
+proxy. Um worker do ambiente alvo tinha mais: 2 CPUs e 4,7 GiB de memória, sem limite de cgroup
+(medido em 2026-10-13, numa execução). Dimensione a task pelo guia, porque uma leitura não diz se o
+excedente se repete. Uma task ocupa o worker durante toda a sua duração, a espera de um sensor
+incluída, e custa 0,088 USD por task-hora, com mínimo de um minuto.
 
 Cada task tem o seu worker: duas tasks da mesma execução rodaram em sub-redes diferentes, e o log
 de cada task abre com `Preparing the execution environment.` (medido no laboratório em
@@ -682,7 +684,8 @@ funciona desde o mesmo dia, com um `.zip` do `package-task` que leva também doi
 - **Nenhum pacote que o worker já tem**: o Airflow, o provider da Amazon, o `boto3` e o
   `botocore`, o dag-factory, o PyYAML, o lz4 e a família do AWS Encryption SDK. Numa task Python, o
   pacote pré-instalado vence a cópia do `.zip`: o PyYAML 6.0.2 do worker foi importado no lugar do
-  6.0.1 do `.zip` (2026-10-11). Escreva contra o `boto3` 1.43.1 do worker.
+  6.0.1 do `.zip` (2026-10-11). Escreva contra o `boto3` 1.43.1 do worker. Todos esses pacotes
+  estavam no worker do ambiente alvo (medido em 2026-10-13).
 - **Nenhum `__pycache__` ou `.pyc`**: um bytecode de outra plataforma pode não carregar.
 - **Nenhum segredo**: o `.zip` é copiado pelo serviço e guardado fora da conta.
 
@@ -890,7 +893,8 @@ worker e as variáveis da credencial (lido no código do operador, não medido).
 
 O laboratório leu o ambiente em 2026-10-11, em tasks com comandos inline, num workflow sem `Code` e
 num com um `.zip`. O ambiente alvo leu a mesma pasta de trabalho, o mesmo `PYTHONPATH` e o mesmo
-`python3` em 2026-10-12, numa task com um `.zip` do `package-task`:
+`python3` em 2026-10-12, numa task com um `.zip` do `package-task`, e o disco, as ferramentas e os
+pacotes em 2026-10-13, numa task inline:
 
 - a pasta de trabalho é temporária, `/var/tmp/airflowtmp…`, e não `/usr/local/airflow/dags`, onde
   o `.zip` é extraído. O guia diz que um script roda em `/usr/local/airflow/dags`, mas o script
@@ -901,7 +905,15 @@ num com um `.zip`. O ambiente alvo leu a mesma pasta de trabalho, o mesmo `PYTHO
 - os arquivos do `.zip` chegam com o modo que o `.zip` guarda, todos de um usuário do worker (uid e
   gid 997), então um script de `--include` chega executável (medido no ambiente alvo);
 - o `python3` do `PATH` é o do worker, `/opt/mwaa-serverless-venv/bin/python3` 3.12.14, com o
-  `boto3` 1.43.1 e os outros pacotes que o worker traz;
+  `boto3` 1.43.1 e os outros pacotes que o worker traz: no ambiente alvo, 164 distribuições, entre
+  elas o `redshift-connector` 2.1.8, o `PyAthena` 3.17.1, o `sagemaker_studio` 1.0.27, o
+  SQLAlchemy 1.4.54 e o `six` 1.17.0, e nenhum `pyarrow`, `duckdb`, `deltalake`, `pandas` ou
+  `numpy`;
+- o worker não tem `tar`, `unzip` nem o `aws`, só o `gzip`: um comando que extrai um arquivo ou
+  copia do S3 usa o `python3`, com o `zipfile`, o `tarfile` ou o `boto3` (medido no ambiente alvo);
+- o disco da raiz, um `overlay` de 21 GiB, tinha 19 GiB livres e guarda `/usr/local/airflow/dags`
+  e o `/var/tmp`, onde gravar 1 GiB levou 3 s; o `/tmp` é um disco à parte, de 9,7 GiB (medido no
+  ambiente alvo);
 - os processos que a task abre recebem a credencial do papel do projeto, sessão
   `AmazonMWAAServerless`, e `AWS_REGION` e `AWS_DEFAULT_REGION` trazem a região;
 - as variáveis que o portal injeta no workflow chegam à task: `DataZoneDomainId`,
@@ -940,8 +952,8 @@ run_project:
   `PYTHONPATH` da task começa por `/usr/local/airflow/dags`, então o `python3` acha o pacote mesmo
   sem o `cd`, e um pacote do `.zip` vence o do worker com o mesmo nome, o contrário de uma task
   Python. No ambiente alvo, em 2026-10-12, um módulo do `.zip` rodou sem o `cd`, e o `python3` da
-  task importou o `six` 1.16.0 do `.zip` no lugar do `six` de que o Airflow do worker depende. O
-  `package-task` deixa os pacotes do worker de fora.
+  task importou o `six` 1.16.0 do `.zip` no lugar do 1.17.0 do worker (lido em 2026-10-13), de que
+  o Airflow depende. O `package-task` deixa os pacotes do worker de fora.
 - **Um script do `.zip`** roda pelo caminho, com `bash` na frente ou, porque o worker mantém o bit
   de execução, sem ele: `bash /usr/local/airflow/dags/run.sh <argumentos>` ou
   `/usr/local/airflow/dags/run.sh <argumentos>`. O `$0` é esse caminho, e a pasta de trabalho é a
