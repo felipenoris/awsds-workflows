@@ -22,14 +22,14 @@ passo foi medido em outubro de 2026 no laboratório, uma conta de testes em `us-
 imagem customizada, `awsds-sandbox-dev-env`, e cada ponto ainda não medido está dito. A referência
 de cada módulo do pacote está no menu: `awsds_workflows.package_task`,
 `awsds_workflows.package_job`, `awsds_workflows.render`, `awsds_workflows.compare`,
-`awsds_workflows.errors` e
-`awsds_workflows.cli`.
+`awsds_workflows.errors` e `awsds_workflows.cli`, e a página `awsds_workflows.examples` é o
+roteiro dos exemplos do repositório, comando por comando.
 
 | Seção | Para quem | O que traz |
 |---|---|---|
 | [Os conceitos](#os-conceitos) | todos | os termos desta página e a ordem em que um primeiro workflow os usa |
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota, e o Python que o `uv` usa nela |
-| [Os exemplos](#os-exemplos) | todos | os cinco workflows que rodaram no ambiente alvo, na pasta `examples/` do repositório, com os passos de cada um |
+| [Os exemplos](#os-exemplos) | todos | os cinco workflows que rodaram no ambiente alvo, na pasta `examples/` do repositório; os passos de cada um estão na página `awsds_workflows.examples` |
 | [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
@@ -151,7 +151,9 @@ Num espaço de verdade, o pacote ainda não rodou.
 
 A pasta [`examples/`](https://github.com/felipenoris/awsds-workflows/tree/main/examples) do
 repositório traz cinco workflows que rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, cada um
-com a definição, o código e um `README.md` com os passos para reproduzi-lo:
+com a definição, o código e um `README.md` que diz o que ele mostra e o que cada execução leu. Os
+passos para reproduzi-los, na ordem em que cada comando roda, estão na página
+`awsds_workflows.examples`:
 
 | Exemplo | O que ele mostra |
 |---|---|

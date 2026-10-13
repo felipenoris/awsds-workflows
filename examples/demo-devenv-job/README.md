@@ -23,81 +23,12 @@ O código do job usa só a biblioteca padrão, então a entrada de código é a 
 worker. Um projeto com dependências que a imagem não tem passa pelo `package-job`
 ([Uma task de processamento](https://felipenoris.github.io/awsds-workflows/awsds_workflows.html#uma-task-de-processamento)).
 
-## Antes
+## Os passos
 
-- **A permissão do projeto.** O papel do projeto, como o blueprint o cria, não descreve um job
-  que ainda não existe nem põe etiquetas num job, e o operador faz as duas coisas: a primeira
-  execução falha em `DescribeProcessingJob`. A infraestrutura aplica a política de
-  [A permissão do projeto](https://felipenoris.github.io/awsds-workflows/awsds_workflows.html#a-permissao-do-projeto) antes do primeiro job.
-- **A imagem e o Python do job**, em `valores-job.json`. A imagem padrão é a SageMaker
-  Distribution, no registro da região, cuja conta o parâmetro público do SSM dá, num espaço:
-
-  ```shell
-  aws ssm get-parameter --name /aws/service/sagemaker-distribution/ecr-account-id \
-      --query Parameter.Value --output text
-  ```
-
-  ```json
-  {
-    "JOB_IMAGE_URI": "<conta do registro>.dkr.ecr.<região>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu",
-    "JOB_PYTHON": "/opt/conda/bin/python"
-  }
-  ```
-
-  A `4.5.2-cpu` é a tag mais nova da 4.5 no ECR público (lida em 2026-10-12), a versão que o
-  espaço do ambiente alvo roda, e `/opt/conda/bin/python` é o CPython 3.12.14 dela
-  ([A imagem do job](https://felipenoris.github.io/awsds-workflows/awsds_workflows.html#a-imagem-do-job)).
-- **Um projeto com chave KMS própria** acrescenta ao `config` a chave do volume e a da saída, com
-  o `PROJECT_KEY_ID` que o `space_values.json` dá:
-
-  ```yaml
-  ProcessingResources:
-    ClusterConfig:
-      VolumeKmsKeyId: arn:aws:kms:<REGION>:<ACCOUNT_ID>:key/<PROJECT_KEY_ID>
-  ProcessingOutputConfig:
-    KmsKeyId: arn:aws:kms:<REGION>:<ACCOUNT_ID>:key/<PROJECT_KEY_ID>
-  ```
-
-## Passos
-
-1. **Copie o projeto para a entrada de código**,
-   `~/shared/exemplos/demo-devenv-job/awsds-demo-job/`. Na máquina que empacota, sem o `.venv/`,
-   o `uv.lock` e os caches:
-
-   ```shell
-   tar -C examples --exclude=.venv --exclude=uv.lock --exclude=__pycache__ \
-       --exclude=.pytest_cache -czf /tmp/awsds-demo-job.tgz awsds-demo-job
-   ```
-
-   e, com o arquivo enviado ao espaço (o botão de upload do JupyterLab):
-
-   ```shell
-   mkdir -p ~/shared/exemplos/demo-devenv-job
-   tar -xzf awsds-demo-job.tgz -C ~/shared/exemplos/demo-devenv-job/
-   ```
-
-   Uma versão nova do código vai para uma pasta nova, porque o job baixa o prefixo inteiro a cada
-   execução.
-2. **Renderize a definição**, com os dois arquivos de valores:
-
-   ```shell
-   awsds-workflows render examples/demo-devenv-job/demo-devenv-job.yaml \
-       --values-file space_values.json --values-file valores-job.json > /tmp/demo-devenv-job.yaml
-   ```
-
-3. **No portal:** crie o workflow `demo-devenv-job`, esvazie *Operator files zip S3 location*
-   em *Settings → Storage*, importe `/tmp/demo-devenv-job.yaml` e salve. O formulário do editor
-   não expressa o `config` inteiro: só a importação o guarda.
-4. **Ponha a amostra na caixa de entrada**, um arquivo por vez, porque `remove_source` apaga o
-   prefixo inteiro:
-
-   ```shell
-   mkdir -p ~/shared/exemplos/demo-devenv-job/inbox
-   cp sample.csv ~/shared/exemplos/demo-devenv-job/inbox/
-   ```
-
-5. **Execute o workflow** e leia o log de `run_project` e o do contêiner, no grupo
-   `/aws/sagemaker/ProcessingJobs`.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#demo-devenv-job), com o que vem antes do
+primeiro job: a permissão do projeto, o `valores-job.json` com a imagem e o Python do job e as
+linhas da chave KMS de um projeto que tem uma; depois, a pasta do projeto na entrada de código, a
+definição com os dois arquivos de valores, o workflow no portal e o log do contêiner.
 
 ## O que o log diz
 

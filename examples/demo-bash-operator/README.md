@@ -24,38 +24,11 @@ e `probe_bash`, sem dependência, imprime como o worker roda um script e um mód
 Um `.sh` que um `bash_command` nomeia passa pelo Jinja antes de rodar: nenhum dos dois scripts
 tem `{{` nem `{#`, e um teste do repositório confere isso.
 
-## Passos
+## Os passos
 
-1. **Construa o `.zip`**, sem módulo de entrada e com os dois scripts:
-
-   ```shell
-   (cd examples/awsds-demo-job && uv lock)
-   awsds-workflows package-task examples/awsds-demo-job /tmp/demo-bash-operator.zip \
-       --include examples/demo-bash-operator/probe.sh \
-       --include examples/demo-bash-operator/reach_pypi.sh
-   ```
-
-   A raiz traz `probe.sh` e `reach_pypi.sh` com o bit de execução, o projeto, o `petl` e o
-   `six.py`.
-2. **Renderize a definição:**
-
-   ```shell
-   awsds-workflows render examples/demo-bash-operator/demo-bash-operator.yaml \
-       --values-file space_values.json > /tmp/demo-bash-operator.yaml
-   ```
-
-3. **No portal:** crie o workflow `demo-bash-operator`, envie `/tmp/demo-bash-operator.zip` em
-   *Settings → Storage → Python/Bash Operator Files*, importe `/tmp/demo-bash-operator.yaml` e
-   salve.
-4. **Ponha a amostra na caixa de entrada**, num espaço do projeto:
-
-   ```shell
-   mkdir -p ~/shared/exemplos/demo-bash-operator/inbox
-   cp sample.csv ~/shared/exemplos/demo-bash-operator/inbox/
-   ```
-
-5. **Execute o workflow** e leia os logs das quatro tasks. A execução termina `FAILED` por causa
-   de `reach_pypi`: é o resultado esperado.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#demo-bash-operator): o `.zip` com os dois
+scripts e a definição na máquina que empacota, a amostra em `inbox/` num espaço, o workflow no
+portal e o hash do resultado.
 
 ## O que os logs dizem
 

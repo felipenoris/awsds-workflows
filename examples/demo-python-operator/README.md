@@ -18,37 +18,11 @@ apagada.
 | `demo_tasks.py` | o módulo de entrada, com a função `run` |
 | [`../awsds-demo-job/`](../awsds-demo-job/) | o projeto que o `.zip` leva, com o `petl` e o `six` |
 
-## Passos
+## Os passos
 
-1. **Construa o `.zip`** na máquina que empacota, com o projeto travado:
-
-   ```shell
-   (cd examples/awsds-demo-job && uv lock)
-   awsds-workflows package-task examples/awsds-demo-job \
-       examples/demo-python-operator/demo_tasks.py /tmp/demo-python-operator.zip
-   ```
-
-   Ele imprime o tamanho e a raiz: `awsds_demo_job`, `demo_tasks.py`, `petl`, `six.py` e os
-   `dist-info`. O `boto3` e o PyYAML, que o worker tem, ficam de fora.
-2. **Renderize a definição:**
-
-   ```shell
-   awsds-workflows render examples/demo-python-operator/demo-python-operator.yaml \
-       --values-file space_values.json > /tmp/demo-python-operator.yaml
-   ```
-
-3. **No portal:** crie o workflow `demo-python-operator`, envie `/tmp/demo-python-operator.zip`
-   em *Settings → Storage → Python/Bash Operator Files*, importe `/tmp/demo-python-operator.yaml`
-   e salve.
-4. **Ponha a amostra na caixa de entrada**, num espaço do projeto com o `sample.csv` de
-   `awsds-demo-job/` copiado para lá:
-
-   ```shell
-   mkdir -p ~/shared/exemplos/demo-python-operator/inbox
-   cp sample.csv ~/shared/exemplos/demo-python-operator/inbox/
-   ```
-
-5. **Execute o workflow** e leia o log de `run_project`.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#demo-python-operator): o `.zip` e a
+definição na máquina que empacota, a amostra em `inbox/` num espaço, o workflow no portal e o
+hash do resultado.
 
 ## O que o log diz
 

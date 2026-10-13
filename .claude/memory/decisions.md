@@ -304,6 +304,16 @@ these choices, which await the user's word:
   over doubles (`botocore.stub.Stubber`), and build both archives (`network`); `boto3` joined the
   `dev` group for them, and pytest's `testpaths` and `pythonpath` reach into `examples/`.
 
+At 03:32 UTC the same day the user asked for a new `pdoc` page with the instructions to configure
+all these examples, "bem diretas, similar ao que fizemos aqui no chat". The session wrote it as
+`docs/exemplos.md`, the page `awsds_workflows.examples` through the docstring-only module
+`src/awsds_workflows/examples.py` (serialize-db's `technology_review.py` pattern), with the
+commands, the expected output and the checks of the chat threads "Exemplos no ambiente alvo" and
+"Tasks de workflow para ETL", each step saying where it runs. The session's own choice, awaiting
+the user's word: the steps live only on the page, and the per-example READMEs keep what each
+example shows, what its logs say and what the target's runs read, with a link to the page's
+section; `examples/README.md` keeps the table, the shared project, the prefix and the tests.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

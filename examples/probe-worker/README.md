@@ -8,12 +8,10 @@ ou Bash, para saber o que cabe no worker.
 |---|---|---|
 | `probe_worker` | `BashOperator` | os comandos inline abaixo, e `exit 0` |
 
-## Passos
+## Os passos
 
-1. **No portal:** crie o workflow `probe-worker`, esvazie *Operator files zip S3 location* em
-   *Settings → Storage*, importe `examples/probe-worker/probe-worker.yaml` e salve. A definição
-   não tem placeholder, então o arquivo entra como está, sem o `render`.
-2. **Execute** e leia o log da task `probe_worker`.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#probe-worker): a definição não tem
+placeholder, então entra no portal como está, sem o `render`.
 
 ## O que ela imprime
 

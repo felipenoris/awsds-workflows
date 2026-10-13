@@ -22,90 +22,21 @@ erro passa por uma máscara antes de sair. O módulo só usa o `boto3` que o wor
 | `redshift-unload.yaml` | a definição, com placeholders |
 | `redshift_unload.py` | o módulo da task, que vai sozinho no `.zip` |
 
-## Os valores
+## Os passos
 
-Além do `space_values.json`, três valores do Redshift, em `valores-redshift.json`:
-
-```json
-{
-  "REDSHIFT_WORKGROUP": "<o workgroup do Redshift Serverless>",
-  "REDSHIFT_DATABASE": "<o banco em que a sessão entra>",
-  "REDSHIFT_TABLE": "<banco do datashare>.<esquema>.<tabela>"
-}
-```
-
-A consulta é `SELECT * FROM <REDSHIFT_TABLE>`; numa sessão da Data API, uma tabela de um datashare
-leva o nome em três partes. O destino é `shared/exemplos/redshift-unload/<data-hora>/`, uma pasta
-por execução, porque o `UNLOAD` não grava num destino que já tem arquivos.
-
-## Passos
-
-1. **Monte o `.zip`**, só com o módulo na raiz:
-
-   ```shell
-   python3 -m zipfile -c /tmp/redshift-unload.zip examples/redshift-unload/redshift_unload.py
-   ```
-
-2. **Renderize a definição**, com os dois arquivos de valores:
-
-   ```shell
-   awsds-workflows render examples/redshift-unload/redshift-unload.yaml \
-       --values-file space_values.json --values-file valores-redshift.json > /tmp/redshift-unload.yaml
-   ```
-
-3. **No portal:** crie o workflow `redshift-unload`, envie `/tmp/redshift-unload.zip` em
-   *Settings → Storage → Python/Bash Operator Files*, importe `/tmp/redshift-unload.yaml` e salve.
-4. **Execute o workflow.** A task não cria job, então não depende da permissão do projeto para
-   jobs.
-
-Para testar antes num espaço do projeto, que tem o mesmo papel, copie `redshift_unload.py` para
-lá e rode o exemplo da docstring do módulo, com um destino de teste.
-
-## Onde ler o resultado
-
-- **O log da task:** a linha `usuário do banco: ...` e a linha
-  `<n> linha(s) descarregada(s) em <s> s sob s3://...`.
-- **Os arquivos:** `~/shared/exemplos/redshift-unload/<data-hora>/`, com os `.parquet` e o
-  `manifest`. Com zero linhas, o `UNLOAD` não grava nada, e a contagem diz 0.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#redshift-unload): o `valores-redshift.json`,
+o acesso do usuário do projeto ao banco do datashare, o `.zip` com o módulo na raiz, a definição
+com os dois arquivos de valores, o workflow no portal e onde ler o resultado.
 
 ## Falhas
 
 | A task diz | O que fazer |
 |---|---|
 | `permission denied` ou `does not exist` sobre a tabela | dê ao usuário do banco impresso no log a leitura da tabela, ou troque a tabela |
-| `Permission denied to query database created from datashare` | o usuário do banco não tem acesso ao banco do datashare; veja "A permissão do usuário do projeto" |
+| `Permission denied to query database created from datashare` | o usuário do banco não tem acesso ao banco do datashare: o `GRANT` está na [página dos passos](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#redshift-unload) |
 | `S3ServiceException` com `Access Denied` | o papel do projeto não grava nesse prefixo, ou não usa a chave KMS do bucket |
 | `unload destination on S3 is not empty` | o destino precisa estar vazio; cada execução usa a data e a hora |
 | `NoRegionError` ou `Could not connect to the endpoint URL` | o worker não achou a região ou o endpoint `redshift-data` |
-
-## A permissão do usuário do projeto
-
-O espaço e o worker entram no Redshift com usuários diferentes. No ambiente alvo, em 2026-10-13,
-o espaço entrou com o usuário da pessoa, `IAMR:user-<id da pessoa>@<projeto>`, e o worker com o
-do projeto, `IAMR:user-project@<projeto>`. O teste no espaço não prova, então, a permissão do
-worker: lá o `UNLOAD` passou, e no workflow parou em `Permission denied to query database created
-from datashare`. A primeira linha do log de cada execução diz quem precisa da permissão.
-
-Quem tem o direito de conceder dá o acesso ao usuário do projeto, conectado a um banco local, como
-o `dev`, sem um `USE <banco do datashare>` antes:
-
-```sql
-GRANT USAGE ON DATABASE <banco do datashare> TO "IAMR:user-project@<projeto>";
-```
-
-No ambiente alvo, em 2026-10-13, o usuário da pessoa rodou esse `GRANT`, e ele bastou, o que
-indica que o banco não foi criado `WITH PERMISSIONS` (inferido): nesse caso, o `USAGE` dá ao
-usuário todas as permissões em todos os objetos do banco, a escrita inclusive. Num banco criado
-`WITH PERMISSIONS`, o `USAGE` não basta, e o usuário também precisa das permissões dos objetos:
-
-```sql
-GRANT USAGE ON SCHEMA <banco do datashare>.<esquema> TO "IAMR:user-project@<projeto>";
-GRANT SELECT ON ALL TABLES IN SCHEMA <banco do datashare>.<esquema>
-    TO "IAMR:user-project@<projeto>";
-```
-
-O pedido mais simples é o mesmo acesso do usuário da pessoa, que o administrador lê com
-`SHOW GRANTS FOR "<usuário da pessoa>" FROM DATABASE <banco do datashare>`.
 
 ## Conferência
 
