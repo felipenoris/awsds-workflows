@@ -9,9 +9,10 @@ pedida ou que não acha o Python que o projeto pede.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from awsds_workflows.errors import RefusalError
@@ -20,12 +21,15 @@ from awsds_workflows.errors import RefusalError
 def run(
     arguments: list[str],
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> str:
     """[protected] Roda o ``uv`` com os argumentos e devolve a saída padrão, para os
     empacotadores.
 
     :param arguments: os argumentos depois de ``uv``.
     :param cwd: a pasta em que o ``uv`` roda; ``None`` é a pasta atual.
+    :param env: as variáveis que completam e substituem as do processo nesta chamada; ``None``
+        passa o ambiente do processo como está.
     :return: a saída padrão do ``uv``.
     :raises awsds_workflows.errors.RefusalError: quando o ``uv`` não está no ``PATH`` ou termina
         com erro.
@@ -34,10 +38,15 @@ def run(
     if executable is None:
         raise RefusalError("o uv não está no PATH: instale-o (https://docs.astral.sh/uv/)")
 
+    environment = None
+    if env is not None:
+        environment = {**os.environ, **env}
+
     # A saída do uv é UTF-8 e traz caracteres de desenho nas mensagens de erro.
     completed = subprocess.run(
         [executable, *arguments],
         cwd=cwd,
+        env=environment,
         capture_output=True,
         encoding="utf-8",
         errors="replace",

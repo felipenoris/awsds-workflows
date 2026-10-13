@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from awsds_workflows import cli, package_job, package_task, render
+from awsds_workflows import cli, package_job, package_task, prepare_offline, render
 
 
 def test_help_exits_with_zero(
@@ -23,7 +23,15 @@ def test_help_exits_with_zero(
         cli.main(["--help"])
     assert exit_info.value.code == 0
     printed = capsys.readouterr().out
-    commands = ("package-task", "package-job", "job-constraints", "render", "values", "compare")
+    commands = (
+        "package-task",
+        "package-job",
+        "prepare-offline",
+        "job-constraints",
+        "render",
+        "values",
+        "compare",
+    )
     for command in commands:
         assert command in printed
 
@@ -211,6 +219,41 @@ def test_package_job_passes_the_target_and_prints_the_summary(
     printed = capsys.readouterr().out
     assert "da imagem (1): idna" in printed
     assert "na pasta (1): six==1.17.0" in printed
+
+
+def test_prepare_offline_passes_the_arguments_and_prints_the_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``prepare-offline`` chama ``prepare_archive`` com o Python padrão e imprime os tamanhos, a
+    raiz e o interpretador que o comando do job chama."""
+    calls: list[dict[str, object]] = []
+
+    def fake_prepare_archive(
+        project: Path,
+        archive: Path,
+        **options: object,
+    ) -> prepare_offline.OfflineArchive:
+        """Grava a chamada e devolve um ``.tar.gz`` fabricado."""
+        calls.append({"project": project, "archive": archive, **options})
+        return prepare_offline.OfflineArchive(
+            path=archive,
+            size_bytes=10,
+            extracted_bytes=30,
+            root="projeto",
+            python="3.12.13",
+        )
+
+    monkeypatch.setattr(prepare_offline, "prepare_archive", fake_prepare_archive)
+    code = cli.main(["prepare-offline", "projeto", "projeto.tar.gz"])
+    assert code == 0
+    assert calls == [
+        {"project": Path("projeto"), "archive": Path("projeto.tar.gz"), "python": "3.12"}
+    ]
+    printed = capsys.readouterr().out
+    assert "projeto.tar.gz: 10 bytes, 30 extraídos, com o CPython 3.12.13" in printed
+    assert "raiz: projeto/" in printed
+    assert "/opt/ml/processing/code/projeto/.venv/bin/python" in printed
 
 
 def test_job_constraints_prints_one_pin_per_line(

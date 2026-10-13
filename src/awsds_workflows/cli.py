@@ -8,6 +8,9 @@ depois para o ambiente do SageMaker, que não tem internet.
   um script ou um binário.
 - ``package-job`` grava a pasta de código de um job de processamento para a imagem do job, cujo
   ambiente chega em ``--environment`` (``awsds_workflows.package_job``).
+- ``prepare-offline`` grava o ``.tar.gz`` da pasta de um projeto preparada com o próprio
+  interpretador, a entrada de código de um job que a extrai no volume
+  (``awsds_workflows.prepare_offline``).
 - ``job-constraints`` imprime as versões do ambiente da imagem como requisitos, para restringir o
   lock do projeto com ``uv add -c`` ou ``uv pip compile -c``.
 - ``render`` imprime uma definição com os placeholders preenchidos, ou, com ``--placeholders``, uma
@@ -33,6 +36,7 @@ Exemplo:
         --include ~/src/meu-projeto/run.sh
     awsds-workflows package-job ~/src/meu-projeto /tmp/meu-projeto-0.2.0 \\
         --environment ambiente.txt --python 3.12
+    awsds-workflows prepare-offline ~/src/meu-projeto /tmp/meu-projeto.tar.gz
     awsds-workflows job-constraints --environment ambiente.txt --python 3.12
     awsds-workflows render meu-workflow.yaml --values-file valores.json > /tmp/meu-workflow.yaml
     awsds-workflows render meu-job.yaml --values-file space_values.json \\
@@ -49,7 +53,7 @@ import json
 import sys
 from pathlib import Path
 
-from awsds_workflows import compare, package_job, package_task, render
+from awsds_workflows import compare, package_job, package_task, prepare_offline, render
 from awsds_workflows.errors import RefusalError
 
 __all__ = ["main"]
@@ -99,6 +103,7 @@ def _build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     _add_package_task_parser(commands)
     _add_package_job_parser(commands)
+    _add_prepare_offline_parser(commands)
     _add_job_constraints_parser(commands)
     _add_render_parser(commands)
     _add_values_parser(commands)
@@ -164,6 +169,27 @@ def _add_package_job_parser(
     command.add_argument("output", type=Path, help="a pasta a gravar, que ainda não pode existir")
     _add_job_target_arguments(command)
     command.set_defaults(handler=_package_job)
+
+
+def _add_prepare_offline_parser(
+    commands: argparse._SubParsersAction,
+) -> None:
+    """[private] O subcomando ``prepare-offline``."""
+    command = commands.add_parser(
+        "prepare-offline",
+        help="grava o .tar.gz da pasta de um projeto preparada com o próprio Python, a entrada de "
+        "código de um job que a extrai no volume",
+    )
+    command.add_argument(
+        "project", type=Path, help="a pasta do projeto uv, com uv.lock; ela não é alterada"
+    )
+    command.add_argument("archive", type=Path, help="o .tar.gz a gravar, numa pasta que já existe")
+    command.add_argument(
+        "--python",
+        default=prepare_offline.DEFAULT_PYTHON,
+        help=f"a versão do CPython que vai na pasta (padrão: {prepare_offline.DEFAULT_PYTHON})",
+    )
+    command.set_defaults(handler=_prepare_offline)
 
 
 def _add_job_constraints_parser(
@@ -330,6 +356,28 @@ def _package_job(
         "próximo passo: copie a pasta para um prefixo só desta versão no S3 do projeto "
         "(aws s3 cp --recursive), nomeie esse prefixo como a entrada de código do job em "
         "/opt/ml/processing/code e defina PYTHONPATH: /opt/ml/processing/code no Environment do job"
+    )
+    return 0
+
+
+def _prepare_offline(
+    arguments: argparse.Namespace,
+) -> int:
+    """[private] Grava o ``.tar.gz`` e imprime o resumo e o próximo passo."""
+    archive = prepare_offline.prepare_archive(
+        arguments.project,
+        arguments.archive,
+        python=arguments.python,
+    )
+    print(
+        f"{archive.path}: {archive.size_bytes} bytes, {archive.extracted_bytes} extraídos, com o "
+        f"CPython {archive.python} em Linux x86_64"
+    )
+    print(f"raiz: {archive.root}/")
+    print(
+        "próximo passo: copie o arquivo para o prefixo da entrada de código do job no S3 do "
+        "projeto, e no comando do job extraia-o com tar -xzf em /opt/ml/processing/code e chame "
+        f"/opt/ml/processing/code/{archive.root}/.venv/bin/python"
     )
     return 0
 
