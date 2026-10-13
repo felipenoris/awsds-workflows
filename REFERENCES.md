@@ -33,6 +33,12 @@ pacote repete.
 - Os parâmetros do Airflow suportados, os limites de `retries`, `retry_delay` e
   `execution_timeout` e os ignorados:
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/supported-airflow-parameters.html>
+- As cotas do MWAA Serverless numa página fora da AWS, com o *Maximum task execution timeout* de 60
+  minutos, ajustável (lida em 2026-10-12):
+  <https://www.awsfundamentals.com/limits/airflow-serverless>
+- A skill *authoring-mwaa-workflow* do *agent toolkit* da AWS, que lista o erro *Operator not found
+  in Serverless: not allowlisted* para um operador fora da lista (lida em 2026-10-12):
+  <https://tessl.io/registry/skills/github/aws/agent-toolkit-for-aws/authoring-mwaa-workflow>
 - A rede do worker:
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/networking.html> e
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/networking-vpc.html>

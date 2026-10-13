@@ -530,6 +530,11 @@ Bash task's and the inverse of a Python task's (`package_job`, `docs/index.md`),
 claim that the target has no SageMaker endpoint from `render`, and left the Python task's
 precedence mechanism as an open question.
 
+A session on branch `claude/project-thread-ez12z6` (2026-10-13) recorded what an inline Bash task
+read on a target worker: the disk, the CPUs and the memory, the tools and the packages, every
+`WORKER_PROVIDED` package among them (`.claude/memory/environments.md`, "The target"). The
+package's code did not change.
+
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session"); the target's Terraform grant applied and a run that creates
 the job, which measures the image's facts and the job's path; a Bash task whose `Code` is a lone

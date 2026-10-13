@@ -22,9 +22,11 @@ AWS-DataScience's `docs/REFERENCES.md`):
   measured on 2026-10-11: the worker's PyYAML 6.0.2 imported over the archive's 6.0.1
   (`environments.md`); in a Bash task's `python3` the archive's copy wins, measured in the target
   on 2026-10-12: `six` 1.16.0 imported from the `.zip`, though Airflow 3.0.6 needs a `six` of its
-  own (`environments.md`, "The first Bash task");
+  own (`environments.md`, "The first Bash task"), 1.17.0 on a target worker; that worker held every
+  pre-installed package on 2026-10-13 (`environments.md`, "The worker, 2026-10-13");
 - a 1 vCPU / 3 GiB worker, no internet by default, the execution role's credentials available to the
-  task; 0.088 USD per task-hour, one-minute minimum;
+  task; 0.088 USD per task-hour, one-minute minimum; a target worker read 2 CPUs and 4.7 GiB with no
+  cgroup limit, 19G free on `/` and no `tar`, `unzip` or `aws` on 2026-10-13 (`environments.md`);
 - one worker per task, not per run: two tasks of one run ran in different subnets, and each
   task's log opens with `Preparing the execution environment.` (2026-10-11, `environments.md`).
 
