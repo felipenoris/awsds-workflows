@@ -1,8 +1,10 @@
 """Os exemplos de ``examples/``: cada definição renderiza com valores fabricados e é YAML válido,
-os placeholders de cada uma são os que ``scripts/space_values.py`` imprime mais os do próprio
-exemplo, os caminhos no S3 ficam sob ``shared/exemplos/<exemplo>/``, a task Python e o módulo de
-``UNLOAD`` rodam sobre dublês do ``boto3``, e os dois ``.zip`` saem do projeto compartilhado com as
-raízes dos que rodaram no ambiente alvo em 2026-10-12 (``network``).
+os placeholders de cada uma são os que ``scripts/space_values.py`` imprime mais os do
+``extra_values.json`` do próprio exemplo, que recusa o ``render`` enquanto um valor por preencher
+está como veio, os caminhos no S3 ficam sob ``<EXAMPLE_PREFIX>/``, que esse arquivo fixa em
+``shared/exemplos/<exemplo>``, a task Python e o módulo de ``UNLOAD`` rodam sobre dublês do
+``boto3``, e os dois ``.zip`` saem do projeto compartilhado com as raízes dos que rodaram no
+ambiente alvo em 2026-10-12 (``network``).
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ import demo_tasks
 import redshift_unload
 from awsds_demo_job import s3
 from awsds_workflows import package_task, render
+from awsds_workflows.errors import RefusalError
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 DEFINITIONS = sorted(EXAMPLES.glob("*/*.yaml"))
@@ -44,12 +47,9 @@ SPACE_VALUES = {
     "SUBNET_AZ2": "subnet-0123456789abcdef1",
     "PROJECT_KEY_ID": "1234abcd-12ab-34cd-56ef-1234567890ab",
 }
-# Os valores que um exemplo pede além dos do espaço, pelo nome da definição.
-EXTRA_VALUES = {
-    "demo-devenv-job": {
-        "JOB_IMAGE_URI": "111122223333.dkr.ecr.us-west-2.amazonaws.com/imagem:4.5.2-cpu",
-        "JOB_PYTHON": "/opt/conda/bin/python",
-    },
+# Os valores por preencher no extra_values.json de um exemplo, pelo nome da definição, fabricados.
+TO_FILL = {
+    "demo-devenv-job": {"SMD_REGISTRY_ACCOUNT": "111122223333"},
     "redshift-unload": {
         "REDSHIFT_WORKGROUP": "meu-workgroup",
         "REDSHIFT_DATABASE": "dev",
@@ -75,19 +75,30 @@ def placeholders_of(
     return set(render.PLACEHOLDER.findall(definition.read_text(encoding="utf-8")))
 
 
+def extra_values_of(
+    definition: Path,
+) -> dict[str, str]:
+    """O ``extra_values.json`` da pasta da definição, como veio, ou nada quando a pasta não tem
+    um."""
+    model = definition.with_name("extra_values.json")
+    if not model.is_file():
+        return {}
+    return render.load_values(model)
+
+
 @pytest.mark.parametrize("definition", DEFINITIONS, ids=DEFINITION_IDS)
 def test_the_definition_renders_with_the_values_of_its_example(
     definition: Path,
 ) -> None:
-    """A definição abre com o comentário de layout do editor, preenche com os valores do espaço e
-    os do exemplo sem deixar placeholder, e o YAML tem a chave do nome do arquivo, com o mesmo
-    ``dag_id`` e um ``operator`` por task."""
+    """A definição abre com o comentário de layout do editor, preenche com os valores do espaço,
+    os do ``extra_values.json`` e os por preencher sem deixar placeholder, e o YAML tem a chave
+    do nome do arquivo, com o mesmo ``dag_id`` e um ``operator`` por task."""
     text = definition.read_text(encoding="utf-8")
     layout = text.splitlines()[0]
     assert layout.startswith("# {")
     assert isinstance(json.loads(layout[2:]), dict)
 
-    values = {**SPACE_VALUES, **EXTRA_VALUES.get(definition.stem, {})}
+    values = {**SPACE_VALUES, **extra_values_of(definition), **TO_FILL.get(definition.stem, {})}
     rendered = render.fill_placeholders(text, values)
     assert render.PLACEHOLDER.search(rendered) is None
 
@@ -103,21 +114,50 @@ def test_the_definition_renders_with_the_values_of_its_example(
 def test_the_definition_asks_only_for_the_values_of_its_example(
     definition: Path,
 ) -> None:
-    """Os placeholders são os do espaço mais os do exemplo, e cada valor do exemplo é pedido."""
+    """Os placeholders são os do espaço mais as chaves do ``extra_values.json``, cada chave dele é
+    pedida pela definição ou por outro valor dele, e um exemplo tem o arquivo quando pede algo
+    além do espaço."""
     placeholders = placeholders_of(definition)
-    extra = set(EXTRA_VALUES.get(definition.stem, {}))
-    assert placeholders <= set(SPACE_VALUES) | extra
-    assert extra <= placeholders
+    extra = extra_values_of(definition)
+    referenced: set[str] = set()
+    for value in extra.values():
+        referenced.update(render.PLACEHOLDER.findall(value))
+    assert placeholders <= set(SPACE_VALUES) | set(extra)
+    assert set(extra) <= placeholders | referenced
+    assert bool(extra) == bool(placeholders - set(SPACE_VALUES))
+
+
+@pytest.mark.parametrize("definition", DEFINITIONS, ids=DEFINITION_IDS)
+def test_the_values_to_fill_refuse_the_render_until_filled(
+    definition: Path,
+) -> None:
+    """Um valor do ``extra_values.json`` que referencia a si mesmo está por preencher: com o
+    arquivo como veio, o ``render`` recusa nomeando cada um, e nada mais."""
+    extra = extra_values_of(definition)
+    unfilled = sorted(name for name, value in extra.items() if value == f"<{name}>")
+    assert unfilled == sorted(TO_FILL.get(definition.stem, {}))
+
+    text = definition.read_text(encoding="utf-8")
+    if not unfilled:
+        render.fill_placeholders(text, {**SPACE_VALUES, **extra})
+        return
+    with pytest.raises(RefusalError, match=f"nenhum valor para: {', '.join(unfilled)}$"):
+        render.fill_placeholders(text, {**SPACE_VALUES, **extra})
 
 
 @pytest.mark.parametrize("definition", DEFINITIONS, ids=DEFINITION_IDS)
 def test_the_definition_keeps_its_files_under_the_example_prefix(
     definition: Path,
 ) -> None:
-    """Cada caminho no bucket do projeto fica sob ``shared/exemplos/<exemplo>/``."""
+    """Cada caminho no bucket do projeto fica sob ``<EXAMPLE_PREFIX>/``, que o
+    ``extra_values.json`` do exemplo fixa em ``shared/exemplos/<exemplo>``."""
     text = definition.read_text(encoding="utf-8")
-    for path in re.findall(r"<PROJECT_ID>/(\S+)", text):
-        assert path.startswith(f"shared/exemplos/{definition.stem}/"), path
+    paths = re.findall(r"<PROJECT_ID>/(\S+)", text)
+    for path in paths:
+        assert path.startswith("<EXAMPLE_PREFIX>/"), path
+    if paths:
+        prefix = extra_values_of(definition)["EXAMPLE_PREFIX"]
+        assert prefix == f"shared/exemplos/{definition.stem}"
 
 
 def test_the_bash_scripts_carry_no_jinja_delimiter() -> None:

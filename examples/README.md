@@ -6,7 +6,8 @@ cada execução leu. Os passos para reproduzi-los, na ordem em que cada comando 
 página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html)
 da documentação. Cada definição guarda só placeholders: os valores da conta entram pelo
 `space_values.json` que `scripts/space_values.py` escreve num espaço do projeto, e os que um
-exemplo pede além deles entram num segundo arquivo, que a página mostra.
+exemplo pede além deles vêm do `extra_values.json` da pasta dele, um arquivo de modelo com o
+prefixo do exemplo no bucket e, no job e no `redshift-unload`, os valores por preencher.
 
 | Exemplo | O que ele mostra | O `Code` do workflow | No ambiente alvo |
 |---|---|---|---|
@@ -17,15 +18,16 @@ exemplo pede além deles entram num segundo arquivo, que a página mostra.
 | [`redshift-unload`](redshift-unload/) | uma task Python que descarrega uma consulta ao Redshift Serverless no S3, com `UNLOAD` | `redshift-unload.zip` | rodou em 2026-10-13 |
 
 Os três `demo-*` dividem o projeto `uv` [`awsds-demo-job/`](awsds-demo-job/): um CSV entra, um
-resumo em JSON sai, no worker ou dentro do job. Cada exemplo usa só o prefixo
-`shared/exemplos/<exemplo>/` do projeto no bucket, a pasta `~/shared/exemplos/<exemplo>/` de um
-espaço: a caixa de entrada `inbox/`, a caixa de saída `outbox/` e, no `demo-devenv-job`, a pasta de
-código `awsds-demo-job/`.
+resumo em JSON sai, no worker ou dentro do job. Cada exemplo usa só o prefixo `<EXAMPLE_PREFIX>`
+do projeto no bucket, que o `extra_values.json` dele fixa em `shared/exemplos/<exemplo>`, a pasta
+`~/shared/exemplos/<exemplo>/` de um espaço: a caixa de entrada `inbox/`, a caixa de saída
+`outbox/` e, no `demo-devenv-job`, a pasta de código `awsds-demo-job/`.
 
 ## Os testes
 
 `uv run pytest tests/test_examples.py` confere as cinco definições (cada uma renderiza com valores
-fabricados, é YAML válido, pede só os valores do espaço e os do próprio exemplo e guarda os
-arquivos sob o prefixo do exemplo), roda a task Python e o módulo de `UNLOAD` sobre dublês do
+fabricados, é YAML válido, pede só os valores do espaço e os do `extra_values.json` dela, recusa
+o `render` enquanto um valor por preencher está como veio e guarda os arquivos sob
+`<EXAMPLE_PREFIX>`), roda a task Python e o módulo de `UNLOAD` sobre dublês do
 `boto3` e, com `-m network`, constrói os dois `.zip` e lê as raízes deles. O projeto
 compartilhado tem os próprios testes, que o `uv run pytest` da raiz também roda.

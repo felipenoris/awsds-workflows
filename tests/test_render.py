@@ -42,6 +42,42 @@ def test_fill_leaves_text_that_is_not_a_placeholder() -> None:
     assert render.fill_placeholders(text, VALUES) == text
 
 
+def test_fill_resolves_a_value_that_references_other_placeholders() -> None:
+    """Um valor pode referenciar outros placeholders, trocados antes pelos valores deles."""
+    values = {
+        "REGION": "us-west-2",
+        "SMD_REGISTRY_ACCOUNT": "111122223333",
+        "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/imagem:4.5.2-cpu",
+    }
+    filled = render.fill_placeholders("ImageUri: <JOB_IMAGE_URI>", values)
+    assert filled == "ImageUri: 111122223333.dkr.ecr.us-west-2.amazonaws.com/imagem:4.5.2-cpu"
+
+
+def test_fill_refuses_a_value_that_references_a_placeholder_without_a_value() -> None:
+    """Um valor que referencia um placeholder sem valor, ou a si mesmo, é recusado como um
+    placeholder sem valor: ``"NOME": "<NOME>"`` é um valor por preencher."""
+    values = {
+        "REDSHIFT_WORKGROUP": "<REDSHIFT_WORKGROUP>",
+        "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/imagem",
+        "REGION": "us-west-2",
+    }
+    message = "nenhum valor para: REDSHIFT_WORKGROUP, SMD_REGISTRY_ACCOUNT$"
+    with pytest.raises(RefusalError, match=message):
+        render.fill_placeholders("workgroup: <REDSHIFT_WORKGROUP>", values)
+
+
+def test_restore_uses_the_resolved_values() -> None:
+    """O caminho inverso troca o valor montado, não o texto com as referências."""
+    values = {
+        "REGION": "us-west-2",
+        "SMD_REGISTRY_ACCOUNT": "111122223333",
+        "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/imagem:4.5.2-cpu",
+    }
+    text = "ImageUri: 111122223333.dkr.ecr.us-west-2.amazonaws.com/imagem:4.5.2-cpu em us-west-2"
+    restored = render.restore_placeholders(text, values)
+    assert restored == "ImageUri: <JOB_IMAGE_URI> em <REGION>"
+
+
 def test_restore_replaces_the_longest_value_first() -> None:
     """O id do projeto está no nome do papel, e o nome do papel volta inteiro."""
     text = "role/datazone_usr_role_abc123_env456 e projeto abc123"

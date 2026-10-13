@@ -7,7 +7,7 @@ redshift-unload:
       python_callable: redshift_unload.unload
       op_kwargs:
         select: SELECT * FROM <REDSHIFT_TABLE>
-        destination: "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/redshift-unload/{{ macros.time.strftime('%Y%m%dT%H%M%S', macros.time.gmtime()) }}/"
+        destination: "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/{{ macros.time.strftime('%Y%m%dT%H%M%S', macros.time.gmtime()) }}/"
         workgroup: <REDSHIFT_WORKGROUP>
         database: <REDSHIFT_DATABASE>
       retries: 0

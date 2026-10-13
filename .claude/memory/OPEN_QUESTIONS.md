@@ -68,11 +68,23 @@ nomeia esse lugar.
   `petl`, do `six` e do `yaml` (2026-10-13).
 - **Os exemplos do repositório não rodaram a partir das cópias dele.** As definições de
   `examples/` são as que rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, com o prefixo
-  `shared/exemplos/<exemplo>/` no lugar da pasta pessoal, e o código e os scripts foram reescritos
+  `<EXAMPLE_PREFIX>`, `shared/exemplos/<exemplo>` no `extra_values.json` de cada um, no lugar da
+  pasta pessoal, e o código e os scripts foram reescritos
   em português; os dois `.zip` saem do projeto compartilhado com as raízes dos do alvo, mais o
   `six` no da task Python (`packaging.md`, "The port verified against the original scripts").
-  Não medido: uma execução de cada exemplo a partir dos arquivos do repositório, pelos passos do
-  `README.md` dele. Fecha com essas execuções.
+  Não medido: uma execução de cada exemplo a partir dos arquivos do repositório, pelos passos da
+  página `awsds_workflows.examples`. Fecha com essas execuções.
+- **O código de um job como `.tar.gz` da pasta preparada.** O usuário perguntou em 2026-10-13
+  (04:04 UTC) se um projeto grande, com o `.venv` já criado, pode ir ao S3 como um `.tar.gz` da
+  pasta inteira, extraído no volume do job, em vez da pasta expandida no S3, com muitos arquivos
+  pequenos. A resposta da sessão: funciona, e é o que o job do serialize-db do mesmo projeto já
+  faz (a pasta preparada no espaço, o `tar -xzf` no volume do job em `/opt/ml/processing/code`,
+  verificado num contêiner local em 2026-10-12 e ainda não no alvo), com três cuidados: a pasta
+  tem de ser relocável (links relativos no `.venv/`, e o `.pth` da instalação editável do `uv`
+  guarda um caminho absoluto, que o job reescreve), preparada para a plataforma do job (Linux
+  x86_64) e caber no `VolumeSizeInGB`. Não decidido: se o `demo-devenv-job` passa a esse formato,
+  ou se um exemplo novo o mostra; o custo por arquivo da entrada de código do job não foi medido.
+  Fecha com a palavra do usuário.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

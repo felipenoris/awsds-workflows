@@ -16,6 +16,7 @@ isolado não alcança o S3.
 | Arquivo | O que é |
 |---|---|
 | `demo-devenv-job.yaml` | a definição, com placeholders, para um projeto sem chave KMS própria |
+| `extra_values.json` | o arquivo de valores extras, de modelo: o prefixo do exemplo, a conta do registro da imagem por preencher, o URI da imagem padrão montado com ela e o Python do job |
 | [`../awsds-demo-job/`](../awsds-demo-job/) | o projeto que o job roda, copiado como está para a entrada de código |
 
 O código do job usa só a biblioteca padrão, então a entrada de código é a pasta do projeto, com
@@ -26,7 +27,7 @@ worker. Um projeto com dependências que a imagem não tem passa pelo `package-j
 ## Os passos
 
 Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#demo-devenv-job), com o que vem antes do
-primeiro job: a permissão do projeto, o `valores-job.json` com a imagem e o Python do job e as
+primeiro job: a permissão do projeto, a conta do registro da imagem no `extra_values.json` e as
 linhas da chave KMS de um projeto que tem uma; depois, a pasta do projeto na entrada de código, a
 definição com os dois arquivos de valores, o workflow no portal e o log do contêiner.
 

@@ -16,10 +16,10 @@ dele.
 | Exemplo | O que ele mostra | O que ele pede além do `space_values.json` |
 |---|---|---|
 | [probe-worker](#probe-worker) | o que o worker tem, numa task Bash inline | nada: a definição entra como está |
-| [demo-python-operator](#demo-python-operator) | uma task Python sobre o `.zip` do `package-task` | nada |
-| [demo-bash-operator](#demo-bash-operator) | uma task Bash sobre o mesmo `.zip`, com dois scripts, e a prova de que o worker não alcança a PyPI | nada |
-| [demo-devenv-job](#demo-devenv-job) | um job de processamento na imagem padrão do SageMaker | a permissão do projeto e `valores-job.json` |
-| [redshift-unload](#redshift-unload) | uma task Python que descarrega uma consulta ao Redshift Serverless no S3 | `valores-redshift.json` e o acesso do usuário do projeto ao banco |
+| [demo-python-operator](#demo-python-operator) | uma task Python sobre o `.zip` do `package-task` | o `extra_values.json` da pasta, só com o prefixo |
+| [demo-bash-operator](#demo-bash-operator) | uma task Bash sobre o mesmo `.zip`, com dois scripts, e a prova de que o worker não alcança a PyPI | o `extra_values.json` da pasta, só com o prefixo |
+| [demo-devenv-job](#demo-devenv-job) | um job de processamento na imagem padrão do SageMaker | a permissão do projeto e, no `extra_values.json` da pasta, a conta do registro da imagem |
+| [redshift-unload](#redshift-unload) | uma task Python que descarrega uma consulta ao Redshift Serverless no S3 | os nomes do Redshift no `extra_values.json` da pasta e o acesso do usuário do projeto ao banco |
 
 ## A preparação
 
@@ -57,6 +57,17 @@ dele.
 4. **Copie o `space_values.json` para a máquina que empacota**, pelo download do JupyterLab ou
    colando a saída do `cat` num arquivo. Ele leva os ids da conta e fica fora do git: o
    `.gitignore` do repositório ignora `space_values*.json`.
+
+5. **O arquivo de valores extras de cada exemplo**, `examples/<exemplo>/extra_values.json` no
+   clone, é o segundo arquivo do `render`, depois do `space_values.json`. Ele fixa
+   `EXAMPLE_PREFIX`, o prefixo do exemplo no bucket do projeto, `shared/exemplos/<exemplo>`, a
+   pasta `~/shared/exemplos/<exemplo>/` de um espaço, onde os passos abaixo gravam; quem o troca
+   troca esses caminhos. Um valor igual ao próprio nome entre `<` e `>`, como
+   `"REDSHIFT_WORKGROUP": "<REDSHIFT_WORKGROUP>"`, está por preencher, e até lá o `render`
+   recusa com `nenhum valor para: REDSHIFT_WORKGROUP`. Um valor pode referenciar outros
+   placeholders, como o `JOB_IMAGE_URI` do job, que leva a `REGION` do `space_values.json`
+   ([Os valores da definição](../awsds_workflows.html#os-valores-da-definicao)). O
+   `probe-worker` não tem o arquivo: a definição dele não tem placeholder.
 
 ## Os passos no portal
 
@@ -102,13 +113,14 @@ apagando a origem.
    awsds-workflows package-task examples/awsds-demo-job \
        examples/demo-python-operator/demo_tasks.py /tmp/demo-python-operator.zip
    awsds-workflows render examples/demo-python-operator/demo-python-operator.yaml \
-       --values-file space_values.json > /tmp/demo-python-operator.yaml
+       --values-file space_values.json \
+       --values-file examples/demo-python-operator/extra_values.json > /tmp/demo-python-operator.yaml
    ```
 
    O `package-task` imprime o tamanho, 274 KB em 2026-10-13, e a raiz: `awsds_demo_job`,
    `demo_tasks.py`, `petl`, `six.py` e os `dist-info`; o `boto3` e o PyYAML, que o worker tem,
    ficam de fora. Um `nenhum valor para: ...` do `render` é um placeholder sem valor no
-   `space_values.json`: pare.
+   `space_values.json`, ou um arquivo a menos na linha de comando: pare.
 
 2. **No espaço**, a amostra na caixa de entrada:
 
@@ -165,7 +177,8 @@ sem dependência, mostra como o worker roda um script e um módulo do `.zip`.
        --include examples/demo-bash-operator/probe.sh \
        --include examples/demo-bash-operator/reach_pypi.sh
    awsds-workflows render examples/demo-bash-operator/demo-bash-operator.yaml \
-       --values-file space_values.json > /tmp/demo-bash-operator.yaml
+       --values-file space_values.json \
+       --values-file examples/demo-bash-operator/extra_values.json > /tmp/demo-bash-operator.yaml
    ```
 
    A raiz traz `probe.sh` e `reach_pypi.sh`, com o bit de execução, além do projeto, do `petl` e
@@ -227,25 +240,29 @@ Antes do primeiro job:
   execução para em `AccessDeniedException` em `sagemaker:DescribeProcessingJob`, como no ambiente
   alvo em 2026-10-12. Quem aplica a política é a infraestrutura, no Terraform do projeto ou à
   mão.
-- **A imagem e o Python do job**, num segundo arquivo de valores. A imagem padrão é a SageMaker
-  Distribution 4.5, no registro da região, cuja conta um parâmetro público do SSM dá, num espaço:
+- **A conta do registro da imagem**, em `examples/demo-devenv-job/extra_values.json`. A imagem
+  padrão é a SageMaker Distribution 4.5, no registro da região, cuja conta um parâmetro público
+  do SSM dá, num espaço:
 
   ```shell
   aws ssm get-parameter --name /aws/service/sagemaker-distribution/ecr-account-id \
       --query Parameter.Value --output text --cli-connect-timeout 5
   ```
 
-  Na máquina que empacota, grave `valores-job.json` com essa conta e a `REGION` do
-  `space_values.json`:
+  Na máquina que empacota, preencha `SMD_REGISTRY_ACCOUNT` no arquivo com essa conta; o resto
+  já está nele:
 
   ```json
   {
-    "JOB_IMAGE_URI": "<conta do registro>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu",
+    "EXAMPLE_PREFIX": "shared/exemplos/demo-devenv-job",
+    "SMD_REGISTRY_ACCOUNT": "<SMD_REGISTRY_ACCOUNT>",
+    "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu",
     "JOB_PYTHON": "/opt/conda/bin/python"
   }
   ```
 
-  A `4.5.2-cpu` é a tag mais nova da 4.5 no ECR público (lida em 2026-10-12), e
+  O `JOB_IMAGE_URI` sai montado com essa conta e a `REGION` do `space_values.json`. A
+  `4.5.2-cpu` é a tag mais nova da 4.5 no ECR público (lida em 2026-10-12), e
   `/opt/conda/bin/python` é o CPython 3.12.14 dela
   ([A imagem do job](../awsds_workflows.html#a-imagem-do-job)).
 - **Um projeto com chave KMS própria** acrescenta ao `config` da definição, antes do `render`, a
@@ -266,10 +283,13 @@ Antes do primeiro job:
    tar -C examples --exclude=.venv --exclude=uv.lock --exclude=__pycache__ \
        --exclude=.pytest_cache -czf /tmp/awsds-demo-job.tgz awsds-demo-job
    awsds-workflows render examples/demo-devenv-job/demo-devenv-job.yaml \
-       --values-file space_values.json --values-file valores-job.json > /tmp/demo-devenv-job.yaml
+       --values-file space_values.json \
+       --values-file examples/demo-devenv-job/extra_values.json > /tmp/demo-devenv-job.yaml
    ```
 
-   Sem o segundo arquivo, o `render` recusa: `nenhum valor para: JOB_IMAGE_URI, JOB_PYTHON`.
+   Com a conta do registro por preencher, o `render` recusa: `nenhum valor para:
+   SMD_REGISTRY_ACCOUNT`; sem o segundo arquivo, `nenhum valor para: EXAMPLE_PREFIX,
+   JOB_IMAGE_URI, JOB_PYTHON`.
 
 2. **Leve ao espaço** o `/tmp/awsds-demo-job.tgz` e, lá, extraia-o na entrada de código e
    confira no S3, com o bucket, o domínio e o projeto do `space_values.json`:
@@ -327,18 +347,21 @@ A task chama `redshift_unload.unload`, que manda três comandos numa sessão da 
 Serverless, com as credenciais do worker: `SELECT current_user`, o `UNLOAD` da consulta para o
 S3, em Parquet, e `SELECT pg_last_unload_count()`. Antes:
 
-- **Os valores do Redshift**, em `valores-redshift.json`, na máquina que empacota:
+- **Os nomes do Redshift**, por preencher em `examples/redshift-unload/extra_values.json`, na
+  máquina que empacota: `REDSHIFT_WORKGROUP`, o workgroup do Redshift Serverless;
+  `REDSHIFT_DATABASE`, o banco em que a sessão entra; e `REDSHIFT_TABLE`, a tabela em três
+  partes, `<banco do datashare>.<esquema>.<tabela>`, porque a consulta é
+  `SELECT * FROM <REDSHIFT_TABLE>` e, numa sessão da Data API, uma tabela de um datashare leva o
+  nome assim. Preenchido:
 
   ```json
   {
-    "REDSHIFT_WORKGROUP": "<o workgroup do Redshift Serverless>",
-    "REDSHIFT_DATABASE": "<o banco em que a sessão entra>",
-    "REDSHIFT_TABLE": "<banco do datashare>.<esquema>.<tabela>"
+    "EXAMPLE_PREFIX": "shared/exemplos/redshift-unload",
+    "REDSHIFT_WORKGROUP": "meu-workgroup",
+    "REDSHIFT_DATABASE": "dev",
+    "REDSHIFT_TABLE": "meu_banco.meu_esquema.minha_tabela"
   }
   ```
-
-  A consulta é `SELECT * FROM <REDSHIFT_TABLE>`; numa sessão da Data API, uma tabela de um
-  datashare leva o nome em três partes.
 - **O acesso do usuário do projeto.** O worker entra no Redshift como o usuário do projeto,
   `IAMR:user-project@<projeto>`, e o espaço como o usuário da pessoa: um teste no espaço não prova
   a permissão do worker. Quem concede dá o acesso ao banco do datashare, conectado a um banco
@@ -359,10 +382,12 @@ S3, em Parquet, e `SELECT pg_last_unload_count()`. Antes:
    ```shell
    python3 -m zipfile -c /tmp/redshift-unload.zip examples/redshift-unload/redshift_unload.py
    awsds-workflows render examples/redshift-unload/redshift-unload.yaml \
-       --values-file space_values.json --values-file valores-redshift.json > /tmp/redshift-unload.yaml
+       --values-file space_values.json \
+       --values-file examples/redshift-unload/extra_values.json > /tmp/redshift-unload.yaml
    ```
 
-   O módulo só usa o `boto3` que o worker traz, então o `.zip` dispensa o `package-task`.
+   O módulo só usa o `boto3` que o worker traz, então o `.zip` dispensa o `package-task`. Com um
+   nome do Redshift por preencher, o `render` recusa nomeando-o.
 
 2. **No portal**: workflow `redshift-unload`, o `.zip` `/tmp/redshift-unload.zip`, a definição
    `/tmp/redshift-unload.yaml`, salve e execute. Não há sensor nem job: a task roda na hora, e não

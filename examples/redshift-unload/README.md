@@ -20,12 +20,13 @@ erro passa por uma máscara antes de sair. O módulo só usa o `boto3` que o wor
 | Arquivo | O que é |
 |---|---|
 | `redshift-unload.yaml` | a definição, com placeholders |
+| `extra_values.json` | o arquivo de valores extras, de modelo: o prefixo do exemplo e os três nomes do Redshift, por preencher |
 | `redshift_unload.py` | o módulo da task, que vai sozinho no `.zip` |
 
 ## Os passos
 
-Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#redshift-unload): o `valores-redshift.json`,
-o acesso do usuário do projeto ao banco do datashare, o `.zip` com o módulo na raiz, a definição
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#redshift-unload): os nomes do Redshift
+no `extra_values.json`, o acesso do usuário do projeto ao banco do datashare, o `.zip` com o módulo na raiz, a definição
 com os dois arquivos de valores, o workflow no portal e onde ler o resultado.
 
 ## Falhas

@@ -15,6 +15,7 @@ apagada.
 | Arquivo | O que é |
 |---|---|
 | `demo-python-operator.yaml` | a definição, com placeholders |
+| `extra_values.json` | o arquivo de valores extras: o prefixo do exemplo no bucket, `EXAMPLE_PREFIX` |
 | `demo_tasks.py` | o módulo de entrada, com a função `run` |
 | [`../awsds-demo-job/`](../awsds-demo-job/) | o projeto que o `.zip` leva, com o `petl` e o `six` |
 

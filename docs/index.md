@@ -165,10 +165,12 @@ passos para reproduzi-los, na ordem em que cada comando roda, estão na página
 
 Os três `demo-*` dividem um projeto `uv`, `examples/awsds-demo-job/`: um CSV entra, um resumo em
 JSON sai. Os valores vêm do `space_values.json` que o script de
-[Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco) escreve, mais um arquivo
-por exemplo que pede valores da imagem ou do Redshift, e o `render` lê os dois, na ordem da linha
-de comando ([Os valores da definição](#os-valores-da-definicao)). Os testes do repositório
-renderizam cada definição com valores fabricados e constroem os dois `.zip`.
+[Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco) escreve, mais o
+`extra_values.json` da pasta de cada exemplo, um arquivo de modelo com o prefixo do exemplo no
+bucket, `EXAMPLE_PREFIX`, e os valores que o espaço não dá, por preencher no job e no
+`redshift-unload`; o `render` lê os dois, na ordem da linha de comando
+([Os valores da definição](#os-valores-da-definicao)). Os testes do repositório renderizam cada
+definição com o arquivo dela e valores fabricados e constroem os dois `.zip`.
 
 ## As peças
 
@@ -1040,6 +1042,21 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   máquina que alcança a conta também; os valores da imagem entram à mão, num segundo arquivo.
 - **Os valores que dependem da imagem**, `JOB_IMAGE_URI` e `JOB_PYTHON`, vêm do arquivo com a imagem
   padrão. Com uma imagem customizada registrada no SageMaker, `--image-name` lê o `JOB_IMAGE_URI`.
+- **Um valor pode referenciar outros placeholders**, trocados antes pelos valores deles, um
+  nível, e um valor que referencia um placeholder sem valor, ou a si mesmo, é recusado como um
+  placeholder sem valor. Com isso um arquivo de modelo monta um valor a partir de outros e marca
+  o que está por preencher com o próprio nome, como o `extra_values.json` do job dos exemplos
+  ([Os exemplos](#os-exemplos)):
+
+  ```json
+  {
+    "SMD_REGISTRY_ACCOUNT": "<SMD_REGISTRY_ACCOUNT>",
+    "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu"
+  }
+  ```
+
+  Até a conta do registro entrar, o `render` recusa com `nenhum valor para:
+  SMD_REGISTRY_ACCOUNT`; depois, o `JOB_IMAGE_URI` sai montado com ela e a `REGION`.
 
 | Placeholder | O valor | De onde |
 |---|---|---|

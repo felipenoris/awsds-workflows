@@ -277,24 +277,38 @@ exercised in the target (`probe-worker`, `redshift-unload`, `demo-bash-operator`
 `demo-python-operator`, `demo-devenv-job`): a maintenance that makes the package render them, an
 examples folder with instructions per workflow taking the `space_values.json` of
 `scripts/space_values.py` as the input, copying files from AWS-DataScience's examples where
-needed. The session of that day (branch `claude/awsds-workflows-examples-yn6vxj`) delivered it with
-these choices, which await the user's word:
+needed. The session of that day (branch `claude/awsds-workflows-examples-yn6vxj`) asked the user
+three questions at 03:39 UTC, which the user answered at 04:04 UTC, and made the other choices
+below, which await the user's word:
 
 - **`--values-file` repeats**, each file completing and overriding the account's reading and the
-  files before it, in command-line order. An example that needs values beyond the space's
-  (`JOB_IMAGE_URI` and `JOB_PYTHON`; `REDSHIFT_WORKGROUP`, `REDSHIFT_DATABASE` and
-  `REDSHIFT_TABLE`) takes them from a second file its README shows inline (`valores-job.json`,
-  `valores-redshift.json`); no template values file is versioned.
+  files before it, in command-line order, and **each example brings a model values file**,
+  `examples/<exemplo>/extra_values.json`, the second `--values-file` after `space_values.json`
+  (the user's answer 1, "de acordo com a recomendação"; the name because `.gitignore` ignores
+  `valores*.json`). The values a space does not give stay in that file as values to fill: the
+  job's `SMD_REGISTRY_ACCOUNT`, the unload's `REDSHIFT_WORKGROUP`, `REDSHIFT_DATABASE` and
+  `REDSHIFT_TABLE`.
+- **The prefix of an example in the project's bucket is the placeholder `EXAMPLE_PREFIX`**, set
+  by its `extra_values.json` to `shared/exemplos/<exemplo>`, `~/shared/exemplos/<exemplo>/` in a
+  space, in place of the personal folder the target's runs used (the user's answer 2, "um
+  placeholder no arquivo de valores extras"; the question had written `<EXAMPLES_PREFIX>`, and
+  the session chose the singular, since each example's file sets its own). The inbox, the outbox
+  and, for the job, the code folder `awsds-demo-job/` sit under it.
 - **The file a space writes is `space_values.json`**, the user's name for it; `valores*.json` and
   `space_values*.json` stay out of git.
-- **Every example keeps its files under `shared/exemplos/<exemplo>/`** of the project's prefix,
-  `~/shared/exemplos/<exemplo>/` in a space, in place of the personal folder the target's runs
-  used; the inbox, the outbox and, for the job, the code folder `awsds-demo-job/` sit under it.
+- **A value may reference other placeholders** (the session's choice, awaiting the user's word):
+  `fill_placeholders` and `restore_placeholders` resolve them one level before the text, and a
+  value that references a placeholder without a value, or itself, is refused as a placeholder
+  without a value. It lets the job's model file hold `JOB_IMAGE_URI` as
+  `<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu`,
+  independent of the region, and makes `"NAME": "<NAME>"` the form of a value to fill, so an
+  unfilled model refuses the render instead of reaching the portal.
 - **One uv project serves the three `demo-*`**, `examples/awsds-demo-job/`: the lab's project
   rewritten in pt-BR with `uv_build`, `petl==1.7.28` and `six==1.16.0` as dependencies (the
   target's Python archive carried only `petl`, its Bash archive both). The job's code input is
   that folder copied as it is, with `PYTHONPATH=/opt/ml/processing/code/src`, as the target's
-  definition did; the job's own code needs only the standard library.
+  definition did (the user's answer 3, "conforme a recomendação"); the job's own code needs only
+  the standard library.
 - **The definitions are the ones that ran in the target**, with the prefix changed and the
   target's Redshift names as placeholders (`REDSHIFT_*`), like the account's values.
 - **`demo_tasks.py` also prints `sys.path` and probes `six`**, which the target's run did not: it

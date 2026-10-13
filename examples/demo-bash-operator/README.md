@@ -17,6 +17,7 @@ e `probe_bash`, sem dependência, imprime como o worker roda um script e um mód
 | Arquivo | O que é |
 |---|---|
 | `demo-bash-operator.yaml` | a definição, com placeholders |
+| `extra_values.json` | o arquivo de valores extras: o prefixo do exemplo no bucket, `EXAMPLE_PREFIX` |
 | `probe.sh` | o script que `probe_bash` chama: imprime `$0`, os argumentos e a pasta de trabalho |
 | `reach_pypi.sh` | a tentativa de alcançar a PyPI com o `urllib` e com o `pip`, com o tempo de cada uma |
 | [`../awsds-demo-job/`](../awsds-demo-job/) | o projeto que o `.zip` leva |
