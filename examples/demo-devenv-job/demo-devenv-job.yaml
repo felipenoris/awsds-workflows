@@ -23,9 +23,7 @@ demo-devenv-job:
             - /bin/bash
             - -c
           ContainerArguments:
-            - 'id; ls -ln /opt/ml/processing; sudo -n chown "$(id -u)" /opt/ml/processing/outbox && exec <JOB_PYTHON> -m awsds_demo_job --input /opt/ml/processing/inbox --output /opt/ml/processing/outbox'
-        Environment:
-          PYTHONPATH: /opt/ml/processing/code/src
+            - 'id; ls -ln /opt/ml/processing; sudo -n chown "$(id -u)" /opt/ml/processing/code /opt/ml/processing/outbox && tar -xzf /opt/ml/processing/code/awsds-demo-job.tar.gz -C /opt/ml/processing/code && exec /opt/ml/processing/code/awsds-demo-job/.venv/bin/python -m awsds_demo_job --input /opt/ml/processing/inbox --output /opt/ml/processing/outbox'
         ProcessingResources:
           ClusterConfig:
             InstanceCount: 1
@@ -40,7 +38,7 @@ demo-devenv-job:
         ProcessingInputs:
           - InputName: code
             S3Input:
-              S3Uri: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/awsds-demo-job/
+              S3Uri: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/code/
               LocalPath: /opt/ml/processing/code
               S3DataType: S3Prefix
               S3InputMode: File

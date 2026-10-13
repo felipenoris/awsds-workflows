@@ -18,7 +18,7 @@ dele.
 | [probe-worker](#probe-worker) | o que o worker tem, numa task Bash inline | nada: a definição entra como está |
 | [demo-python-operator](#demo-python-operator) | uma task Python sobre o `.zip` do `package-task` | o `extra_values.json` da pasta, só com o prefixo |
 | [demo-bash-operator](#demo-bash-operator) | uma task Bash sobre o mesmo `.zip`, com dois scripts, e a prova de que o worker não alcança a PyPI | o `extra_values.json` da pasta, só com o prefixo |
-| [demo-devenv-job](#demo-devenv-job) | um job de processamento na imagem padrão do SageMaker | a permissão do projeto e, no `extra_values.json` da pasta, a conta do registro da imagem |
+| [demo-devenv-job](#demo-devenv-job) | um job de processamento na imagem padrão do SageMaker, sobre o `.tar.gz` da pasta do projeto preparada | a permissão do projeto e, no `extra_values.json` da pasta, a conta do registro da imagem |
 | [redshift-unload](#redshift-unload) | uma task Python que descarrega uma consulta ao Redshift Serverless no S3 | os nomes do Redshift no `extra_values.json` da pasta e o acesso do usuário do projeto ao banco |
 
 ## A preparação
@@ -226,11 +226,15 @@ No ambiente alvo, em 2026-10-12, cada task rodou num worker próprio: `probe_bas
 ## demo-devenv-job
 
 Um sensor espera um arquivo em `inbox/`; `run_project` cria um job de processamento do
-SageMaker, que baixa a pasta do projeto e a caixa de entrada, roda `python -m awsds_demo_job` sem
-rede e envia a saída ao S3; e `remove_source` apaga a caixa de entrada, porque um contêiner
-isolado não alcança o S3. A entrada de código é a pasta do projeto como está, porque o código do
-job usa só a biblioteca padrão; um projeto com dependências que a imagem não tem passa pelo
-`package-job` ([Uma task de processamento](../awsds_workflows.html#uma-task-de-processamento)).
+SageMaker, que baixa o `.tar.gz` do projeto e a caixa de entrada, extrai o projeto no volume do
+job, roda o `python -m awsds_demo_job` da pasta extraída sem rede e envia a saída ao S3; e
+`remove_source` apaga a caixa de entrada, porque um contêiner isolado não alcança o S3. A entrada
+de código é um objeto só: o `.tar.gz` da pasta do projeto, gravado pelo `prepare-offline` com o
+próprio CPython 3.12 e as dependências dentro dela, que roda de qualquer caminho com
+`.venv/bin/python`, sem o interpretador da imagem
+([A pasta do projeto preparada num `.tar.gz`](../awsds_workflows.html#a-pasta-do-projeto-preparada-num-targz)).
+Um projeto que usa o ambiente da imagem e leva só o que ela não tem passa pelo `package-job`
+([A pasta de código com `package-job`](../awsds_workflows.html#a-pasta-de-codigo-com-package-job)).
 
 Antes do primeiro job:
 
@@ -256,15 +260,14 @@ Antes do primeiro job:
   {
     "EXAMPLE_PREFIX": "shared/exemplos/demo-devenv-job",
     "SMD_REGISTRY_ACCOUNT": "<SMD_REGISTRY_ACCOUNT>",
-    "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu",
-    "JOB_PYTHON": "/opt/conda/bin/python"
+    "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu"
   }
   ```
 
   O `JOB_IMAGE_URI` sai montado com essa conta e a `REGION` do `space_values.json`. A
-  `4.5.2-cpu` é a tag mais nova da 4.5 no ECR público (lida em 2026-10-12), e
-  `/opt/conda/bin/python` é o CPython 3.12.14 dela
-  ([A imagem do job](../awsds_workflows.html#a-imagem-do-job)).
+  `4.5.2-cpu` é a tag mais nova da 4.5 no ECR público (lida em 2026-10-12)
+  ([A imagem do job](../awsds_workflows.html#a-imagem-do-job)); o Python dela não entra, porque
+  o `.tar.gz` traz o seu.
 - **Um projeto com chave KMS própria** acrescenta ao `config` da definição, antes do `render`, a
   chave do volume e a da saída, com o `PROJECT_KEY_ID` que o `space_values.json` traz:
 
@@ -276,34 +279,43 @@ Antes do primeiro job:
     KmsKeyId: arn:aws:kms:<REGION>:<ACCOUNT_ID>:key/<PROJECT_KEY_ID>
   ```
 
-1. **Na máquina que empacota**, empacote o projeto, sem o `.venv/`, o `uv.lock` e os caches, e
-   renderize a definição com os dois arquivos de valores:
+1. **Na máquina que empacota**, num Linux x86_64, a plataforma do job, trave o projeto, grave o
+   `.tar.gz` dele e renderize a definição com os dois arquivos de valores:
 
    ```shell
-   tar -C examples --exclude=.venv --exclude=uv.lock --exclude=__pycache__ \
-       --exclude=.pytest_cache -czf /tmp/awsds-demo-job.tgz awsds-demo-job
+   (cd examples/awsds-demo-job && uv lock)
+   awsds-workflows prepare-offline examples/awsds-demo-job /tmp/awsds-demo-job.tar.gz
    awsds-workflows render examples/demo-devenv-job/demo-devenv-job.yaml \
        --values-file space_values.json \
        --values-file examples/demo-devenv-job/extra_values.json > /tmp/demo-devenv-job.yaml
    ```
 
+   O `prepare-offline` copia o projeto para uma pasta temporária, sem alterar a do exemplo,
+   recria lá a `.venv/` com o CPython 3.12 que o `uv` baixa para dentro dela, o projeto instalado
+   como pacote e as dependências de execução, torna relativo cada link, grava o `.tar.gz` com a
+   raiz `awsds-demo-job/` e prova, extraindo-o noutra pasta temporária, que o `.venv/bin/python`
+   de lá roda sem o `uv`. Ele imprime o tamanho do arquivo e o da pasta extraída, com a versão do
+   interpretador: em 2026-10-13, `34111121 bytes, 100119806 extraídos, com o CPython 3.12.13 em
+   Linux x86_64`, em 14 s. Noutra plataforma ele para antes de qualquer download
+   ([A pasta do projeto preparada num `.tar.gz`](../awsds_workflows.html#a-pasta-do-projeto-preparada-num-targz)).
+
    Com a conta do registro por preencher, o `render` recusa: `nenhum valor para:
    SMD_REGISTRY_ACCOUNT`; sem o segundo arquivo, `nenhum valor para: EXAMPLE_PREFIX,
-   JOB_IMAGE_URI, JOB_PYTHON`.
+   JOB_IMAGE_URI`.
 
-2. **Leve ao espaço** o `/tmp/awsds-demo-job.tgz` e, lá, extraia-o na entrada de código e
+2. **Leve ao espaço** o `/tmp/awsds-demo-job.tar.gz` e, lá, copie-o para a entrada de código e
    confira no S3, com o bucket, o domínio e o projeto do `space_values.json`:
 
    ```shell
-   mkdir -p ~/shared/exemplos/demo-devenv-job
-   tar -xzf awsds-demo-job.tgz -C ~/shared/exemplos/demo-devenv-job/
-   aws s3 ls --recursive s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/demo-devenv-job/awsds-demo-job/
+   mkdir -p ~/shared/exemplos/demo-devenv-job/code
+   cp awsds-demo-job.tar.gz ~/shared/exemplos/demo-devenv-job/code/
+   aws s3 ls s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/demo-devenv-job/code/
    ```
 
-   O `aws s3 ls` tem de listar os oito arquivos do projeto, `README.md`, `pyproject.toml`,
-   `sample.csv`, os quatro `.py` de `src/awsds_demo_job/` e o teste, além dos marcadores de
-   pasta de zero bytes; se não listar, pare: a cópia não chegou ao S3, de onde o job lê o prefixo
-   inteiro a cada execução. Uma versão nova do código vai para uma pasta nova.
+   O `aws s3 ls` tem de listar o `awsds-demo-job.tar.gz` com o tamanho que o `prepare-offline`
+   imprimiu, além do marcador de pasta de zero bytes; se não listar, pare: a cópia não chegou ao
+   S3, de onde o job lê o prefixo inteiro a cada execução. Uma versão nova do projeto é o
+   `prepare-offline` de novo e a cópia por cima do objeto, que a execução seguinte já lê.
 
 3. **No espaço**, a amostra na caixa de entrada, um arquivo por vez, porque `remove_source` apaga
    o prefixo inteiro:
@@ -324,8 +336,10 @@ Antes do primeiro job:
    aws logs tail /aws/sagemaker/ProcessingJobs --log-stream-name-prefix demo-devenv- --since 2h
    ```
 
-   O contêiner imprime o `id` e o `ls -ln` das pastas montadas, e então
-   `python 3.12.14 em /opt/conda/bin/python`,
+   O contêiner imprime o `id` e o `ls -ln` das pastas montadas, extrai o `.tar.gz` em
+   `/opt/ml/processing/code/` e então
+   `python 3.12.13 em /opt/ml/processing/code/awsds-demo-job/.venv/bin/python`, com a versão
+   que o `uv` baixou ao preparar,
    `sample.csv: 10 linhas -> /opt/ml/processing/outbox/sample.result.json` e
    `1 arquivo(s) processado(s)`; depois, `remove_source` esvazia `inbox/`.
 
@@ -336,10 +350,13 @@ Antes do primeiro job:
    ```
 
 No ambiente alvo, em 2026-10-12 às 18:12 UTC, a execução passou pelo sensor e parou na
-permissão, antes de existir um job: do pull da imagem à gravação da saída, o caminho do job não
-foi medido lá, nem o usuário do contêiner da imagem padrão. No laboratório, em 2026-10-11, com
-uma imagem customizada e a chave KMS do projeto, a mesma definição rodou em cerca de 15 minutos e
-0,03 USD.
+permissão, antes de existir um job, com a pasta do projeto expandida no S3 como entrada de
+código: do pull da imagem à gravação da saída, o caminho do job não foi medido lá, nem o usuário
+do contêiner da imagem padrão, e o `.tar.gz` ainda não rodou num job. No laboratório, em
+2026-10-11, com uma imagem customizada e a chave KMS do projeto, a definição sobre a pasta
+expandida rodou em cerca de 15 minutos e 0,03 USD. Na máquina que empacota, em 2026-10-13, o
+`.tar.gz` extraído noutra pasta, por um usuário sem privilégio e sem `uv` nem rede, escreveu o
+resumo com o mesmo sha256, em 1,3 s de extração para 100 MB.
 
 ## redshift-unload
 

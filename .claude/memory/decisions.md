@@ -305,10 +305,38 @@ below, which await the user's word:
   unfilled model refuses the render instead of reaching the portal.
 - **One uv project serves the three `demo-*`**, `examples/awsds-demo-job/`: the lab's project
   rewritten in pt-BR with `uv_build`, `petl==1.7.28` and `six==1.16.0` as dependencies (the
-  target's Python archive carried only `petl`, its Bash archive both). The job's code input is
-  that folder copied as it is, with `PYTHONPATH=/opt/ml/processing/code/src`, as the target's
-  definition did (the user's answer 3, "conforme a recomendação"); the job's own code needs only
-  the standard library.
+  target's Python archive carried only `petl`, its Bash archive both); the job's own code needs
+  only the standard library.
+- **The job's code input is the `.tar.gz` of the project folder prepared with its own
+  interpreter** (the user, 2026-10-13 04:55 UTC: "Sim, faça o `demo-devenv-job` nesse formato").
+  The answer 3 of 04:04 UTC ("conforme a recomendação") had kept the folder copied as it is, with
+  `PYTHONPATH=/opt/ml/processing/code/src`, as the target's definition did; in the same message
+  the user asked whether a `.tar.gz` of the prepared folder, `.venv/` included, extracted on the
+  job's volume, works in place of a folder of many small files expanded in S3, as they do with
+  serialize-db's `prepare_offline.sh` and `tar`. The session answered yes, with the relocation,
+  platform and volume caveats, and the user decided at 04:55 UTC. At 05:15 UTC the user asked
+  that the package carry the tooling, the documentation the instructions and the example the new
+  way ("Certifique-se de que o pacote tem o ferramental necessário, e que a documentação tenha
+  as instruções necessárias, e o exemplo agora reflita a nova forma de configurar"), so the
+  preparation is the subcommand `prepare-offline` (`prepare_offline.prepare_archive`), and the
+  script the session had first written in the shared project left. The session's choices for
+  it, awaiting the user's word: the names `prepare-offline`, `prepare_offline`,
+  `prepare_archive` and `OfflineArchive`, from the user's `prepare_offline.sh` of serialize-db;
+  `DEFAULT_PYTHON` 3.12, the worker's and the default image's, with `--python` for another; the
+  command works on a temporary copy of the project, never on the folder, which keeps its
+  `.venv/`; it requires `uv.lock` and syncs `--locked`, and the lock stays in the archive; the
+  interpreter is the CPython `uv` downloads into `.python/` of the copy (`UV_PYTHON_INSTALL_DIR`,
+  `UV_PYTHON_DOWNLOADS=automatic`, `UV_MANAGED_PYTHON=1`, `UV_PROJECT_ENVIRONMENT` and
+  `UV_LINK_MODE=copy` for that call only, through `_uv.run`'s `env`), never one of the machine;
+  `--no-dev --no-editable`, so no editable `.pth` needs rewriting in the job; every absolute link
+  made relative, and one pointing out of the copy refused; the root is the project folder's name;
+  the archive carries no owner (uid and gid 0) and is gzip level 6; the proof extracts the
+  archive and runs its `.venv/bin/python` without `uv` in the environment, reading the project's
+  version and `sys.prefix`, before the archive replaces an existing one; any platform but Linux
+  x86_64 is refused before any download. The definition's code input is the prefix `code/` with
+  that one object, and the job's command chowns `code` and `outbox`, extracts with `tar -xzf` and
+  runs `.venv/bin/python -m awsds_demo_job`, so `JOB_PYTHON` and `PYTHONPATH` left the example.
+  The `network` tests repeat the relocation proof (`.claude/memory/packaging.md`).
 - **The definitions are the ones that ran in the target**, with the prefix changed and the
   target's Redshift names as placeholders (`REDSHIFT_*`), like the account's values.
 - **`demo_tasks.py` also prints `sys.path` and probes `six`**, which the target's run did not: it

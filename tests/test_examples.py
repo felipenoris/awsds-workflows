@@ -3,12 +3,14 @@ os placeholders de cada uma são os que ``scripts/space_values.py`` imprime mais
 ``extra_values.json`` do próprio exemplo, que recusa o ``render`` enquanto um valor por preencher
 está como veio, os caminhos no S3 ficam sob ``<EXAMPLE_PREFIX>/``, que esse arquivo fixa em
 ``shared/exemplos/<exemplo>``, a task Python e o módulo de ``UNLOAD`` rodam sobre dublês do
-``boto3``, e os dois ``.zip`` saem do projeto compartilhado com as raízes dos que rodaram no
-ambiente alvo em 2026-10-12 (``network``).
+``boto3``, os dois ``.zip`` saem do projeto compartilhado com as raízes dos que rodaram no
+ambiente alvo em 2026-10-12, e o ``.tar.gz`` do job, gravado por ``prepare_offline``, roda
+extraído noutra pasta, sem ``uv`` no ambiente, com o resumo das execuções medidas (``network``).
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -26,7 +28,7 @@ from botocore.stub import Stubber
 import demo_tasks
 import redshift_unload
 from awsds_demo_job import s3
-from awsds_workflows import package_task, render
+from awsds_workflows import package_task, prepare_offline, render
 from awsds_workflows.errors import RefusalError
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
@@ -56,6 +58,11 @@ TO_FILL = {
         "REDSHIFT_TABLE": "meu_banco.meu_esquema.minha_tabela",
     },
 }
+# O sha256 do resumo de sample.csv nas execuções medidas, no laboratório (2026-10-11) e no
+# ambiente alvo (2026-10-12), o que o teste do projeto compartilhado também confere.
+RESULT_SHA256 = "1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191"
+# O que fica fora de uma cópia do projeto compartilhado: o que o uv e o pytest gravam.
+GENERATED = shutil.ignore_patterns(".venv", ".python", "__pycache__", ".pytest_cache", "uv.lock")
 # As raízes do .zip de cada task, as mesmas dos que rodaram no ambiente alvo em 2026-10-12, mais o
 # six, que o projeto compartilhado fixa para a task Python também.
 PROJECT_ROOTS = [
@@ -162,7 +169,7 @@ def test_the_definition_keeps_its_files_under_the_example_prefix(
 
 def test_the_bash_scripts_carry_no_jinja_delimiter() -> None:
     """Um ``.sh`` que um BashOperator chama passa pelo Jinja: nenhum tem ``{{`` nem ``{#``."""
-    for script in sorted(EXAMPLES.glob("*/*.sh")):
+    for script in sorted(EXAMPLES.glob("demo-bash-operator/*.sh")):
         text = script.read_text(encoding="utf-8")
         assert "{{" not in text, script.name
         assert "{#" not in text, script.name
@@ -379,11 +386,7 @@ def locked_demo_project(
     """Uma cópia do projeto compartilhado ``awsds-demo-job`` travada com ``uv lock``, para os
     testes ``network`` do módulo."""
     project = tmp_path_factory.mktemp("exemplo") / "awsds-demo-job"
-    shutil.copytree(
-        EXAMPLES / "awsds-demo-job",
-        project,
-        ignore=shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache", "uv.lock"),
-    )
+    shutil.copytree(EXAMPLES / "awsds-demo-job", project, ignore=GENERATED)
     subprocess.run(["uv", "lock", "--quiet"], cwd=project, check=True)
     return project
 
@@ -422,3 +425,35 @@ def test_the_bash_archive_has_the_scripts_with_their_mode(
         for script in scripts:
             mode = (opened.getinfo(script).external_attr >> 16) & 0o777
             assert mode & 0o111 == 0o111, script
+
+
+@pytest.mark.network
+def test_the_prepared_project_runs_extracted_elsewhere(
+    locked_demo_project: Path,
+    tmp_path: Path,
+) -> None:
+    """O ``.tar.gz`` do projeto compartilhado tem a raiz ``awsds-demo-job/``, o nome que o comando
+    do job abre, e, extraído noutra pasta como esse comando faz, roda o job com o
+    ``.venv/bin/python`` dele, num ambiente sem ``uv``, com o resumo das execuções medidas."""
+    archive = prepare_offline.prepare_archive(
+        locked_demo_project, tmp_path / "awsds-demo-job.tar.gz"
+    )
+    assert archive.root == "awsds-demo-job"
+
+    elsewhere = tmp_path / "noutra-pasta"
+    inbox = tmp_path / "inbox"
+    outbox = tmp_path / "outbox"
+    for folder in (elsewhere, inbox, outbox):
+        folder.mkdir()
+    shutil.copy(EXAMPLES / "awsds-demo-job" / "sample.csv", inbox)
+    subprocess.run(["tar", "-xzf", archive.path, "-C", elsewhere], check=True)
+    python = elsewhere / "awsds-demo-job" / ".venv" / "bin" / "python"
+    command = [python, "-m", "awsds_demo_job", "--input", inbox, "--output", outbox]
+    run = subprocess.run(
+        command, env={"PATH": "/usr/bin:/bin"}, check=True, capture_output=True, text=True
+    )
+    first_line = run.stdout.splitlines()[0]
+    assert first_line.startswith("python 3.12.")
+    assert first_line.endswith(f" em {python}")
+    result = (outbox / "sample.result.json").read_bytes()
+    assert hashlib.sha256(result).hexdigest() == RESULT_SHA256

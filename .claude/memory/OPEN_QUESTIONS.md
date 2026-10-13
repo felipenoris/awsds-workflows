@@ -74,17 +74,13 @@ nomeia esse lugar.
   `six` no da task Python (`packaging.md`, "The port verified against the original scripts").
   Não medido: uma execução de cada exemplo a partir dos arquivos do repositório, pelos passos da
   página `awsds_workflows.examples`. Fecha com essas execuções.
-- **O código de um job como `.tar.gz` da pasta preparada.** O usuário perguntou em 2026-10-13
-  (04:04 UTC) se um projeto grande, com o `.venv` já criado, pode ir ao S3 como um `.tar.gz` da
-  pasta inteira, extraído no volume do job, em vez da pasta expandida no S3, com muitos arquivos
-  pequenos. A resposta da sessão: funciona, e é o que o job do serialize-db do mesmo projeto já
-  faz (a pasta preparada no espaço, o `tar -xzf` no volume do job em `/opt/ml/processing/code`,
-  verificado num contêiner local em 2026-10-12 e ainda não no alvo), com três cuidados: a pasta
-  tem de ser relocável (links relativos no `.venv/`, e o `.pth` da instalação editável do `uv`
-  guarda um caminho absoluto, que o job reescreve), preparada para a plataforma do job (Linux
-  x86_64) e caber no `VolumeSizeInGB`. Não decidido: se o `demo-devenv-job` passa a esse formato,
-  ou se um exemplo novo o mostra; o custo por arquivo da entrada de código do job não foi medido.
-  Fecha com a palavra do usuário.
+- **O `.tar.gz` da pasta preparada num job.** O `demo-devenv-job` passou a esse formato pela
+  palavra do usuário de 2026-10-13 (04:55 UTC; `decisions.md`, "The examples folder"), e o
+  `prepare-offline` o grava desde o pedido das 05:15 UTC; provado na máquina que empacota
+  (extraído noutra pasta, por um usuário sem privilégio, sem `uv` nem rede, com o sha256 das
+  execuções medidas; `packaging.md`) e ainda não num job: o `sudo` e o `tar` da imagem padrão no
+  volume, o tempo de download de um objeto de 34 MB contra o do prefixo expandido e o custo por
+  arquivo de uma entrada de código expandida não foram medidos. Fecha com uma execução no alvo.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

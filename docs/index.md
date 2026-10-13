@@ -8,6 +8,8 @@ definição. O pacote faz essas duas coisas, e compara definições, com estas f
 - `package-task` grava o `.zip` com o código de uma task Python ou Bash e as dependências dele;
 - `package-job` grava a pasta de código de um job de processamento, só com o que a imagem do job
   não tem;
+- `prepare-offline` grava o `.tar.gz` da pasta de um projeto preparada com o próprio
+  interpretador, a entrada de código de um job que a extrai no volume;
 - `render` preenche o arquivo de definição do workflow com os valores do projeto, e `values` lê
   esses valores da conta;
 - `compare` mostra o que difere no conteúdo de duas definições, como a versionada e a que o
@@ -35,7 +37,7 @@ roteiro dos exemplos do repositório, comando por comando.
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
 | [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os templates, o sensor |
-| [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, e a pasta de código com `package-job` |
+| [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, a pasta de código com `package-job` e o `.tar.gz` da pasta do projeto com `prepare-offline` |
 | [O código de uma task Python ou Bash](#o-codigo-de-uma-task-python-ou-bash) | cientista de dados | o `.zip` com `package-task`, e uma task Python |
 | [Uma task Bash](#uma-task-bash) | cientista de dados | o `BashOperator`: o comando, o ambiente do worker e o código que ele chama |
 | [Os valores da definição](#os-valores-da-definicao) | todos | os placeholders, o `render`, os valores lidos de dentro de um espaço e o `compare` com a definição que o portal salvou |
@@ -59,7 +61,7 @@ fazer uma coisa, com os parâmetros dela. Três tipos de task entram nos workflo
 |---|---|---|---|
 | um sensor, que espera um arquivo no S3 | `S3KeySensor` | no worker | nenhum: só os parâmetros |
 | uma task Python ou Bash | `PythonOperator`, `BashOperator` | no worker | um `.zip` com o seu código e as dependências, montado pelo `package-task` |
-| uma task de processamento | `SageMakerProcessingOperator` | num job de processamento do SageMaker, na imagem que a task nomeia | uma pasta de código no S3, montada pelo `package-job` |
+| uma task de processamento | `SageMakerProcessingOperator` | num job de processamento do SageMaker, na imagem que a task nomeia | uma pasta de código no S3, montada pelo `package-job`, ou o `.tar.gz` da pasta do projeto, gravado pelo `prepare-offline` |
 
 **O worker** é a máquina pequena que o MWAA Serverless prepara para cada task, com Python 3.12, o
 Airflow e sem internet. Uma task Python ou Bash roda nele. Uma task de processamento roda nele só
@@ -126,7 +128,9 @@ que lê as definições que o `compare` compara.
 O `package-task` e o `package-job` rodam o `uv` na pasta do projeto, e o `uv` escolhe um
 interpretador que o projeto aceite: o que o `.python-version` do projeto nomeia ou, sem esse
 arquivo, um que satisfaça o `requires-python`. Quando não acha nenhum, o `uv` baixa um, a menos que
-os downloads de Python estejam desligados.
+os downloads de Python estejam desligados. O `prepare-offline` não usa esse interpretador: ele pede
+ao `uv` o CPython da versão dada, baixado para dentro da cópia do projeto, com os downloads ligados
+nessa chamada ([A pasta do projeto preparada num `.tar.gz`](#a-pasta-do-projeto-preparada-num-targz)).
 
 Num espaço do laboratório, a imagem desliga esses downloads (`UV_PYTHON_DOWNLOADS=never`), e o
 `uv` acha só o Python da distribuição, `/opt/conda/bin/python` 3.12. O interpretador do job,
@@ -160,7 +164,7 @@ passos para reproduzi-los, na ordem em que cada comando roda, estão na página
 | `probe-worker` | o que o worker tem: disco, CPU, memória, ferramentas e pacotes, numa task Bash inline |
 | `demo-python-operator` | uma task Python sobre o `.zip` do `package-task` |
 | `demo-bash-operator` | uma task Bash sobre o mesmo projeto, com dois scripts, e a prova de que o worker não alcança a PyPI |
-| `demo-devenv-job` | um job de processamento na imagem padrão do SageMaker, que no ambiente alvo parou na permissão do projeto |
+| `demo-devenv-job` | um job de processamento na imagem padrão do SageMaker, sobre o `.tar.gz` da pasta do projeto gravado pelo `prepare-offline`, que no ambiente alvo parou na permissão do projeto |
 | `redshift-unload` | uma task Python que descarrega uma consulta ao Redshift Serverless no S3, com `UNLOAD` |
 
 Os três `demo-*` dividem um projeto `uv`, `examples/awsds-demo-job/`: um CSV entra, um resumo em
@@ -170,7 +174,8 @@ JSON sai. Os valores vêm do `space_values.json` que o script de
 bucket, `EXAMPLE_PREFIX`, e os valores que o espaço não dá, por preencher no job e no
 `redshift-unload`; o `render` lê os dois, na ordem da linha de comando
 ([Os valores da definição](#os-valores-da-definicao)). Os testes do repositório renderizam cada
-definição com o arquivo dela e valores fabricados e constroem os dois `.zip`.
+definição com o arquivo dela e valores fabricados, constroem os dois `.zip` e preparam o `.tar.gz`
+do job.
 
 ## As peças
 
@@ -436,7 +441,8 @@ e o `KmsKeyId` da saída, a chave do projeto. Outro ambiente pode exigir outra l
 **As entradas e as saídas ficam em `/opt/ml/processing/`.** O SageMaker baixa cada
 `ProcessingInput` para uma pasta de lá antes de o comando começar e envia cada `ProcessingOutput`
 ao S3 depois que ele termina, como o papel do projeto. O código é mais uma entrada: a pasta que o
-`package-job` grava, copiada para o S3 do projeto.
+`package-job` grava, copiada para o S3 do projeto, ou o `.tar.gz` que o `prepare-offline` grava,
+que o comando do job extrai no volume.
 
 **O usuário do contêiner não grava na pasta de saída.** A imagem do laboratório roda como
 `sagemaker-user` (uid 1000), e a plataforma cria cada pasta montada como root com modo 755; uma
@@ -600,11 +606,84 @@ minutos de provisionamento antes do `ProcessingStartTime`, 7 de download da imag
 `ProcessingEndTime` até o job ler `Completed`, o estado que o operador espera. A pasta com as
 dependências não mudou o custo da execução, cerca de 0,03 USD.
 
+### A pasta do projeto preparada num `.tar.gz`
+
+A pasta do `package-job` vai ao S3 expandida, um objeto por arquivo, e o job baixa o prefixo a
+cada execução. Um projeto com a `.venv/` pronta, de muitos arquivos pequenos, pode ir como um
+objeto só: o `.tar.gz` da pasta inteira, com o interpretador e as dependências dentro dela, que
+o comando do job extrai no volume antes de rodar. A imagem entra só com o sistema, o `bash`, o
+`tar`, o `gzip`, o `sudo` e a glibc; o interpretador e cada pacote vêm da pasta, nas versões do
+projeto, o `JOB_PYTHON` da imagem não é chamado, e o lock do projeto não precisa concordar com a
+imagem. O `prepare-offline` grava esse arquivo, e o exemplo `demo-devenv-job` o usa
+([Os exemplos](#os-exemplos)).
+
+1. **Trave o projeto**, na pasta dele, com `uv lock`: o `prepare-offline` pede o `uv.lock` e
+   recusa um lock desatualizado.
+2. **Numa máquina Linux x86_64 com internet**, a plataforma do job, grave o `.tar.gz`:
+
+   ```shell
+   awsds-workflows prepare-offline ~/src/meu-projeto /tmp/meu-projeto.tar.gz
+   ```
+
+   O comando trabalha numa cópia temporária do projeto, sem a `.venv/`, o `.python/`, o `.git` e
+   os caches, e não altera a pasta dele. Na cópia, `uv sync --locked --no-dev --no-editable`
+   recria a `.venv/` com o CPython 3.12 que o `uv` baixa para `.python/`, dentro dela, com o
+   projeto instalado como pacote, porque uma instalação editável gravaria um `.pth` com o caminho
+   absoluto da pasta, e com os pacotes copiados do cache do `uv`; cada link absoluto que o `uv`
+   cria vira relativo ao arquivo real, dentro da pasta; o `.tar.gz` é gravado com os links e os
+   modos, com a raiz do nome da pasta do projeto, `meu-projeto/`, e sem o usuário desta máquina.
+   Antes de o arquivo tomar o lugar de um anterior, ele é extraído numa pasta temporária, e o
+   `.venv/bin/python` de lá, num ambiente sem o `uv`, lê a versão do pacote do projeto e confirma
+   que usa a `.venv/` extraída. O `--python 3.13` troca a versão do CPython, que o
+   `requires-python` do projeto tem de admitir. O comando imprime o tamanho do arquivo e o da
+   pasta extraída, a versão do interpretador e a raiz:
+
+   ```text
+   /tmp/meu-projeto.tar.gz: 34111121 bytes, 100119806 extraídos, com o CPython 3.12.13 em Linux x86_64
+   raiz: meu-projeto/
+   ```
+
+   **Quando o `prepare-offline` recusa:**
+
+   | Ele diz | Significado | O que fazer |
+   |---|---|---|
+   | `esta máquina é ..., e a pasta só serve ao job preparada em Linux x86_64` | o `uv` baixa o interpretador e os wheels da máquina em que roda | uma máquina Linux x86_64 |
+   | `não há uv.lock em ...` | o projeto nunca foi travado | `uv lock` no projeto |
+   | `uv sync --locked falhou:` | o lock está desatualizado, ou o `uv` não acha nem baixa o CPython pedido | `uv lock`, ou outro `--python` |
+   | `... nomeie o arquivo com .tar.gz` | o nome do arquivo tem outro sufixo | o sufixo que o `tar -xzf` do job extrai |
+   | `... aponta para fora da pasta` | um link da `.venv/` ou do `.python/` sai da cópia | leia o link na pasta do projeto |
+   | `a pasta extraída não roda:` | o projeto não importa fora da pasta de origem | a saída de erro do interpretador, abaixo da recusa |
+
+3. **O objeto vai ao prefixo da entrada de código**, `shared/exemplos/demo-devenv-job/code/` no
+   exemplo; uma versão nova é copiada por cima, e a execução seguinte já lê a nova.
+4. **O comando do job** dá as duas pastas ao usuário do contêiner, extrai e roda o interpretador
+   da pasta, pelo caminho absoluto:
+
+   ```yaml
+   ContainerArguments:
+     - 'sudo -n chown "$(id -u)" /opt/ml/processing/code /opt/ml/processing/outbox && tar -xzf /opt/ml/processing/code/meu-projeto.tar.gz -C /opt/ml/processing/code && exec /opt/ml/processing/code/meu-projeto/.venv/bin/python -m meu_pacote --input /opt/ml/processing/inbox --output /opt/ml/processing/outbox'
+   ```
+
+   O `tar` extrai como o usuário do contêiner, que fica dono dos arquivos, e o `VolumeSizeInGB`
+   tem de caber o arquivo e a pasta extraída.
+
+**Medido em 2026-10-13 na máquina que empacota** (uv 0.11.32), sobre o projeto dos exemplos,
+`examples/awsds-demo-job/`: o `prepare-offline` levou de 11 a 14 s em duas execuções, baixando o
+CPython 3.12.13, e gravou 34.111.121 bytes, 100.119.806 extraídos, 98.862.413 deles o interpretador
+e 1.233.013 a `.venv/`, em 4.970 membros com 1.053 links, nenhum absoluto; a extração noutra pasta
+levou 1,3 s. Extraída noutra pasta, com a de origem renomeada, por um usuário sem privilégio e num
+ambiente sem `uv`, sem `HOME` e sem rede, a pasta rodou `python -m awsds_demo_job` sobre a amostra
+e escreveu o resumo com o sha256 das execuções medidas; o teste `network` do repositório repete
+essa prova. Nenhum `.tar.gz` rodou num job ainda, e o custo por arquivo de uma entrada de código
+expandida não foi medido.
+
 ### Uma definição de exemplo
 
 Três tasks: o sensor, o job e a remoção da origem. Os placeholders são preenchidos pelo `render`
 ([Os valores da definição](#os-valores-da-definicao)). O exemplo `demo-devenv-job` do repositório
-é esta definição para um projeto sem chave KMS própria, com os passos ([Os exemplos](#os-exemplos)).
+é esta definição para um projeto sem chave KMS própria e com a entrada de código no `.tar.gz`
+([A pasta do projeto preparada num `.tar.gz`](#a-pasta-do-projeto-preparada-num-targz)), com os
+passos ([Os exemplos](#os-exemplos)).
 
 ```yaml
 # {"wait_for_file":{"x":120,"y":200},"run_project":{"x":420,"y":200},"remove_source":{"x":720,"y":200}}

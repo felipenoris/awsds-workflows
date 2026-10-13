@@ -92,6 +92,44 @@ gid 997, and a script executed by its path ran (`environments.md`, "The first Ba
 - The markers of the image's environment are evaluated by the package, not by a resolver: the house
   image holds `torch` from PyTorch's own index and packages with no wheel for every Python.
 
+## The project folder prepared in a `.tar.gz`
+
+The code input of `examples/demo-devenv-job` since 2026-10-13 (the user's decision of 04:55 UTC
+and request of 05:15 UTC, `decisions.md`, "The examples folder"): one object, the `.tar.gz` of
+the project folder with its own interpreter, written by `awsds-workflows prepare-offline`
+(`prepare_offline.prepare_archive`) from a temporary copy of the project, which the job's command
+extracts in `/opt/ml/processing/code` and runs with `awsds-demo-job/.venv/bin/python`.
+
+- `uv` 0.11.32 with `UV_PYTHON_INSTALL_DIR=<copy>/.python`, `UV_PYTHON_DOWNLOADS=automatic`,
+  `UV_MANAGED_PYTHON=1`, `UV_PROJECT_ENVIRONMENT=<copy>/.venv` and `UV_LINK_MODE=copy` downloaded
+  `cpython-3.12.13-linux-x86_64-gnu` (32.6 MiB) into the copy on
+  `uv sync --locked --python 3.12 --no-dev --no-editable`, and wrote two absolute links:
+  `.venv/bin/python` to `<copy>/.python/cpython-3.12-linux-x86_64-gnu/bin/python3.12` and the
+  alias `.python/cpython-3.12-linux-x86_64-gnu` to the full version's folder. `_relink` points
+  each at the real file, relative to the link's folder, and refuses one whose target leaves the
+  copy. With `--no-editable` the only `.pth` is `_virtualenv.pth`; `pyvenv.cfg`'s `home` keeps
+  the copy's path, which Python does not read when the link resolves.
+- The measurement of 2026-10-13 on the build host, over `examples/awsds-demo-job/`: the
+  subcommand took 10.7 s and 13.6 s in two runs, with the download; the archive is 34,111,121
+  bytes (34,108,313 in the first run: the member mtimes differ per copy), 4,970 members, 4,760 of
+  them under `.python/`, 197 under `.venv/` and 13 the project, 1,053 links and no absolute
+  target, every member with uid and gid 0, the only root `awsds-demo-job/`, `uv.lock` inside,
+  `.git` and the caches out; the file sizes sum 100,119,806 bytes, 98,862,413 of them `.python/`
+  and 1,233,013 `.venv/`, extracted elsewhere in 1.3 s (`du` 106 M). The example's folder was
+  untouched (`git status` clean but for the edits). The script version of the same morning
+  (deleted at the user's 05:15 UTC request) measured 35,283,778 bytes in 9 s with GNU `tar`, and
+  its folder ran extracted elsewhere, with the source folder renamed, under
+  `env -i PATH=/usr/bin:/bin HOME=/nonexistent` with proxies pointed at a closed port, from `/`
+  as well, and as `nobody` after a `chown` of the destination, as the job's `sudo -n chown` and
+  `tar` do; every run wrote the result with the sha256 `1b2bc4d7…a248191`, and the tool's archive
+  wrote the same. `tests/test_prepare_offline.py` (`network`) checks the root, the links and the
+  owner and runs the extracted folder without `uv`, and `tests/test_examples.py`'s
+  `test_the_prepared_project_runs_extracted_elsewhere` (`network`) repeats the run over the
+  example with the sha256.
+- Not measured: a job over the `.tar.gz` (the default image's `sudo` and `tar` on the volume),
+  the download time of one 34 MB object against the expanded prefix, and the per-file cost of an
+  expanded code input.
+
 ## The `uv` behaviors the code relies on
 
 Read with uv 0.12.13 on 2026-10-11 unless dated otherwise:
