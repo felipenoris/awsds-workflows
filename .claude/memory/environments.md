@@ -144,12 +144,14 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
 - `uv`, `git` and `aws` on the `PATH`, no `gh`, no `~/shared`, no `~/.aws/config`; system Python
   3.12.14 in `/opt/conda` (2026-09-21); container credentials lasting about an hour; `AWS_REGION`
   and `AWS_DEFAULT_REGION` both `sa-east-1`.
-- **The job image** starts as the SageMaker default image, SageMaker Distribution 4.15; the target
-  cannot create custom images yet (user statement of 2026-10-11). The distribution's tags on public
-  ECR run to 4.5.2: the 4.x line holds 4.0 to 4.5, each version also tagged
-  `<major>.<minor>-cpu`, beside `4-cpu` and `latest-cpu`, and no 4.15 (read 2026-10-12 with the
-  anonymous token, `https://public.ecr.aws/v2/sagemaker/sagemaker-distribution/tags/list`).
-  Which version the target's space runs waits on the user.
+- **The job image** starts as the SageMaker default image; the target cannot create custom images
+  yet (user statement of 2026-10-11). The target's space runs SageMaker Distribution 4.5, the
+  version the portal shows (the user, 2026-10-13; the "4.15" of 2026-10-11 was a typo), the minor
+  the lab's house image is built on. The distribution's tags on public ECR run to 4.5.2: the 4.x
+  line holds 4.0 to 4.5, each version also tagged `<major>.<minor>-cpu`, beside `4-cpu` and
+  `latest-cpu` (read 2026-10-12 with the anonymous token,
+  `https://public.ecr.aws/v2/sagemaker/sagemaker-distribution/tags/list`). Which 4.5 patch the
+  space runs is unread.
 - **A space on 2026-10-12** (the user, 17:39 UTC, in `~/shared/<user>/workflows`):
   `/opt/conda/bin/python --version` printed `Python 3.12.14`; `id` printed
   `uid=1000(sagemaker-user) gid=100(users) groups=100(users)`; `sudo -n true` succeeded, so the

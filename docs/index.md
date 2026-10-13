@@ -184,7 +184,7 @@ valor em cada caso.
 
 | | A imagem padrão do SageMaker | Uma imagem customizada |
 |---|---|---|
-| exemplo | a SageMaker Distribution 4.15, a imagem inicial do ambiente alvo | a imagem do laboratório, `awsds-sandbox-dev-env` |
+| exemplo | a SageMaker Distribution 4.5, a imagem inicial do ambiente alvo | a imagem do laboratório, `awsds-sandbox-dev-env` |
 | `JOB_IMAGE_URI`, a imagem na definição | o URI da distribuição na região do projeto, escrito no arquivo de valores | lido da imagem registrada no SageMaker (`values --image-name`) ou escrito no arquivo de valores |
 | `JOB_PYTHON`, o interpretador que o job chama | `/opt/conda/bin/python` | o do ambiente da imagem; na do laboratório, `/opt/awsds/venv/bin/python` |
 | `--python`, a versão desse interpretador | lida com `/opt/conda/bin/python --version` num espaço que roda a imagem | na do laboratório, 3.13 |
@@ -205,13 +205,15 @@ arquivo, com o cabeçalho e as anotações `# via` que o `uv` escreve, foi aceit
 e pelo `job-constraints`, que leu 452 versões para o CPython 3.13 em `x86_64-manylinux_2_28`
 (medido em 2026-10-12).
 
-**Ainda não medido na SageMaker Distribution 4.15**: o URI da imagem para um job no ambiente alvo
-e o usuário do contêiner de um job. Num espaço do ambiente alvo, em 2026-10-12,
+**Ainda não medido na SageMaker Distribution 4.5**: o URI da imagem para um job no ambiente alvo
+e o usuário do contêiner de um job. O espaço do ambiente alvo roda a 4.5, a versão que o portal
+mostra (lida em 2026-10-13); o patch dela não foi lido, e a tag mais nova da 4.5 no ECR público é
+a `4.5.2-cpu` (lida em 2026-10-12). Num espaço do ambiente alvo, em 2026-10-12,
 `/opt/conda/bin/python` era o CPython 3.12.14 e o usuário era `sagemaker-user` (uid 1000), com
-`sudo` sem senha; a versão da distribuição que o espaço roda não foi lida. A imagem do laboratório
-roda como `sagemaker-user` (uid 1000), e o `sudo` dela funciona dentro de um job (medido em
-2026-10-11); a distribuição, de que a imagem do laboratório deriva, deve ter o mesmo usuário num
-job, e o primeiro job no ambiente alvo é a medida.
+`sudo` sem senha. A imagem do laboratório roda como `sagemaker-user` (uid 1000), e o `sudo` dela
+funciona dentro de um job (medido em 2026-10-11); a distribuição, de cuja 4.5.2 a imagem do
+laboratório deriva, deve ter o mesmo usuário num job, e o primeiro job no ambiente alvo é a
+medida.
 
 ## A permissão do projeto
 
