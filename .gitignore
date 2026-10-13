@@ -9,3 +9,4 @@ site/
 dist/
 # Os arquivos de valores levam os ids da conta e ficam fora do git.
 valores*.json
+space_values*.json

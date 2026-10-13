@@ -8,6 +8,9 @@ depois para o ambiente do SageMaker, que não tem internet.
   um script ou um binário.
 - ``package-job`` grava a pasta de código de um job de processamento para a imagem do job, cujo
   ambiente chega em ``--environment`` (``awsds_workflows.package_job``).
+- ``prepare-offline`` grava o ``.tar.gz`` da pasta de um projeto preparada com o próprio
+  interpretador, a entrada de código de um job que a extrai no volume
+  (``awsds_workflows.prepare_offline``).
 - ``job-constraints`` imprime as versões do ambiente da imagem como requisitos, para restringir o
   lock do projeto com ``uv add -c`` ou ``uv pip compile -c``.
 - ``render`` imprime uma definição com os placeholders preenchidos, ou, com ``--placeholders``, uma
@@ -16,11 +19,12 @@ depois para o ambiente do SageMaker, que não tem internet.
 - ``compare`` imprime as diferenças de conteúdo entre duas definições de workflow, como a cópia
   versionada e a que o portal salvou com os placeholders de volta (``awsds_workflows.compare``).
 
-Os valores de ``render`` e ``values`` vêm de ``--values-file``, de ``--profile`` (a leitura da
-conta, que pede ``--subnet-name``) ou dos dois, e então os do arquivo completam e substituem os da
-conta. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o papel do projeto não tem a
-etiqueta ``KmsKeyId``, e o arquivo também não, o comando avisa na saída de erro e segue. Uma recusa
-imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
+Os valores de ``render`` e ``values`` vêm de ``--values-file``, repetido para vários arquivos, de
+``--profile`` (a leitura da conta, que pede ``--subnet-name``) ou dos dois: cada arquivo, na ordem
+da linha de comando, completa e substitui o que veio antes dele, a leitura da conta e os arquivos
+anteriores. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o papel do projeto não tem
+a etiqueta ``KmsKeyId``, e nenhum arquivo também, o comando avisa na saída de erro e segue. Uma
+recusa imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
 O ``compare`` termina com 0 com ou sem diferenças.
 
 Exemplo:
@@ -32,8 +36,11 @@ Exemplo:
         --include ~/src/meu-projeto/run.sh
     awsds-workflows package-job ~/src/meu-projeto /tmp/meu-projeto-0.2.0 \\
         --environment ambiente.txt --python 3.12
+    awsds-workflows prepare-offline ~/src/meu-projeto /tmp/meu-projeto.tar.gz
     awsds-workflows job-constraints --environment ambiente.txt --python 3.12
     awsds-workflows render meu-workflow.yaml --values-file valores.json > /tmp/meu-workflow.yaml
+    awsds-workflows render meu-job.yaml --values-file space_values.json \\
+        --values-file valores-job.json > /tmp/meu-job.yaml
     awsds-workflows render --placeholders salvo.yaml --values-file valores.json
     awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*' > valores.json
     awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
@@ -46,7 +53,7 @@ import json
 import sys
 from pathlib import Path
 
-from awsds_workflows import compare, package_job, package_task, render
+from awsds_workflows import compare, package_job, package_task, prepare_offline, render
 from awsds_workflows.errors import RefusalError
 
 __all__ = ["main"]
@@ -96,6 +103,7 @@ def _build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     _add_package_task_parser(commands)
     _add_package_job_parser(commands)
+    _add_prepare_offline_parser(commands)
     _add_job_constraints_parser(commands)
     _add_render_parser(commands)
     _add_values_parser(commands)
@@ -161,6 +169,27 @@ def _add_package_job_parser(
     command.add_argument("output", type=Path, help="a pasta a gravar, que ainda não pode existir")
     _add_job_target_arguments(command)
     command.set_defaults(handler=_package_job)
+
+
+def _add_prepare_offline_parser(
+    commands: argparse._SubParsersAction,
+) -> None:
+    """[private] O subcomando ``prepare-offline``."""
+    command = commands.add_parser(
+        "prepare-offline",
+        help="grava o .tar.gz da pasta de um projeto preparada com o próprio Python, a entrada de "
+        "código de um job que a extrai no volume",
+    )
+    command.add_argument(
+        "project", type=Path, help="a pasta do projeto uv, com uv.lock; ela não é alterada"
+    )
+    command.add_argument("archive", type=Path, help="o .tar.gz a gravar, numa pasta que já existe")
+    command.add_argument(
+        "--python",
+        default=prepare_offline.DEFAULT_PYTHON,
+        help=f"a versão do CPython que vai na pasta (padrão: {prepare_offline.DEFAULT_PYTHON})",
+    )
+    command.set_defaults(handler=_prepare_offline)
 
 
 def _add_job_constraints_parser(
@@ -252,8 +281,12 @@ def _add_value_source_arguments(
     """[private] As opções de onde vêm os valores, comuns a ``render`` e ``values``."""
     command.add_argument(
         "--values-file",
+        action="append",
+        default=[],
         type=Path,
-        help="um JSON de nome de placeholder para valor; completa e substitui os da conta",
+        metavar="ARQUIVO",
+        help="um JSON de nome de placeholder para valor; completa e substitui os da conta e os "
+        "dos arquivos anteriores; repita para vários",
     )
     command.add_argument("--profile", help="o perfil do aws com que a conta é lida")
     command.add_argument(
@@ -327,6 +360,28 @@ def _package_job(
     return 0
 
 
+def _prepare_offline(
+    arguments: argparse.Namespace,
+) -> int:
+    """[private] Grava o ``.tar.gz`` e imprime o resumo e o próximo passo."""
+    archive = prepare_offline.prepare_archive(
+        arguments.project,
+        arguments.archive,
+        python=arguments.python,
+    )
+    print(
+        f"{archive.path}: {archive.size_bytes} bytes, {archive.extracted_bytes} extraídos, com o "
+        f"CPython {archive.python} em Linux x86_64"
+    )
+    print(f"raiz: {archive.root}/")
+    print(
+        "próximo passo: copie o arquivo para o prefixo da entrada de código do job no S3 do "
+        "projeto, e no comando do job extraia-o com tar -xzf em /opt/ml/processing/code e chame "
+        f"/opt/ml/processing/code/{archive.root}/.venv/bin/python"
+    )
+    return 0
+
+
 def _job_constraints(
     arguments: argparse.Namespace,
 ) -> int:
@@ -369,9 +424,9 @@ def _values_from(
     arguments: argparse.Namespace,
 ) -> dict[str, str]:
     """[private] Os valores da conta, quando há ``--profile``, completados e substituídos pelos
-    do arquivo, quando há ``--values-file``, com um aviso na saída de erro quando a leitura da
-    conta termina sem ``PROJECT_KEY_ID``."""
-    if arguments.profile is None and arguments.values_file is None:
+    de cada ``--values-file``, na ordem da linha de comando, com um aviso na saída de erro quando
+    a leitura da conta termina sem ``PROJECT_KEY_ID``."""
+    if arguments.profile is None and not arguments.values_file:
         raise RefusalError("nomeie de onde vêm os valores: --values-file, --profile ou os dois")
 
     values: dict[str, str] = {}
@@ -384,10 +439,11 @@ def _values_from(
             project=arguments.project,
             image_name=arguments.image_name,
         )
-    if arguments.values_file is not None:
-        values.update(render.load_values(arguments.values_file))
+    # Cada arquivo completa e substitui o que veio antes dele.
+    for values_file in arguments.values_file:
+        values.update(render.load_values(values_file))
 
-    # O aviso vem depois do arquivo, que pode dar a chave que o papel não tem.
+    # O aviso vem depois dos arquivos, que podem dar a chave que o papel não tem.
     if arguments.profile is not None and "PROJECT_KEY_ID" not in values:
         print(_NO_KEY_WARNING, file=sys.stderr)
     return values

@@ -29,6 +29,14 @@ awsds-workflows --help
 
 O `uv tool upgrade awsds-workflows` traz o commit mais novo da `main`.
 
+## Exemplos
+
+A pasta [`examples/`](examples/README.md) traz cinco workflows que rodaram no ambiente alvo, cada
+um com a definição e o código. Os passos para reproduzi-los, a partir do `space_values.json` que
+`scripts/space_values.py` escreve num espaço do projeto, estão na página
+[Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html)
+da documentação.
+
 ## Desenvolvimento e testes
 
 ```shell
@@ -41,8 +49,10 @@ uv run pdoc awsds_workflows --docformat restructuredtext -t docs/theme -o site
 ```
 
 O `uv sync --all-groups` instala em `.venv/` o Python 3.13 do `.python-version`, o pacote e os
-grupos `dev` (o `pytest` e o `ruff`) e `docs` (o `pdoc`). Os testes marcados `network` travam e
-constroem projetos de teste com o `uv` e precisam do PyPI; `-m "not network"` os pula. O `pdoc`
+grupos `dev` (o `pytest`, o `ruff` e o `boto3` dos testes dos exemplos) e `docs` (o `pdoc`). O
+`pytest` roda os testes do pacote e os de `examples/awsds-demo-job/`. Os testes marcados `network`
+travam e constroem projetos de teste com o `uv` e precisam do PyPI; `-m "not network"` os pula.
+O `pdoc`
 grava o site em `site/`, a mesma geração que o workflow `docs.yml` publica a cada push na `main`;
 o `-t docs/theme` traz as cores escuras do site.
 

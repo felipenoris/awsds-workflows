@@ -269,6 +269,93 @@ brought to it (`environments.md`, "The AWS-DataScience lab").
 "Os conceitos", "As peças", "A rede", "O código de uma task Python ou Bash", "Uma task Bash", "A
 definição que o portal salvou"), `README.md`, `src/awsds_workflows/package_task.py`.
 
+## The examples folder
+
+The user asked on 2026-10-13 (03:30 UTC) for the package to be self-contained in functionality,
+documentation and examples, so that a user of the repository reproduces the five workflows
+exercised in the target (`probe-worker`, `redshift-unload`, `demo-bash-operator`,
+`demo-python-operator`, `demo-devenv-job`): a maintenance that makes the package render them, an
+examples folder with instructions per workflow taking the `space_values.json` of
+`scripts/space_values.py` as the input, copying files from AWS-DataScience's examples where
+needed. The session of that day (branch `claude/awsds-workflows-examples-yn6vxj`) asked the user
+three questions at 03:39 UTC, which the user answered at 04:04 UTC, and made the other choices
+below, which await the user's word:
+
+- **`--values-file` repeats**, each file completing and overriding the account's reading and the
+  files before it, in command-line order, and **each example brings a model values file**,
+  `examples/<exemplo>/extra_values.json`, the second `--values-file` after `space_values.json`
+  (the user's answer 1, "de acordo com a recomendação"; the name because `.gitignore` ignores
+  `valores*.json`). The values a space does not give stay in that file as values to fill: the
+  job's `SMD_REGISTRY_ACCOUNT`, the unload's `REDSHIFT_WORKGROUP`, `REDSHIFT_DATABASE` and
+  `REDSHIFT_TABLE`.
+- **The prefix of an example in the project's bucket is the placeholder `EXAMPLE_PREFIX`**, set
+  by its `extra_values.json` to `shared/exemplos/<exemplo>`, `~/shared/exemplos/<exemplo>/` in a
+  space, in place of the personal folder the target's runs used (the user's answer 2, "um
+  placeholder no arquivo de valores extras"; the question had written `<EXAMPLES_PREFIX>`, and
+  the session chose the singular, since each example's file sets its own). The inbox, the outbox
+  and, for the job, the code folder `awsds-demo-job/` sit under it.
+- **The file a space writes is `space_values.json`**, the user's name for it; `valores*.json` and
+  `space_values*.json` stay out of git.
+- **A value may reference other placeholders** (the session's choice, awaiting the user's word):
+  `fill_placeholders` and `restore_placeholders` resolve them one level before the text, and a
+  value that references a placeholder without a value, or itself, is refused as a placeholder
+  without a value. It lets the job's model file hold `JOB_IMAGE_URI` as
+  `<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu`,
+  independent of the region, and makes `"NAME": "<NAME>"` the form of a value to fill, so an
+  unfilled model refuses the render instead of reaching the portal.
+- **One uv project serves the three `demo-*`**, `examples/awsds-demo-job/`: the lab's project
+  rewritten in pt-BR with `uv_build`, `petl==1.7.28` and `six==1.16.0` as dependencies (the
+  target's Python archive carried only `petl`, its Bash archive both); the job's own code needs
+  only the standard library.
+- **The job's code input is the `.tar.gz` of the project folder prepared with its own
+  interpreter** (the user, 2026-10-13 04:55 UTC: "Sim, faça o `demo-devenv-job` nesse formato").
+  The answer 3 of 04:04 UTC ("conforme a recomendação") had kept the folder copied as it is, with
+  `PYTHONPATH=/opt/ml/processing/code/src`, as the target's definition did; in the same message
+  the user asked whether a `.tar.gz` of the prepared folder, `.venv/` included, extracted on the
+  job's volume, works in place of a folder of many small files expanded in S3, as they do with
+  serialize-db's `prepare_offline.sh` and `tar`. The session answered yes, with the relocation,
+  platform and volume caveats, and the user decided at 04:55 UTC. At 05:15 UTC the user asked
+  that the package carry the tooling, the documentation the instructions and the example the new
+  way ("Certifique-se de que o pacote tem o ferramental necessário, e que a documentação tenha
+  as instruções necessárias, e o exemplo agora reflita a nova forma de configurar"), so the
+  preparation is the subcommand `prepare-offline` (`prepare_offline.prepare_archive`), and the
+  script the session had first written in the shared project left. The session's choices for
+  it, awaiting the user's word: the names `prepare-offline`, `prepare_offline`,
+  `prepare_archive` and `OfflineArchive`, from the user's `prepare_offline.sh` of serialize-db;
+  `DEFAULT_PYTHON` 3.12, the worker's and the default image's, with `--python` for another; the
+  command works on a temporary copy of the project, never on the folder, which keeps its
+  `.venv/`; it requires `uv.lock` and syncs `--locked`, and the lock stays in the archive; the
+  interpreter is the CPython `uv` downloads into `.python/` of the copy (`UV_PYTHON_INSTALL_DIR`,
+  `UV_PYTHON_DOWNLOADS=automatic`, `UV_MANAGED_PYTHON=1`, `UV_PROJECT_ENVIRONMENT` and
+  `UV_LINK_MODE=copy` for that call only, through `_uv.run`'s `env`), never one of the machine;
+  `--no-dev --no-editable`, so no editable `.pth` needs rewriting in the job; every absolute link
+  made relative, and one pointing out of the copy refused; the root is the project folder's name;
+  the archive carries no owner (uid and gid 0) and is gzip level 6; the proof extracts the
+  archive and runs its `.venv/bin/python` without `uv` in the environment, reading the project's
+  version and `sys.prefix`, before the archive replaces an existing one; any platform but Linux
+  x86_64 is refused before any download. The definition's code input is the prefix `code/` with
+  that one object, and the job's command chowns `code` and `outbox`, extracts with `tar -xzf` and
+  runs `.venv/bin/python -m awsds_demo_job`, so `JOB_PYTHON` and `PYTHONPATH` left the example.
+  The `network` tests repeat the relocation proof (`.claude/memory/packaging.md`).
+- **The definitions are the ones that ran in the target**, with the prefix changed and the
+  target's Redshift names as placeholders (`REDSHIFT_*`), like the account's values.
+- **`demo_tasks.py` also prints `sys.path` and probes `six`**, which the target's run did not: it
+  answers the open question on the Python task's precedence when it runs.
+- **The examples' tests** (`tests/test_examples.py`) render each definition with fabricated
+  values, check the placeholder sets and the prefix, run the Python task and the `UNLOAD` module
+  over doubles (`botocore.stub.Stubber`), and build both archives (`network`); `boto3` joined the
+  `dev` group for them, and pytest's `testpaths` and `pythonpath` reach into `examples/`.
+
+At 03:32 UTC the same day the user asked for a new `pdoc` page with the instructions to configure
+all these examples, "bem diretas, similar ao que fizemos aqui no chat". The session wrote it as
+`docs/exemplos.md`, the page `awsds_workflows.examples` through the docstring-only module
+`src/awsds_workflows/examples.py` (serialize-db's `technology_review.py` pattern), with the
+commands, the expected output and the checks of the chat threads "Exemplos no ambiente alvo" and
+"Tasks de workflow para ETL", each step saying where it runs. The session's own choice, awaiting
+the user's word: the steps live only on the page, and the per-example READMEs keep what each
+example shows, what its logs say and what the target's runs read, with a link to the page's
+section; `examples/README.md` keeps the table, the shared project, the prefix and the tests.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

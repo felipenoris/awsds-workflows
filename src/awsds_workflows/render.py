@@ -7,6 +7,13 @@ placeholder sem valor; ``restore_placeholders`` faz o inverso numa definição q
 para que a cópia versionada se compare com o arquivo importado. O texto preenchido vai para a tela
 e para o portal, nunca para o repositório.
 
+Um valor pode referenciar outros placeholders, que os dois caminhos trocam antes pelos valores
+deles, um nível: ``"JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/..."``
+monta o URI com a conta do registro e a região dos outros valores. Um valor que referencia um
+placeholder sem valor, ou a si mesmo, é recusado como um placeholder sem valor, e por isso
+``"NOME": "<NOME>"`` é a forma de um valor por preencher num arquivo de modelo, como os
+``extra_values.json`` dos exemplos do repositório.
+
 Os valores vêm de um arquivo JSON (``load_values``), da conta pelo ``aws`` (``read_values``), ou dos
 dois, e então os do arquivo completam e substituem os da conta. A leitura da conta chama o STS, o
 IAM, o EC2 e, para uma imagem customizada, o SageMaker; onde essas APIs não respondem, como num
@@ -82,16 +89,19 @@ def fill_placeholders(
         # 'bucket: meu-bucket'
 
     :param text: o texto com os placeholders, como uma definição de workflow.
-    :param values: o valor de cada placeholder, pelo nome sem ``<`` e ``>``.
+    :param values: o valor de cada placeholder, pelo nome sem ``<`` e ``>``; um valor pode
+        referenciar outros placeholders, trocados antes pelos valores deles.
     :return: o texto com cada placeholder trocado.
-    :raises awsds_workflows.errors.RefusalError: quando um placeholder do texto não tem valor, com
-        todos os que faltam na mensagem.
+    :raises awsds_workflows.errors.RefusalError: quando um placeholder do texto não tem valor, ou
+        um valor referencia um placeholder sem valor ou a si mesmo, com todos os que faltam na
+        mensagem.
     """
+    resolved = _resolve_values(values)
     found = {match.group(1) for match in PLACEHOLDER.finditer(text)}
-    missing = sorted(found - set(values))
+    missing = sorted(found - set(resolved))
     if missing:
         raise RefusalError(f"nenhum valor para: {', '.join(missing)}")
-    return PLACEHOLDER.sub(lambda match: values[match.group(1)], text)
+    return PLACEHOLDER.sub(lambda match: resolved[match.group(1)], text)
 
 
 def restore_placeholders(
@@ -112,19 +122,44 @@ def restore_placeholders(
         # 'bucket: <PROJECTS_BUCKET>'
 
     :param text: o texto com os valores, como uma definição que o portal salvou.
-    :param values: o valor de cada placeholder, pelo nome sem ``<`` e ``>``.
+    :param values: o valor de cada placeholder, pelo nome sem ``<`` e ``>``; um valor pode
+        referenciar outros placeholders, trocados antes pelos valores deles.
     :return: o texto com cada valor trocado pelo seu placeholder.
     :raises awsds_workflows.errors.RefusalError: quando um valor é vazio, porque o texto inteiro
-        casaria com ele.
+        casaria com ele, ou referencia um placeholder sem valor ou a si mesmo.
     """
-    empty = sorted(name for name, value in values.items() if value == "")
+    resolved = _resolve_values(values)
+    empty = sorted(name for name, value in resolved.items() if value == "")
     if empty:
         raise RefusalError(f"valor vazio para: {', '.join(empty)}")
 
-    by_length = sorted(values.items(), key=lambda item: len(item[1]), reverse=True)
+    by_length = sorted(resolved.items(), key=lambda item: len(item[1]), reverse=True)
     for name, value in by_length:
         text = text.replace(value, f"<{name}>")
     return text
+
+
+def _resolve_values(
+    values: Mapping[str, str],
+) -> dict[str, str]:
+    """[private] Cada valor com os placeholders que ele referencia trocados pelos valores deles,
+    um nível: só um valor sem placeholder serve de referência. Um valor que referencia um
+    placeholder sem valor, um cujo valor também referencia, ou a si mesmo, é recusado como um
+    placeholder sem valor, com todos os que faltam na mensagem."""
+    plain = {name: value for name, value in values.items() if PLACEHOLDER.search(value) is None}
+
+    missing: set[str] = set()
+    for value in values.values():
+        for match in PLACEHOLDER.finditer(value):
+            if match.group(1) not in plain:
+                missing.add(match.group(1))
+    if missing:
+        raise RefusalError(f"nenhum valor para: {', '.join(sorted(missing))}")
+
+    resolved: dict[str, str] = {}
+    for name, value in values.items():
+        resolved[name] = PLACEHOLDER.sub(lambda match: plain[match.group(1)], value)
+    return resolved
 
 
 def load_values(

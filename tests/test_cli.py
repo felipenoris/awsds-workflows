@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from awsds_workflows import cli, package_job, package_task, render
+from awsds_workflows import cli, package_job, package_task, prepare_offline, render
 
 
 def test_help_exits_with_zero(
@@ -23,7 +23,15 @@ def test_help_exits_with_zero(
         cli.main(["--help"])
     assert exit_info.value.code == 0
     printed = capsys.readouterr().out
-    commands = ("package-task", "package-job", "job-constraints", "render", "values", "compare")
+    commands = (
+        "package-task",
+        "package-job",
+        "prepare-offline",
+        "job-constraints",
+        "render",
+        "values",
+        "compare",
+    )
     for command in commands:
         assert command in printed
 
@@ -213,6 +221,41 @@ def test_package_job_passes_the_target_and_prints_the_summary(
     assert "na pasta (1): six==1.17.0" in printed
 
 
+def test_prepare_offline_passes_the_arguments_and_prints_the_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``prepare-offline`` chama ``prepare_archive`` com o Python padrão e imprime os tamanhos, a
+    raiz e o interpretador que o comando do job chama."""
+    calls: list[dict[str, object]] = []
+
+    def fake_prepare_archive(
+        project: Path,
+        archive: Path,
+        **options: object,
+    ) -> prepare_offline.OfflineArchive:
+        """Grava a chamada e devolve um ``.tar.gz`` fabricado."""
+        calls.append({"project": project, "archive": archive, **options})
+        return prepare_offline.OfflineArchive(
+            path=archive,
+            size_bytes=10,
+            extracted_bytes=30,
+            root="projeto",
+            python="3.12.13",
+        )
+
+    monkeypatch.setattr(prepare_offline, "prepare_archive", fake_prepare_archive)
+    code = cli.main(["prepare-offline", "projeto", "projeto.tar.gz"])
+    assert code == 0
+    assert calls == [
+        {"project": Path("projeto"), "archive": Path("projeto.tar.gz"), "python": "3.12"}
+    ]
+    printed = capsys.readouterr().out
+    assert "projeto.tar.gz: 10 bytes, 30 extraídos, com o CPython 3.12.13" in printed
+    assert "raiz: projeto/" in printed
+    assert "/opt/ml/processing/code/projeto/.venv/bin/python" in printed
+
+
 def test_job_constraints_prints_one_pin_per_line(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -243,6 +286,25 @@ def test_render_fills_the_file_from_the_values_file(
     saved.write_text("bucket: meu-bucket\n", encoding="utf-8")
     assert cli.main(["render", "--placeholders", str(saved), "--values-file", str(values)]) == 0
     assert capsys.readouterr().out == "bucket: <PROJECTS_BUCKET>\n"
+
+
+def test_render_fills_the_file_from_two_values_files(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``render`` com dois ``--values-file`` lê os dois, o segundo por cima do primeiro."""
+    space = tmp_path / "space_values.json"
+    space.write_text(json.dumps({"PROJECTS_BUCKET": "meu-bucket", "JOB_PYTHON": "/primeiro"}))
+    job = tmp_path / "valores-job.json"
+    job.write_text(json.dumps({"JOB_PYTHON": "/opt/conda/bin/python"}), encoding="utf-8")
+    definition = tmp_path / "workflow.yaml"
+    definition.write_text("bucket: <PROJECTS_BUCKET>\npython: <JOB_PYTHON>\n", encoding="utf-8")
+
+    code = cli.main(
+        ["render", str(definition), "--values-file", str(space), "--values-file", str(job)]
+    )
+    assert code == 0
+    assert capsys.readouterr().out == "bucket: meu-bucket\npython: /opt/conda/bin/python\n"
 
 
 def test_render_without_a_value_source_is_refused(
@@ -307,6 +369,49 @@ def test_values_merges_the_file_over_the_account(
     ]
     assert json.loads(capsys.readouterr().out) == {
         "JOB_PYTHON": "/opt/conda/bin/python",
+        "PROJECT_ID": "abc123",
+        "REGION": "sa-east-1",
+    }
+
+
+def test_values_reads_each_file_over_the_previous_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``values`` com dois ``--values-file`` imprime o segundo por cima do primeiro, e os dois por
+    cima da conta."""
+
+    def fake_read_values(
+        profile: str,
+        **options: object,
+    ) -> dict[str, str]:
+        """Devolve valores fabricados da conta."""
+        return {"PROJECT_ID": "abc123", "REGION": "us-west-2", "JOB_PYTHON": "/conta"}
+
+    monkeypatch.setattr(render, "read_values", fake_read_values)
+    space = tmp_path / "space_values.json"
+    space.write_text(json.dumps({"REGION": "sa-east-1", "JOB_PYTHON": "/primeiro"}))
+    job = tmp_path / "valores-job.json"
+    job.write_text(json.dumps({"JOB_PYTHON": "/segundo", "JOB_IMAGE_URI": "imagem"}))
+
+    code = cli.main(
+        [
+            "values",
+            "--profile",
+            "perfil",
+            "--subnet-name",
+            "projeto-private-*",
+            "--values-file",
+            str(space),
+            "--values-file",
+            str(job),
+        ]
+    )
+    assert code == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "JOB_IMAGE_URI": "imagem",
+        "JOB_PYTHON": "/segundo",
         "PROJECT_ID": "abc123",
         "REGION": "sa-east-1",
     }

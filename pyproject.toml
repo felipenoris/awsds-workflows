@@ -22,6 +22,9 @@ awsds-workflows = "awsds_workflows:main"
 
 [dependency-groups]
 dev = [
+    # O boto3 só entra nos testes: os exemplos de examples/ o importam, e o Stubber do botocore
+    # valida as chamadas da task de UNLOAD contra o modelo da Data API.
+    "boto3>=1.43",
     "pytest>=8.4",
     "ruff==0.16.10",
 ]
@@ -31,9 +34,16 @@ docs = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-# O script de scripts/, que roda fora do pacote, entra no sys.path dos testes.
-pythonpath = ["scripts"]
+# Os testes do pacote e os do projeto compartilhado dos exemplos.
+testpaths = ["tests", "examples/awsds-demo-job/tests"]
+# O script de scripts/ e os módulos dos exemplos, que rodam fora do pacote, entram no sys.path dos
+# testes.
+pythonpath = [
+    "scripts",
+    "examples/awsds-demo-job/src",
+    "examples/demo-python-operator",
+    "examples/redshift-unload",
+]
 markers = [
     "network: roda o uv sobre projetos de teste gravados em tmp_path e precisa do PyPI; -m 'not network' os pula",
 ]

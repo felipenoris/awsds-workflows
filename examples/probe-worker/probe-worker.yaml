@@ -1,0 +1,41 @@
+# {"probe_worker":{"x":120,"y":200}}
+probe-worker:
+  dag_id: probe-worker
+  tasks:
+    probe_worker:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: |
+        echo "--- disco"
+        df -h / /tmp /var/tmp /usr/local/airflow/dags 2>&1
+        echo "--- gravação de 1 GiB em /var/tmp"
+        start=$(date +%s)
+        if dd if=/dev/zero of=/var/tmp/sonda.bin bs=1M count=1024 status=none; then
+          echo "gravou 1 GiB em $(( $(date +%s) - start )) s"
+        else
+          echo "a gravação falhou"
+        fi
+        rm -f /var/tmp/sonda.bin
+        echo "--- CPU e memória"
+        echo "nproc: $(nproc)"
+        grep -E 'MemTotal|MemAvailable' /proc/meminfo
+        for file in /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max /sys/fs/cgroup/cpu/cpu.cfs_quota_us /sys/fs/cgroup/memory/memory.limit_in_bytes; do
+          if [ -r "$file" ]; then echo "$file: $(cat "$file")"; fi
+        done
+        echo "--- ferramentas"
+        for tool in aws tar unzip gzip; do echo "$tool: $(command -v "$tool" || echo ausente)"; done
+        echo "--- pacotes"
+        python3 - <<'EOF'
+        import importlib.metadata
+        import sys
+
+        print("python", sys.version.split()[0], "em", sys.executable)
+        for name in ["pyarrow", "duckdb", "deltalake", "SQLAlchemy", "redshift-connector", "pandas", "numpy"]:
+            try:
+                print(name, importlib.metadata.version(name))
+            except importlib.metadata.PackageNotFoundError:
+                print(name, "ausente")
+        installed = sorted(dist.metadata["Name"] + "==" + dist.version for dist in importlib.metadata.distributions())
+        print(len(installed), "distribuições:", " ".join(installed))
+        EOF
+        exit 0
+      retries: 0

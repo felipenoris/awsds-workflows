@@ -1,7 +1,7 @@
 """``awsds_workflows._uv``: a recusa de uma chamada que falha, do ``uv`` ausente, de um Python que o
-``uv`` não acha e de um wheel que não é Python puro, o ``UV_PYTHON`` que chega ao ``uv``, os
-argumentos do ``uv export`` dos empacotadores, e a limpeza do que o ``uv pip install --target``
-deixa.
+``uv`` não acha e de um wheel que não é Python puro, o ``UV_PYTHON`` que chega ao ``uv``, pelo
+processo e por ``env``, os argumentos do ``uv export`` dos empacotadores, e a limpeza do que o
+``uv pip install --target`` deixa.
 
 Nenhum teste precisa do PyPI: a chamada que falha é uma opção que o ``uv`` não conhece, o Python
 que o ``uv`` não acha é o 3.99 de um ``.python-version`` com os downloads de Python desligados, e o
@@ -10,6 +10,7 @@ wheel impuro é um nome de arquivo gravado por um dublê de ``run``.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -58,6 +59,20 @@ def test_uv_python_reaches_the_call(
     monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
     monkeypatch.setenv("UV_PYTHON", sys.executable)
     _uv.run(["venv", str(tmp_path / "venv")], cwd=tmp_path)
+
+
+def test_env_completes_the_process_environment_for_one_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """O ``env`` de uma chamada chega ao ``uv`` por cima das variáveis do processo, que ficam
+    como estavam."""
+    (tmp_path / ".python-version").write_text("3.99\n", encoding="utf-8")
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.delenv("UV_PYTHON", raising=False)
+    _uv.run(["venv", str(tmp_path / "venv")], cwd=tmp_path, env={"UV_PYTHON": sys.executable})
+    assert (tmp_path / "venv" / "pyvenv.cfg").is_file()
+    assert "UV_PYTHON" not in os.environ
     assert (tmp_path / "venv" / "pyvenv.cfg").is_file()
 
 
