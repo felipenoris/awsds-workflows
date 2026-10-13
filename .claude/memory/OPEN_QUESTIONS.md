@@ -22,15 +22,16 @@ nomeia esse lugar.
   2026-09-21 e 2026-09-23, em que o SageMaker não respondeu, testaram
   `sagemaker.sa-east-1.amazonaws.com`, que não é o nome da API (`api.sagemaker...`). Não medido no
   alvo: o caminho do job, do pull da imagem à gravação da saída. Fecha com o primeiro job no alvo.
-- **A imagem padrão do alvo como imagem do job.** O usuário a chamou de SageMaker Distribution 4.15
-  (2026-10-11), e as tags públicas da distribuição vão até a 4.5.2, sem 4.15 (lidas em 2026-10-12).
-  Num espaço do alvo, em 2026-10-12, `/opt/conda/bin/python` era o CPython 3.12.14, como em
-  2026-09-21, o usuário `sagemaker-user` (uid 1000, gid 100) tinha `sudo` sem senha, e o parâmetro
-  público do SSM deu a conta do repositório `sagemaker-distribution-prod` da região
-  (`environments.md`, "The target"). A primeira definição do alvo usa
-  `sagemaker-distribution-prod:4.5.2-cpu`. Não medidos: a versão que o espaço roda, o pull dessa
-  imagem por um job, e o usuário e o `sudo` dentro do job, que o `chown` da pasta de saída usa.
-  Fecha com a resposta do usuário e o primeiro job.
+- **A imagem padrão do alvo como imagem do job.** O espaço do alvo roda a SageMaker Distribution
+  4.5, a versão que o portal mostra (o usuário, 2026-10-13; `decisions.md`, "Where the package
+  runs"), e a tag mais nova da 4.5 no ECR público é a 4.5.2 (lida em 2026-10-12). Num espaço do
+  alvo, em 2026-10-12, `/opt/conda/bin/python` era o CPython 3.12.14, como em 2026-09-21, o
+  usuário `sagemaker-user` (uid 1000, gid 100) tinha `sudo` sem senha, e o parâmetro público do
+  SSM deu a conta do repositório `sagemaker-distribution-prod` da região (`environments.md`, "The
+  target"). A primeira definição do alvo usa `sagemaker-distribution-prod:4.5.2-cpu`. Não
+  medidos: o patch da 4.5 que o espaço roda, de que depende o arquivo de ambiente de um
+  `package-job` cujo job usa a 4.5.2, o pull dessa imagem por um job, e o usuário e o `sudo` dentro
+  do job, que o `chown` da pasta de saída usa. Fecha com o primeiro job.
 - **O papel do projeto no alvo e o operador de processamento.** A política do blueprint
   `SageMakerStudioProjectRoleMachineLearningPolicy` v42, lida em 2026-10-12, só deixa descrever um
   job com a etiqueta `AmazonDataZoneProject` do chamador e tira as chaves `AmazonDataZone*` do

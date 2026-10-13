@@ -39,9 +39,11 @@ the package's goal; then for the `pdoc` documentation in serialize-db's mold, th
   SageMaker environment, which has no internet access (user statement of 2026-10-11).
 - The target SageMaker environment is the one serialize-db's `SUITE_ALVO.md` refers to (user
   statement of 2026-10-11); its readings are in `environments.md`.
-- The job image is selectable: a custom image or the SageMaker default image, currently 4.15. The
-  target cannot create custom images yet, so the work starts with the default image (user statement
-  of 2026-10-11).
+- The job image is selectable: a custom image or the SageMaker default image. The target cannot
+  create custom images yet, so the work starts with the default image (user statement of
+  2026-10-11). The default image is SageMaker Distribution 4.5, the version the target's space
+  shows: the "4.15" of the statement of 2026-10-11, which the user section of `CLAUDE.md` still
+  carries, is a typo (the user, 2026-10-13).
 
 ## The documentation
 
