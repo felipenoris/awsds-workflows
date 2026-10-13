@@ -10,7 +10,8 @@ nomeia esse lugar.
   "Design choices of the first session": o arquivo de ambiente do `package-job`, os valores do
   `render` por arquivo, os nomes genéricos dos placeholders, o `--subnet-name` obrigatório com
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
-  `docs/index.md` como runbook. Fecha com a resposta do usuário no PR.
+  `docs/index.md` como runbook; e as da pasta de exemplos, de 2026-10-13 (`decisions.md`, "The
+  examples folder"). Fecha com a resposta do usuário no PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -62,8 +63,16 @@ nomeia esse lugar.
   pasta do `.zip`, só vence o módulo que o worker importou antes da função da task (o `yaml`, o
   `six` do Airflow), e um pacote do worker que a função importa primeiro sai do `.zip`; a
   docstring de `package_task.WORKER_PROVIDED` e `docs/index.md` ("O que o worker espera") dizem
-  que, numa task Python, o pacote pré-instalado vence. Fecha com uma task Python que imprima o
-  `sys.path` e o `__file__` de cada pacote que importa.
+  que, numa task Python, o pacote pré-instalado vence. Fecha com o exemplo `demo-python-operator`
+  do repositório rodado no alvo: o `demo_tasks.py` dele imprime o `sys.path` e a origem do
+  `petl`, do `six` e do `yaml` (2026-10-13).
+- **Os exemplos do repositório não rodaram a partir das cópias dele.** As definições de
+  `examples/` são as que rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, com o prefixo
+  `shared/exemplos/<exemplo>/` no lugar da pasta pessoal, e o código e os scripts foram reescritos
+  em português; os dois `.zip` saem do projeto compartilhado com as raízes dos do alvo, mais o
+  `six` no da task Python (`packaging.md`, "The port verified against the original scripts").
+  Não medido: uma execução de cada exemplo a partir dos arquivos do repositório, pelos passos do
+  `README.md` dele. Fecha com essas execuções.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

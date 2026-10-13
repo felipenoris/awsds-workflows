@@ -1,0 +1,27 @@
+# awsds-demo-job: o projeto Python dos exemplos demo-python-operator, demo-bash-operator e
+# demo-devenv-job. Um CSV entra, um resumo em JSON sai. O mesmo código roda no worker do MWAA
+# Serverless (CPython 3.12), a partir do .zip do package-task, e dentro de um job de processamento,
+# com o Python da imagem do job.
+#
+# O código próprio só usa a biblioteca padrão; o boto3 do modo S3 vem do worker. As duas
+# dependências existem para a task mostrar de onde cada pacote é importado: o petl não está no
+# worker e viaja no .zip; o six está no worker (1.17.0) e viaja no .zip numa versão mais antiga.
+
+[project]
+name = "awsds-demo-job"
+version = "0.1.0"
+description = "Um CSV entra, um resumo em JSON sai: o comando que os workflows de exemplo rodam"
+requires-python = ">=3.12"
+dependencies = [
+    "petl==1.7.28",
+    "six==1.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"

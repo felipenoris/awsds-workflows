@@ -40,7 +40,7 @@ do DataZone ou outra falha do SDK também termina sem JSON, com o rastro do Pyth
 
 Uso, num terminal do espaço, com este arquivo copiado para lá:
 
-    python space_values.py > valores.json
+    python space_values.py > space_values.json
 """
 
 from __future__ import annotations

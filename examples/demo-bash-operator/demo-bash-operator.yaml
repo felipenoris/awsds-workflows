@@ -1,0 +1,39 @@
+# {"wait_for_file":{"x":120,"y":200},"run_command":{"x":420,"y":200},"reach_pypi":{"x":720,"y":200},"probe_bash":{"x":120,"y":360}}
+demo-bash-operator:
+  dag_id: demo-bash-operator
+  tasks:
+    wait_for_file:
+      operator: airflow.providers.amazon.aws.sensors.s3.S3KeySensor
+      bucket_key: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/demo-bash-operator/inbox/?*
+      wildcard_match: true
+      poke_interval: 30
+      timeout: 600
+      soft_fail: true
+      retries: 0
+    run_command:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      dependencies: [wait_for_file]
+      bash_command: echo "cwd $(pwd) PYTHONPATH=${PYTHONPATH:-}" && cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --bucket <PROJECTS_BUCKET> --inbox <DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/demo-bash-operator/inbox/ --outbox <DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/demo-bash-operator/outbox/
+      retries: 0
+    reach_pypi:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      dependencies: [run_command]
+      bash_command: reach_pypi.sh
+      retries: 0
+    probe_bash:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: |
+        echo "pasta de trabalho: $(pwd)"
+        echo "PYTHONPATH: ${PYTHONPATH:-ausente}"
+        echo "--- os modos depois da extração"
+        ls -ln /usr/local/airflow/dags
+        echo "--- python3 sem cd"
+        python3 -m awsds_demo_job.s3 --help | head -1
+        python3 -c "import petl; print('petl', petl.__version__, 'de', petl.__file__)"
+        python3 -c "import six; print('six', six.__version__, 'de', six.__file__)"
+        echo "--- o script pelo caminho inteiro, com argumentos"
+        bash /usr/local/airflow/dags/probe.sh um dois
+        echo "--- o script executado direto"
+        /usr/local/airflow/dags/probe.sh tres || echo "direto: saída $?"
+        exit 0
+      retries: 0

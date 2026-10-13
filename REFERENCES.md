@@ -99,8 +99,12 @@ pacote repete.
   token anônimo: <https://public.ecr.aws/token/> e
   <https://public.ecr.aws/v2/sagemaker/sagemaker-distribution/tags/list>
 - A política de suporte das imagens do Studio, com o ritmo da SageMaker Distribution: uma versão
-  maior a cada seis meses e menores mensais (lida em 2026-10-12):
+  maior a cada seis meses e menores mensais (lida em 2026-10-12, e relida em 2026-10-13 sem uma
+  tabela de URIs por região):
   <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-distribution.html>
+- Os caminhos de registro das imagens de algoritmos do SageMaker, por região, que não listam a
+  SageMaker Distribution, cuja conta vem do parâmetro público do SSM (lida em 2026-10-13):
+  <https://docs.aws.amazon.com/sagemaker/latest/dg-ecr-paths/sagemaker-algo-docker-registry-paths.html>
 - Os espaços de código de um domínio IAM do SageMaker Unified Studio, cuja escolha de imagem dá o
   exemplo "SageMaker Distribution 2.11" (lida em 2026-10-12):
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/code-spaces-iam.html>

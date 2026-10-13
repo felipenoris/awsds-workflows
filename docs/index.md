@@ -29,6 +29,7 @@ de cada módulo do pacote está no menu: `awsds_workflows.package_task`,
 |---|---|---|
 | [Os conceitos](#os-conceitos) | todos | os termos desta página e a ordem em que um primeiro workflow os usa |
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota, e o Python que o `uv` usa nela |
+| [Os exemplos](#os-exemplos) | todos | os cinco workflows que rodaram no ambiente alvo, na pasta `examples/` do repositório, com os passos de cada um |
 | [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
@@ -86,7 +87,8 @@ que ainda não foi medido.
 imagem do job; peça à infraestrutura a permissão e a rede; escreva a definição pelas regras de
 autoria; monte o código da task de processamento ou o `.zip` da task Python ou Bash; preencha os
 valores e importe a definição; leia a execução; e, depois de uma mudança feita no portal, compare
-a definição salva com a versionada.
+a definição salva com a versionada. Os exemplos do repositório percorrem esse caminho com arquivos
+prontos ([Os exemplos](#os-exemplos)).
 
 ## Instalação
 
@@ -144,6 +146,27 @@ instalou o pacote no 3.12, sem ler o `.python-version` da pasta em que rodou; se
 com ele, gravaram a pasta e o `.zip`. Com os downloads ligados, o `uv` baixou o CPython 3.13.15, e
 o `package-job` gravou os mesmos arquivos, diferentes só em metadados da instalação (2026-10-12).
 Num espaço de verdade, o pacote ainda não rodou.
+
+## Os exemplos
+
+A pasta [`examples/`](https://github.com/felipenoris/awsds-workflows/tree/main/examples) do
+repositório traz cinco workflows que rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, cada um
+com a definição, o código e um `README.md` com os passos para reproduzi-lo:
+
+| Exemplo | O que ele mostra |
+|---|---|
+| `probe-worker` | o que o worker tem: disco, CPU, memória, ferramentas e pacotes, numa task Bash inline |
+| `demo-python-operator` | uma task Python sobre o `.zip` do `package-task` |
+| `demo-bash-operator` | uma task Bash sobre o mesmo projeto, com dois scripts, e a prova de que o worker não alcança a PyPI |
+| `demo-devenv-job` | um job de processamento na imagem padrão do SageMaker, que no ambiente alvo parou na permissão do projeto |
+| `redshift-unload` | uma task Python que descarrega uma consulta ao Redshift Serverless no S3, com `UNLOAD` |
+
+Os três `demo-*` dividem um projeto `uv`, `examples/awsds-demo-job/`: um CSV entra, um resumo em
+JSON sai. Os valores vêm do `space_values.json` que o script de
+[Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco) escreve, mais um arquivo
+por exemplo que pede valores da imagem ou do Redshift, e o `render` lê os dois, na ordem da linha
+de comando ([Os valores da definição](#os-valores-da-definicao)). Os testes do repositório
+renderizam cada definição com valores fabricados e constroem os dois `.zip`.
 
 ## As peças
 
@@ -576,7 +599,8 @@ dependências não mudou o custo da execução, cerca de 0,03 USD.
 ### Uma definição de exemplo
 
 Três tasks: o sensor, o job e a remoção da origem. Os placeholders são preenchidos pelo `render`
-([Os valores da definição](#os-valores-da-definicao)).
+([Os valores da definição](#os-valores-da-definicao)). O exemplo `demo-devenv-job` do repositório
+é esta definição para um projeto sem chave KMS própria, com os passos ([Os exemplos](#os-exemplos)).
 
 ```yaml
 # {"wait_for_file":{"x":120,"y":200},"run_project":{"x":420,"y":200},"remove_source":{"x":720,"y":200}}
@@ -669,7 +693,8 @@ qualquer task: a política do endpoint de gateway do S3 recusava o bucket da có
 CPython 3.12.14, importou o `petl` do `.zip`, em `/usr/local/airflow/dags`, e o PyYAML 6.0.2 dos
 pacotes dele, e o resultado saiu igual ao do laboratório, com o mesmo sha256. Uma task Bash
 funciona desde o mesmo dia, com um `.zip` do `package-task` que leva também dois scripts de
-`--include` ([Uma task Bash](#uma-task-bash)).
+`--include` ([Uma task Bash](#uma-task-bash)). Os dois estão na pasta de exemplos do repositório,
+com os passos de cada um ([Os exemplos](#os-exemplos)).
 
 ### O que o worker espera
 
@@ -983,10 +1008,13 @@ ele imprime volta para o repositório. Uma definição que o portal salvou faz o
 ([A definição que o portal salvou](#a-definicao-que-o-portal-salvou)).
 
 **Os valores vêm de um arquivo JSON, da conta, ou dos dois.** Quando vêm dos dois, os do arquivo
-completam e substituem os da conta:
+completam e substituem os da conta; `--values-file` se repete, e cada arquivo, na ordem da linha
+de comando, completa e substitui o que veio antes dele:
 
 ```shell
 awsds-workflows render meu-workflow.yaml --values-file valores.json > /tmp/meu-workflow.yaml
+awsds-workflows render meu-job.yaml --values-file space_values.json \
+    --values-file valores-job.json > /tmp/meu-job.yaml
 awsds-workflows render meu-workflow.yaml --profile meu-perfil \
     --subnet-name 'meu-projeto-private-*' --values-file imagem.json > /tmp/meu-workflow.yaml
 awsds-workflows render --placeholders salvo.yaml --values-file valores.json
@@ -1007,7 +1035,7 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   2026-09-23), então lá os valores vêm de um arquivo. Um script do repositório o
   escreve de dentro de um espaço do projeto
   ([Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco)), e o `values` de uma
-  máquina que alcança a conta também; os valores da imagem entram à mão.
+  máquina que alcança a conta também; os valores da imagem entram à mão, num segundo arquivo.
 - **Os valores que dependem da imagem**, `JOB_IMAGE_URI` e `JOB_PYTHON`, vêm do arquivo com a imagem
   padrão. Com uma imagem customizada registrada no SageMaker, `--image-name` lê o `JOB_IMAGE_URI`.
 
@@ -1034,7 +1062,7 @@ do repositório roda num espaço do projeto e imprime o JSON que o `values` impr
 espaço e rode, num terminal de lá, com o Python do espaço:
 
 ```shell
-python space_values.py > valores.json
+python space_values.py > space_values.json
 ```
 
 - **Os valores** vêm do SDK `sagemaker-studio`, que o espaço traz: o `Project()` dá o projeto e o

@@ -269,6 +269,41 @@ brought to it (`environments.md`, "The AWS-DataScience lab").
 "Os conceitos", "As peças", "A rede", "O código de uma task Python ou Bash", "Uma task Bash", "A
 definição que o portal salvou"), `README.md`, `src/awsds_workflows/package_task.py`.
 
+## The examples folder
+
+The user asked on 2026-10-13 (03:30 UTC) for the package to be self-contained in functionality,
+documentation and examples, so that a user of the repository reproduces the five workflows
+exercised in the target (`probe-worker`, `redshift-unload`, `demo-bash-operator`,
+`demo-python-operator`, `demo-devenv-job`): a maintenance that makes the package render them, an
+examples folder with instructions per workflow taking the `space_values.json` of
+`scripts/space_values.py` as the input, copying files from AWS-DataScience's examples where
+needed. The session of that day (branch `claude/awsds-workflows-examples-yn6vxj`) delivered it with
+these choices, which await the user's word:
+
+- **`--values-file` repeats**, each file completing and overriding the account's reading and the
+  files before it, in command-line order. An example that needs values beyond the space's
+  (`JOB_IMAGE_URI` and `JOB_PYTHON`; `REDSHIFT_WORKGROUP`, `REDSHIFT_DATABASE` and
+  `REDSHIFT_TABLE`) takes them from a second file its README shows inline (`valores-job.json`,
+  `valores-redshift.json`); no template values file is versioned.
+- **The file a space writes is `space_values.json`**, the user's name for it; `valores*.json` and
+  `space_values*.json` stay out of git.
+- **Every example keeps its files under `shared/exemplos/<exemplo>/`** of the project's prefix,
+  `~/shared/exemplos/<exemplo>/` in a space, in place of the personal folder the target's runs
+  used; the inbox, the outbox and, for the job, the code folder `awsds-demo-job/` sit under it.
+- **One uv project serves the three `demo-*`**, `examples/awsds-demo-job/`: the lab's project
+  rewritten in pt-BR with `uv_build`, `petl==1.7.28` and `six==1.16.0` as dependencies (the
+  target's Python archive carried only `petl`, its Bash archive both). The job's code input is
+  that folder copied as it is, with `PYTHONPATH=/opt/ml/processing/code/src`, as the target's
+  definition did; the job's own code needs only the standard library.
+- **The definitions are the ones that ran in the target**, with the prefix changed and the
+  target's Redshift names as placeholders (`REDSHIFT_*`), like the account's values.
+- **`demo_tasks.py` also prints `sys.path` and probes `six`**, which the target's run did not: it
+  answers the open question on the Python task's precedence when it runs.
+- **The examples' tests** (`tests/test_examples.py`) render each definition with fabricated
+  values, check the placeholder sets and the prefix, run the Python task and the `UNLOAD` module
+  over doubles (`botocore.stub.Stubber`), and build both archives (`network`); `boto3` joined the
+  `dev` group for them, and pytest's `testpaths` and `pythonpath` reach into `examples/`.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

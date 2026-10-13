@@ -188,3 +188,17 @@ On 2026-10-11, on the project the lab measured (`petl`, `requests`, `boto3`, `py
     `render.py` printed from the old files, with the lab's values read by `--profile` and with
     fake values from a file; `--placeholders` gave each file back, and `values` read the values
     `render.py --values` read.
+- **The examples' archives against the target's, 2026-10-13** (uv 0.11.32 on the build host, the
+  working copy of branch `claude/awsds-workflows-examples-yn6vxj`): `package-task` over
+  `examples/awsds-demo-job` with `examples/demo-python-operator/demo_tasks.py` as the entry module,
+  and again with no entry module and `--include` of `probe.sh` and `reach_pypi.sh`, against
+  `demo-python-operator.zip` and `demo-bash-operator.zip` of the Claude project's library
+  (`alvo/`), the ones the target ran on 2026-10-12. The Bash archive's file list is the target's
+  but for `awsds_demo_job-0.1.0.dist-info/entry_points.txt`, which the lab's hatchling project
+  wrote for its `[project.scripts]` and the rewritten `uv_build` project has not; the Python
+  archive's adds `six.py` and `six-1.16.0.dist-info`, because the target's Python archive came
+  from the project with `petl` alone. The contents differ in the rewritten pt-BR modules of
+  `awsds_demo_job`, in `demo_tasks.py` and `reach_pypi.sh`, and in the project's `dist-info`
+  metadata; `probe.sh`, `petl` and `six` are byte for byte the target's. `python -m
+  awsds_demo_job` over `sample.csv` from the rewritten project wrote the result with the sha256
+  `1b2bc4d7…a248191`, the lab's and the target's.
