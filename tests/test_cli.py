@@ -245,6 +245,25 @@ def test_render_fills_the_file_from_the_values_file(
     assert capsys.readouterr().out == "bucket: <PROJECTS_BUCKET>\n"
 
 
+def test_render_fills_the_file_from_two_values_files(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``render`` com dois ``--values-file`` lê os dois, o segundo por cima do primeiro."""
+    space = tmp_path / "space_values.json"
+    space.write_text(json.dumps({"PROJECTS_BUCKET": "meu-bucket", "JOB_PYTHON": "/primeiro"}))
+    job = tmp_path / "valores-job.json"
+    job.write_text(json.dumps({"JOB_PYTHON": "/opt/conda/bin/python"}), encoding="utf-8")
+    definition = tmp_path / "workflow.yaml"
+    definition.write_text("bucket: <PROJECTS_BUCKET>\npython: <JOB_PYTHON>\n", encoding="utf-8")
+
+    code = cli.main(
+        ["render", str(definition), "--values-file", str(space), "--values-file", str(job)]
+    )
+    assert code == 0
+    assert capsys.readouterr().out == "bucket: meu-bucket\npython: /opt/conda/bin/python\n"
+
+
 def test_render_without_a_value_source_is_refused(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -307,6 +326,49 @@ def test_values_merges_the_file_over_the_account(
     ]
     assert json.loads(capsys.readouterr().out) == {
         "JOB_PYTHON": "/opt/conda/bin/python",
+        "PROJECT_ID": "abc123",
+        "REGION": "sa-east-1",
+    }
+
+
+def test_values_reads_each_file_over_the_previous_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``values`` com dois ``--values-file`` imprime o segundo por cima do primeiro, e os dois por
+    cima da conta."""
+
+    def fake_read_values(
+        profile: str,
+        **options: object,
+    ) -> dict[str, str]:
+        """Devolve valores fabricados da conta."""
+        return {"PROJECT_ID": "abc123", "REGION": "us-west-2", "JOB_PYTHON": "/conta"}
+
+    monkeypatch.setattr(render, "read_values", fake_read_values)
+    space = tmp_path / "space_values.json"
+    space.write_text(json.dumps({"REGION": "sa-east-1", "JOB_PYTHON": "/primeiro"}))
+    job = tmp_path / "valores-job.json"
+    job.write_text(json.dumps({"JOB_PYTHON": "/segundo", "JOB_IMAGE_URI": "imagem"}))
+
+    code = cli.main(
+        [
+            "values",
+            "--profile",
+            "perfil",
+            "--subnet-name",
+            "projeto-private-*",
+            "--values-file",
+            str(space),
+            "--values-file",
+            str(job),
+        ]
+    )
+    assert code == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "JOB_IMAGE_URI": "imagem",
+        "JOB_PYTHON": "/segundo",
         "PROJECT_ID": "abc123",
         "REGION": "sa-east-1",
     }

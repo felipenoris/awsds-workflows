@@ -16,11 +16,12 @@ depois para o ambiente do SageMaker, que não tem internet.
 - ``compare`` imprime as diferenças de conteúdo entre duas definições de workflow, como a cópia
   versionada e a que o portal salvou com os placeholders de volta (``awsds_workflows.compare``).
 
-Os valores de ``render`` e ``values`` vêm de ``--values-file``, de ``--profile`` (a leitura da
-conta, que pede ``--subnet-name``) ou dos dois, e então os do arquivo completam e substituem os da
-conta. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o papel do projeto não tem a
-etiqueta ``KmsKeyId``, e o arquivo também não, o comando avisa na saída de erro e segue. Uma recusa
-imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
+Os valores de ``render`` e ``values`` vêm de ``--values-file``, repetido para vários arquivos, de
+``--profile`` (a leitura da conta, que pede ``--subnet-name``) ou dos dois: cada arquivo, na ordem
+da linha de comando, completa e substitui o que veio antes dele, a leitura da conta e os arquivos
+anteriores. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o papel do projeto não tem
+a etiqueta ``KmsKeyId``, e nenhum arquivo também, o comando avisa na saída de erro e segue. Uma
+recusa imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
 O ``compare`` termina com 0 com ou sem diferenças.
 
 Exemplo:
@@ -34,6 +35,8 @@ Exemplo:
         --environment ambiente.txt --python 3.12
     awsds-workflows job-constraints --environment ambiente.txt --python 3.12
     awsds-workflows render meu-workflow.yaml --values-file valores.json > /tmp/meu-workflow.yaml
+    awsds-workflows render meu-job.yaml --values-file space_values.json \\
+        --values-file valores-job.json > /tmp/meu-job.yaml
     awsds-workflows render --placeholders salvo.yaml --values-file valores.json
     awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*' > valores.json
     awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
@@ -252,8 +255,12 @@ def _add_value_source_arguments(
     """[private] As opções de onde vêm os valores, comuns a ``render`` e ``values``."""
     command.add_argument(
         "--values-file",
+        action="append",
+        default=[],
         type=Path,
-        help="um JSON de nome de placeholder para valor; completa e substitui os da conta",
+        metavar="ARQUIVO",
+        help="um JSON de nome de placeholder para valor; completa e substitui os da conta e os "
+        "dos arquivos anteriores; repita para vários",
     )
     command.add_argument("--profile", help="o perfil do aws com que a conta é lida")
     command.add_argument(
@@ -369,9 +376,9 @@ def _values_from(
     arguments: argparse.Namespace,
 ) -> dict[str, str]:
     """[private] Os valores da conta, quando há ``--profile``, completados e substituídos pelos
-    do arquivo, quando há ``--values-file``, com um aviso na saída de erro quando a leitura da
-    conta termina sem ``PROJECT_KEY_ID``."""
-    if arguments.profile is None and arguments.values_file is None:
+    de cada ``--values-file``, na ordem da linha de comando, com um aviso na saída de erro quando
+    a leitura da conta termina sem ``PROJECT_KEY_ID``."""
+    if arguments.profile is None and not arguments.values_file:
         raise RefusalError("nomeie de onde vêm os valores: --values-file, --profile ou os dois")
 
     values: dict[str, str] = {}
@@ -384,10 +391,11 @@ def _values_from(
             project=arguments.project,
             image_name=arguments.image_name,
         )
-    if arguments.values_file is not None:
-        values.update(render.load_values(arguments.values_file))
+    # Cada arquivo completa e substitui o que veio antes dele.
+    for values_file in arguments.values_file:
+        values.update(render.load_values(values_file))
 
-    # O aviso vem depois do arquivo, que pode dar a chave que o papel não tem.
+    # O aviso vem depois dos arquivos, que podem dar a chave que o papel não tem.
     if arguments.profile is not None and "PROJECT_KEY_ID" not in values:
         print(_NO_KEY_WARNING, file=sys.stderr)
     return values
