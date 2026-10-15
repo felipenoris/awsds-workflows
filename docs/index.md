@@ -31,7 +31,7 @@ roteiro dos exemplos do repositório, comando por comando.
 |---|---|---|
 | [Os conceitos](#os-conceitos) | todos | os termos desta página e a ordem em que um primeiro workflow os usa |
 | [Instalação](#instalacao) | todos | o pacote na máquina que empacota, e o Python que o `uv` usa nela |
-| [Os exemplos](#os-exemplos) | todos | os cinco workflows que rodaram no ambiente alvo, na pasta `examples/` do repositório; os passos de cada um estão na página `awsds_workflows.examples` |
+| [Os exemplos](#os-exemplos) | todos | os workflows de exemplo da pasta `examples/` do repositório, que rodaram no ambiente alvo, e uma aplicação da CLI de CI/CD com um job do Visual ETL; os passos de cada um estão na página `awsds_workflows.examples` |
 | [As peças](#as-pecas) | todos | onde ficam o arquivo de definição do workflow, o código, os logs e as execuções |
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, e o que muda |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
@@ -154,10 +154,10 @@ Num espaço de verdade, o pacote ainda não rodou.
 ## Os exemplos
 
 A pasta [`examples/`](https://github.com/felipenoris/awsds-workflows/tree/main/examples) do
-repositório traz cinco workflows que rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, cada um
-com a definição, o código e um `README.md` que diz o que ele mostra e o que cada execução leu. Os
-passos para reproduzi-los, na ordem em que cada comando roda, estão na página
-`awsds_workflows.examples`:
+repositório traz workflows de exemplo, cada um com a definição, o código e um `README.md` que diz
+o que ele mostra e o que cada execução leu. O `houseprice-etl` ainda não rodou num projeto; os
+outros rodaram no ambiente alvo em 2026-10-12 e 2026-10-13. Os passos para reproduzi-los, na
+ordem em que cada comando roda, estão na página `awsds_workflows.examples`:
 
 | Exemplo | O que ele mostra |
 |---|---|
@@ -166,6 +166,7 @@ passos para reproduzi-los, na ordem em que cada comando roda, estão na página
 | `demo-bash-operator` | uma task Bash sobre o mesmo projeto, com dois scripts, e a prova de que o worker não alcança a PyPI |
 | `demo-devenv-job` | um job de processamento na imagem padrão do SageMaker, sobre o `.tar.gz` da pasta do projeto gravado pelo `prepare-offline`, que no ambiente alvo parou na permissão do projeto |
 | `redshift-unload` | uma task Python que descarrega uma consulta ao Redshift Serverless no S3, com `UNLOAD` |
+| `houseprice-etl` | um job do Visual ETL numa aplicação da CLI de CI/CD do SageMaker Unified Studio: uma task `GlueJobOperator` cria ou atualiza o job do Glue e o executa |
 
 Os três `demo-*` dividem um projeto `uv`, `examples/awsds-demo-job/`: um CSV entra, um resumo em
 JSON sai. Os valores vêm do `space_values.json` que o script de
@@ -174,8 +175,9 @@ JSON sai. Os valores vêm do `space_values.json` que o script de
 bucket, `EXAMPLE_PREFIX`, e os valores que o espaço não dá, por preencher no job e no
 `redshift-unload`; o `render` lê os dois, na ordem da linha de comando
 ([Os valores da definição](#os-valores-da-definicao)). Os testes do repositório renderizam cada
-definição com o arquivo dela e valores fabricados, constroem os dois `.zip` e preparam o `.tar.gz`
-do job.
+definição com o arquivo dela e valores fabricados, constroem os dois `.zip`, preparam o `.tar.gz`
+do job e conferem que o workflow da aplicação do `houseprice-etl`, com as variáveis da CLI, é a
+definição dele.
 
 ## As peças
 

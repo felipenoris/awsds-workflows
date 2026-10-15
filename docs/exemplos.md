@@ -20,6 +20,7 @@ dele.
 | [demo-bash-operator](#demo-bash-operator) | uma task Bash sobre o mesmo `.zip`, com dois scripts, e a prova de que o worker não alcança a PyPI | o `extra_values.json` da pasta, só com o prefixo |
 | [demo-devenv-job](#demo-devenv-job) | um job de processamento na imagem padrão do SageMaker, sobre o `.tar.gz` da pasta do projeto preparada | a permissão do projeto e, no `extra_values.json` da pasta, a conta do registro da imagem |
 | [redshift-unload](#redshift-unload) | uma task Python que descarrega uma consulta ao Redshift Serverless no S3 | os nomes do Redshift no `extra_values.json` da pasta e o acesso do usuário do projeto ao banco |
+| [houseprice-etl](#houseprice-etl) | um job do Visual ETL numa aplicação da CLI de CI/CD: a task cria ou atualiza o job do Glue e o executa | o script e um Parquet no projeto, e o `extra_values.json` da pasta, só com o prefixo |
 
 ## A preparação
 
@@ -71,7 +72,7 @@ dele.
 
 ## Os passos no portal
 
-Os mesmos para os cinco exemplos, na página *Workflows* do projeto; cada exemplo abaixo diz o
+Os mesmos para todos os exemplos, na página *Workflows* do projeto; cada exemplo abaixo diz o
 nome, o `.zip` e a definição dele.
 
 1. **Crie um workflow novo e vazio**, com o nome do exemplo.
@@ -427,8 +428,141 @@ Para testar a função antes, num espaço, copie `redshift_unload.py` para lá e
 docstring dele, com um destino de teste. No ambiente alvo, em 2026-10-13, ela descarregou 101
 linhas em 5,5 s no espaço e no workflow, numa task de 23,4 s.
 
+## houseprice-etl
+
+Uma task `GlueJobOperator` cria o job do Glue `houseprice-etl-<projeto>` com o script do exemplo,
+ou o atualiza se ele já existe, e o executa: o job lê um Parquet de `entrada/` e grava os dados em
+CSV, sem cabeçalho, acrescentando a `saida/`. O workflow não tem task Python nem Bash, e por isso
+não tem `.zip`. O script e o workflow também são o conteúdo de uma aplicação da CLI de CI/CD do
+SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9, que tem os passos dela em
+[A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd). O porquê de cada parâmetro da task
+está no `README.md` do exemplo.
+
+1. **Na máquina que empacota**, a definição e o modelo do job:
+
+   ```shell
+   awsds-workflows render examples/houseprice-etl/houseprice-etl.yaml \
+       --values-file space_values.json \
+       --values-file examples/houseprice-etl/extra_values.json > /tmp/houseprice-etl.yaml
+   awsds-workflows render examples/houseprice-etl/job.json \
+       --values-file space_values.json \
+       --values-file examples/houseprice-etl/extra_values.json > /tmp/houseprice-etl.job.json
+   ```
+
+   O `job.json` é a entrada do `CreateJob` que a task faz, para o passo 6, se a primeira execução
+   não conseguir criar o job.
+
+2. **Leve ao espaço** o `examples/houseprice-etl/aplicacao/jobs/etl_houseprice.py` do clone e,
+   lá, copie-o para o caminho que a definição passa ao job:
+
+   ```shell
+   mkdir -p ~/shared/exemplos/houseprice-etl/jobs
+   cp etl_houseprice.py ~/shared/exemplos/houseprice-etl/jobs/
+   ```
+
+3. **No espaço**, um Parquet em `entrada/house-price.parquet`: o que um fluxo do Visual ETL do
+   projeto lê, ou a amostra da preparação convertida:
+
+   ```shell
+   python -c "import pandas; pandas.read_csv('sample.csv').to_parquet('house-price.parquet')"
+   mkdir -p ~/shared/exemplos/houseprice-etl/entrada
+   cp house-price.parquet ~/shared/exemplos/houseprice-etl/entrada/
+   ```
+
+   O pandas e o pyarrow vêm com a imagem padrão do espaço (inferido); sem eles, o comando para em
+   `ModuleNotFoundError`, e qualquer Parquet serve.
+
+4. **No portal**: workflow `houseprice-etl`, o campo *Operator files zip S3 location* vazio, a
+   definição `/tmp/houseprice-etl.yaml`, salve e execute.
+
+5. **Leia** o log de `run_glue_job`. Na primeira execução,
+   `Checking if job already exists: houseprice-etl-<projeto>`,
+   `Creating job: houseprice-etl-<projeto>`, uma linha
+   `Polling for AWS Glue Job houseprice-etl-<projeto> current run state with status RUNNING` a cada
+   6 s e, no fim, `Exiting Job jr_... Run State: SUCCEEDED` e
+   `AWS Glue Job: houseprice-etl-<projeto> status: SUCCEEDED. Run Id: jr_...`. Execute de novo, sem
+   mudar nada: a segunda execução encontra o job e não tem a linha `Creating job`. Cada execução
+   acrescenta arquivos `part-*.csv`, sem cabeçalho, à saída:
+
+   ```shell
+   ls ~/shared/exemplos/houseprice-etl/saida/
+   head -3 ~/shared/exemplos/houseprice-etl/saida/part-*.csv
+   ```
+
+   Na página *Data processing jobs* do projeto, confira se o job aparece, com as execuções e os
+   logs. A API cria o job sem `JobMode`, que o Glue trata como `SCRIPT`, o tipo *Code* da página
+   (inferido).
+
+6. **Se a primeira execução parar em `AccessDeniedException` no `GetJob`**, leve ao espaço o
+   `/tmp/houseprice-etl.job.json`, crie o job uma vez e execute o workflow de novo:
+
+   ```shell
+   aws glue create-job --cli-input-json file://houseprice-etl.job.json
+   ```
+
+   As outras falhas estão na tabela do `README.md` do exemplo.
+
+### A aplicação pela CLI de CI/CD
+
+A CLI leva a aplicação do stage `dev` do `manifest.yaml` ao stage `test`, dois projetos do mesmo
+domínio. Ela chama o DataZone, o S3 e o MWAA Serverless, e roda na máquina que empacota ou num
+runner de CI, com rede até as APIs da AWS e credenciais do domínio: um espaço do ambiente alvo não
+alcança a PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferido). Esta
+parte ainda não rodou num projeto.
+
+1. **Na máquina que empacota**, uma cópia da aplicação fora do clone, com as sub-redes
+   preenchidas:
+
+   ```shell
+   cp -r examples/houseprice-etl/aplicacao /tmp/houseprice-etl
+   awsds-workflows render examples/houseprice-etl/aplicacao/workflows/houseprice-etl.yaml \
+       --values-file space_values.json > /tmp/houseprice-etl/workflows/houseprice-etl.yaml
+   ```
+
+   O `render` preenche só `<SUBNET_AZ1>` e `<SUBNET_AZ2>`, para as quais a CLI não tem variável;
+   as variáveis dela, como `{proj.id}`, ficam para o `deploy`. Com as sub-redes da conta, a cópia
+   é o começo do repositório da aplicação, que não é este.
+
+2. **Os nomes das conexões.** O manifest e o workflow usam `default.s3_shared` e
+   `default.workflow_serverless`, os nomes que a CLI espera, e o projeto pode ter outros: um job
+   do Visual ETL usa a conexão `project.spark.compatibility`. Leia os do projeto na página dele
+   ou, num espaço, com:
+
+   ```shell
+   aws datazone list-connections --domain-identifier <DOMAIN_ID> \
+       --project-identifier <PROJECT_ID> --query 'items[].[name,type]' --output text
+   ```
+
+   e troque na cópia, no manifest e no workflow, os que forem outros.
+
+3. **Na máquina que empacota**, a CLI, o `bundle` e o `deploy`, na pasta da cópia, com o domínio,
+   a região e os nomes dos dois projetos, que o manifest lê do ambiente:
+
+   ```shell
+   uv tool install aws-smus-cicd-cli==1.0.9
+   cd /tmp/houseprice-etl
+   export DOMAIN_ID=<DOMAIN_ID> DOMAIN_REGION=<REGION>
+   export DEV_PROJECT_NAME=<projeto de dev> TEST_PROJECT_NAME=<projeto de teste>
+   aws-smus-cicd-cli bundle --manifest manifest.yaml --targets dev
+   aws-smus-cicd-cli deploy --manifest manifest.yaml --targets test \
+       --bundle-archive-path artifacts/houseprice-etl.zip
+   ```
+
+   O `bundle` grava `artifacts/houseprice-etl.zip`, com `jobs/etl_houseprice.py` e
+   `workflows/houseprice-etl.yaml` lidos do disco. O `deploy` copia as duas pastas para
+   `shared/exemplos/houseprice-etl/` do projeto de teste, troca as variáveis do workflow pelos
+   valores desse projeto, cria o workflow `houseprice_etl_<projeto de teste>_houseprice_etl` e o
+   executa uma vez, imprimindo os logs: essa execução cria o job. O Parquet do passo 3 tem de
+   estar em `shared/exemplos/houseprice-etl/entrada/` do projeto de teste antes do `deploy`, e uma
+   execução que pare no `GetJob` pede o passo 6 no projeto de teste.
+
+O exemplo ainda não rodou num projeto; o que foi conferido fora da AWS, em 2026-10-14, está no
+`README.md` dele.
+
 ## Limpeza
 
 No portal, apague os workflows; no espaço, `rm -r ~/shared/exemplos/`. O grupo de logs de cada
 workflow e os `.zip` em `dev/operatorFiles/` ficam
-([Limpeza](../awsds_workflows.html#limpeza)).
+([Limpeza](../awsds_workflows.html#limpeza)). O job do `houseprice-etl` se apaga na página
+*Data processing jobs* ou, num espaço, com
+`aws glue delete-job --job-name houseprice-etl-<PROJECT_ID>`.

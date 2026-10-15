@@ -272,6 +272,20 @@ From serialize-db's `.claude/memory/environments.md` and `CLAUDE.md`, read 2026-
   SQLAlchemy 1.4.54, redshift-connector 2.1.8, PyAthena 3.17.1, sagemaker_studio 1.0.27, pip
   23.2.1 and `six` 1.17.0, so the 2026-10-12 Bash task's `six` 1.16.0 came from the `.zip`; no
   pyarrow, duckdb, deltalake, pandas or numpy.
+- **A Visual ETL job, 2026-10-14** (the user, 22:41 UTC, with the three files of
+  `shared/jobs/<job>/` of a flow saved in the target's Visual ETL, a Parquet read from S3, a code
+  node that returns its input and a CSV written to S3): a saved flow is a Glue job. The `.json` the
+  portal sent to Glue on save holds `Command.Name` `glueetl` with the folder's `.py` as
+  `ScriptLocation` and `PythonVersion` `3.9`, though Glue 6.0 runs Python 3.13; `JobMode`
+  `VISUAL`; `GlueVersion` `6.0`, two `G.1X` and `Timeout` 480; the project role; three network
+  connections `datazone-glue-network-connection-subnet-<id>-<project>-dev`, those of the connection
+  `project.spark.compatibility`; a `--conf` of 1,795 characters (the Iceberg catalog over Glue with
+  Lake Formation, the Redshift connector and OpenLineage to DataZone); `--custom-logGroup-prefix`
+  `datazone-<project>-dev`; and the tags `AmazonDataZoneProject` and `AmazonDataZoneUsername`.
+  The `.vetl` is a notebook whose first cell is `%%configure -n project.spark.compatibility` (Glue
+  6.0, ten `G.1X`, 15 min idle), and the `.py` the job runs has the dev project's S3 paths written
+  in it. A workflow ran that job with a `GlueJobOperator` task, and the *Data processing jobs* page
+  ran it too. `examples/houseprice-etl/` comes from it (`decisions.md`, "The examples folder").
 
 What these readings mean for a workflow there is an open question (`OPEN_QUESTIONS.md`, "A rede do
 alvo para um workflow"): the worker's code fetch and its S3, STS, SageMaker and log calls answered
