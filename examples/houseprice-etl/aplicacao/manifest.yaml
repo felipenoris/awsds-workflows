@@ -1,0 +1,48 @@
+applicationName: houseprice-etl
+
+content:
+  storage:
+    - name: jobs
+      include:
+        - "jobs/"
+      exclude:
+        - __pycache__/
+        - "*.pyc"
+    - name: workflows
+      include:
+        - "workflows/"
+  workflows:
+    - workflowName: houseprice-etl
+      connectionName: default.workflow_serverless
+
+stages:
+  dev:
+    stage: DEV
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${DEV_PROJECT_NAME}
+
+  test:
+    stage: TEST
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${TEST_PROJECT_NAME}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: houseprice-etl
+        - type: workflow.run
+          workflowName: houseprice-etl
+          trailLogs: true
+    deployment_configuration:
+      storage:
+        - name: jobs
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/houseprice-etl/jobs
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/houseprice-etl/workflows

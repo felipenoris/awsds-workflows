@@ -6,6 +6,9 @@ está como veio, os caminhos no S3 ficam sob ``<EXAMPLE_PREFIX>/``, que esse arq
 ``boto3``, os dois ``.zip`` saem do projeto compartilhado com as raízes dos que rodaram no
 ambiente alvo em 2026-10-12, e o ``.tar.gz`` do job, gravado por ``prepare_offline``, roda
 extraído noutra pasta, sem ``uv`` no ambiente, com o resumo das execuções medidas (``network``).
+Na aplicação de ``houseprice-etl``, o workflow com as variáveis da CLI de CI/CD é a definição do
+portal, o ``job.json`` é o ``CreateJob`` da task, o manifest copia o script para onde o workflow o
+lê, e o script do job do Glue roda sobre dublês do ``awsglue`` e do ``pyspark``.
 """
 
 from __future__ import annotations
@@ -13,10 +16,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import runpy
 import shutil
 import subprocess
 import sys
+import types
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 
 import boto3
@@ -63,6 +69,18 @@ TO_FILL = {
 RESULT_SHA256 = "1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191"
 # O que fica fora de uma cópia do projeto compartilhado: o que o uv e o pytest gravam.
 GENERATED = shutil.ignore_patterns(".venv", ".python", "__pycache__", ".pytest_cache", "uv.lock")
+# A pasta da aplicação de CI/CD do exemplo houseprice-etl.
+APPLICATION = EXAMPLES / "houseprice-etl" / "aplicacao"
+# Cada variável que a CLI aws-smus-cicd-cli troca no workflow da aplicação, com o que a definição
+# do portal leva no mesmo lugar.
+CLI_VARIABLES = {
+    "{proj.id}": "<PROJECT_ID>",
+    "{proj.iam_role_arn}": "arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>",
+    "{proj.connection.default.s3_shared.s3Uri}": (
+        "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/"
+    ),
+    "{domain.region}": "<REGION>",
+}
 # As raízes do .zip de cada task, as mesmas dos que rodaram no ambiente alvo em 2026-10-12, mais o
 # six, que o projeto compartilhado fixa para a task Python também.
 PROJECT_ROOTS = [
@@ -457,3 +475,212 @@ def test_the_prepared_project_runs_extracted_elsewhere(
     assert first_line.endswith(f" em {python}")
     result = (outbox / "sample.result.json").read_bytes()
     assert hashlib.sha256(result).hexdigest() == RESULT_SHA256
+
+
+def rendered_definition_of(
+    example: str,
+) -> str:
+    """A definição do exemplo preenchida com os valores fabricados do espaço e os do
+    ``extra_values.json`` dele."""
+    definition = EXAMPLES / example / f"{example}.yaml"
+    values = {**SPACE_VALUES, **extra_values_of(definition)}
+    return render.fill_placeholders(definition.read_text(encoding="utf-8"), values)
+
+
+def test_the_application_workflow_is_the_definition_with_the_cli_variables() -> None:
+    """O workflow da aplicação de ``houseprice-etl`` é a definição do portal com as variáveis da
+    CLI de CI/CD no lugar dos valores do projeto: com cada variável trocada pelo placeholder do
+    mesmo valor, os dois preenchem igual. Só as sub-redes, que a CLI não conhece, ficam como
+    placeholders."""
+    text = (APPLICATION / "workflows" / "houseprice-etl.yaml").read_text(encoding="utf-8")
+    assert set(render.PLACEHOLDER.findall(text)) == {"SUBNET_AZ1", "SUBNET_AZ2"}
+
+    for variable, placeholder in CLI_VARIABLES.items():
+        text = text.replace(variable, placeholder)
+    assert re.search(r"\{(env|proj|domain|stage)\.", text) is None
+
+    definition = EXAMPLES / "houseprice-etl" / "houseprice-etl.yaml"
+    from_cli = render.fill_placeholders(text, {**SPACE_VALUES, **extra_values_of(definition)})
+    from_portal = rendered_definition_of("houseprice-etl")
+    assert from_cli.splitlines()[0] == from_portal.splitlines()[0]
+    assert yaml.safe_load(from_cli) == yaml.safe_load(from_portal)
+
+
+def test_the_job_model_is_the_create_job_of_the_definition() -> None:
+    """O ``job.json`` de ``houseprice-etl``, preenchido, é a entrada do ``CreateJob`` que o
+    ``GlueJobOperator`` monta com a task da definição: o nome, a descrição, o papel, uma execução
+    por vez, o script, nenhuma nova tentativa e o ``create_job_kwargs``, o que o
+    ``apache-airflow-providers-amazon`` 9.32.0 do worker enviou a um Glue simulado em
+    2026-10-14."""
+    folder = EXAMPLES / "houseprice-etl"
+    values = {**SPACE_VALUES, **extra_values_of(folder / "houseprice-etl.yaml")}
+    job_text = (folder / "job.json").read_text(encoding="utf-8")
+    job = json.loads(render.fill_placeholders(job_text, values))
+
+    definition = yaml.safe_load(rendered_definition_of("houseprice-etl"))
+    task = definition["houseprice-etl"]["tasks"]["run_glue_job"]
+    expected = {
+        "Name": task["job_name"],
+        "Description": task["job_desc"],
+        "Role": task["iam_role_arn"],
+        "ExecutionProperty": {"MaxConcurrentRuns": 1},
+        "Command": {"Name": "glueetl", "ScriptLocation": task["script_location"]},
+        "MaxRetries": 0,
+        **task["create_job_kwargs"],
+    }
+    assert job == expected
+
+
+def test_the_manifest_deploys_the_script_where_the_workflow_reads_it() -> None:
+    """O ``manifest.yaml`` da aplicação leva as pastas ``jobs/`` e ``workflows/`` dela e nomeia
+    o workflow dela, e o stage de teste copia o script para o caminho que o workflow passa ao job,
+    sob o prefixo do exemplo."""
+    manifest = yaml.safe_load((APPLICATION / "manifest.yaml").read_text(encoding="utf-8"))
+    for item in manifest["content"]["storage"]:
+        for folder in item["include"]:
+            assert (APPLICATION / folder).is_dir(), folder
+
+    workflow_text = (APPLICATION / "workflows" / "houseprice-etl.yaml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    names = [item["workflowName"] for item in manifest["content"]["workflows"]]
+    assert names == list(workflow)
+
+    deployment = manifest["stages"]["test"]["deployment_configuration"]["storage"]
+    directories = {item["name"]: item["targetDirectory"] for item in deployment}
+    script = workflow["houseprice-etl"]["tasks"]["run_glue_job"]["script_location"]
+    shared = "{proj.connection.default.s3_shared.s3Uri}"
+    assert script == f"{shared}{directories['jobs']}/etl_houseprice.py"
+    assert (APPLICATION / "jobs" / "etl_houseprice.py").is_file()
+
+    definition = EXAMPLES / "houseprice-etl" / "houseprice-etl.yaml"
+    prefix = extra_values_of(definition)["EXAMPLE_PREFIX"]
+    for directory in directories.values():
+        assert f"shared/{directory}".startswith(f"{prefix}/"), directory
+
+
+class FakeWriter:
+    """O ``DataFrame.write`` do dublê do Spark: grava cada escolha e o caminho, na ordem."""
+
+    def __init__(self) -> None:
+        self.choices: list[tuple[str, object]] = []
+
+    def format(
+        self,
+        name: str,
+    ) -> FakeWriter:
+        self.choices.append(("format", name))
+        return self
+
+    def option(
+        self,
+        key: str,
+        value: object,
+    ) -> FakeWriter:
+        self.choices.append((key, value))
+        return self
+
+    def mode(
+        self,
+        name: str,
+    ) -> FakeWriter:
+        self.choices.append(("mode", name))
+        return self
+
+    def save(
+        self,
+        path: str,
+    ) -> None:
+        self.choices.append(("save", path))
+
+
+class FakeDataFrame:
+    """O ``DataFrame`` do dublê do Spark: aplica ``transform`` a si mesmo e tem o seu
+    ``write``."""
+
+    def __init__(self) -> None:
+        self.write = FakeWriter()
+
+    def transform(
+        self,
+        function: Callable[[FakeDataFrame], FakeDataFrame],
+    ) -> FakeDataFrame:
+        return function(self)
+
+
+class FakeReader:
+    """O ``SparkSession.read`` do dublê: grava o formato e o caminho e devolve um
+    ``FakeDataFrame``."""
+
+    def __init__(self) -> None:
+        self.choices: list[tuple[str, str]] = []
+        self.frame = FakeDataFrame()
+
+    def format(
+        self,
+        name: str,
+    ) -> FakeReader:
+        self.choices.append(("format", name))
+        return self
+
+    def load(
+        self,
+        path: str,
+    ) -> FakeDataFrame:
+        self.choices.append(("load", path))
+        return self.frame
+
+
+class FakeSparkSession:
+    """O ``SparkSession`` do dublê: ``builder.getOrCreate()`` devolve a própria sessão."""
+
+    def __init__(self) -> None:
+        self.read = FakeReader()
+        self.builder = self
+
+    def getOrCreate(self) -> FakeSparkSession:
+        return self
+
+
+def test_the_glue_script_reads_the_parquet_and_appends_the_csv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """O script do job de ``houseprice-etl`` lê os dois caminhos dos argumentos do job, o Parquet
+    de ``--SOURCE_PATH``, e grava os dados sem mudança em CSV, sem cabeçalho e sem compressão,
+    acrescentando a ``--TARGET_PATH``, sobre dublês do ``awsglue`` e do ``pyspark``. No PySpark
+    4.1.1, o do Glue 6.0, o mesmo script gravou um CSV por execução em 2026-10-14."""
+    session = FakeSparkSession()
+    asked: list[list[str]] = []
+
+    def fake_get_resolved_options(
+        argv: list[str],
+        names: list[str],
+    ) -> dict[str, str]:
+        asked.append(names)
+        return {name: argv[argv.index(f"--{name}") + 1] for name in names}
+
+    glue_utils = types.ModuleType("awsglue.utils")
+    glue_utils.getResolvedOptions = fake_get_resolved_options
+    spark_sql = types.ModuleType("pyspark.sql")
+    spark_sql.DataFrame = FakeDataFrame
+    spark_sql.SparkSession = session
+    monkeypatch.setitem(sys.modules, "awsglue", types.ModuleType("awsglue"))
+    monkeypatch.setitem(sys.modules, "awsglue.utils", glue_utils)
+    monkeypatch.setitem(sys.modules, "pyspark", types.ModuleType("pyspark"))
+    monkeypatch.setitem(sys.modules, "pyspark.sql", spark_sql)
+
+    source = "s3://meu-bucket/entrada/house-price.parquet"
+    target = "s3://meu-bucket/saida/"
+    argv = ["etl_houseprice.py", "--JOB_NAME", "houseprice-etl-abc123"]
+    argv += ["--SOURCE_PATH", source, "--TARGET_PATH", target]
+    monkeypatch.setattr(sys, "argv", argv)
+    runpy.run_path(str(APPLICATION / "jobs" / "etl_houseprice.py"), run_name="__main__")
+
+    assert asked == [["SOURCE_PATH", "TARGET_PATH"]]
+    assert session.read.choices == [("format", "parquet"), ("load", source)]
+    assert session.read.frame.write.choices == [
+        ("format", "csv"),
+        ("header", False),
+        ("compression", "uncompressed"),
+        ("mode", "append"),
+        ("save", target),
+    ]
