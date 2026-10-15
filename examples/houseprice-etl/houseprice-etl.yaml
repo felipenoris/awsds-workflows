@@ -1,0 +1,29 @@
+# {"run_glue_job":{"x":120,"y":200}}
+houseprice-etl:
+  dag_id: houseprice-etl
+  tasks:
+    run_glue_job:
+      operator: airflow.providers.amazon.aws.operators.glue.GlueJobOperator
+      job_name: houseprice-etl-<PROJECT_ID>
+      job_desc: Job da aplicação houseprice-etl, criado e atualizado pelo workflow
+      script_location: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/jobs/etl_houseprice.py
+      iam_role_arn: arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>
+      region_name: <REGION>
+      update_config: true
+      script_args:
+        "--SOURCE_PATH": s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/entrada/house-price.parquet
+        "--TARGET_PATH": s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/saida/
+      create_job_kwargs:
+        GlueVersion: "6.0"
+        WorkerType: G.1X
+        NumberOfWorkers: 2
+        Timeout: 50
+        Connections:
+          Connections:
+            - datazone-glue-network-connection-<SUBNET_AZ1>-<PROJECT_ID>-dev
+            - datazone-glue-network-connection-<SUBNET_AZ2>-<PROJECT_ID>-dev
+        DefaultArguments:
+          "--custom-logGroup-prefix": datazone-<PROJECT_ID>-dev
+        Tags:
+          AmazonDataZoneProject: <PROJECT_ID>
+      retries: 0

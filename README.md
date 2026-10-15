@@ -31,9 +31,10 @@ O `uv tool upgrade awsds-workflows` traz o commit mais novo da `main`.
 
 ## Exemplos
 
-A pasta [`examples/`](examples/README.md) traz cinco workflows que rodaram no ambiente alvo, cada
-um com a definição e o código. Os passos para reproduzi-los, a partir do `space_values.json` que
-`scripts/space_values.py` escreve num espaço do projeto, estão na página
+A pasta [`examples/`](examples/README.md) traz workflows de exemplo, cada um com a definição e o
+código: os que rodaram no ambiente alvo e uma aplicação da CLI de CI/CD com um job do Visual ETL.
+Os passos para reproduzi-los, a partir do `space_values.json` que `scripts/space_values.py` escreve
+num espaço do projeto, estão na página
 [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html)
 da documentação.
 

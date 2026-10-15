@@ -82,8 +82,13 @@ pacote repete.
   `datazone:GetProject`, o `ListConnections`, o `GetEnvironment`, as listagens de ambientes e de
   blueprints, o `iam:GetRole` e os `ec2:Describe*` (lida em 2026-10-11, e relida em 2026-10-12 sem
   nenhuma ação `sagemaker:` e com o `AllowPassRoleOnProjectRoles`, o `iam:PassRole` do próprio papel
-  para o `sagemaker.amazonaws.com`):
+  para o `sagemaker.amazonaws.com`; relida em 2026-10-14 nas ações do Glue: o `CreateJob` só com
+  a etiqueta `AmazonDataZoneProject` do chamador e com chaves `AmazonDataZone*` e
+  `ProjectUserTag*`, a remoção só de etiquetas `ProjectUserTag*`, o `PassConnection` das conexões
+  com a etiqueta do projeto e a leitura de logs só sob o grupo do projeto):
   <https://docs.aws.amazon.com/aws-managed-policy/latest/reference/SageMakerStudioProjectUserRolePolicy.html>
+  e a página dela no guia do administrador:
+  <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/adminguide/security-iam-awsmanpol-SageMakerStudioProjectUserRolePolicy.html>
 - A política gerenciada de aprendizado de máquina do papel do projeto,
   `SageMakerStudioProjectRoleMachineLearningPolicy` v42: o `CreateProcessingJob` e o
   `DescribeProcessingJob` só com a etiqueta `AmazonDataZoneProject` do chamador e o `AddTags` sem
@@ -118,6 +123,48 @@ pacote repete.
 - Os endpoints de interface do DataZone, numa página que não nomeia o serviço nem os nomes DNS
   privados (lida em 2026-10-11):
   <https://docs.aws.amazon.com/datazone/latest/userguide/datazone-vpc.html>
+- Os conceitos do CI/CD do SageMaker Unified Studio: o manifest, fonte única da aplicação, os
+  stages, um projeto cada, o bundle imutável e o deploy que o leva aos stages seguintes (lido em
+  2026-10-14):
+  <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/cicd-key-concepts.html>
+- A CLI de CI/CD `aws-smus-cicd-cli` 1.0.9, lida no código do pacote e do repositório
+  (`3418ae1`, 2026-10-05) em 2026-10-14: os tipos de conteúdo, sem um para o job do Glue, as
+  variáveis `{proj.*}` e `{domain.*}` do workflow, a substituição `${VAR}` do manifest, o nome do
+  workflow implantado e a skill `generate-bundle-manifest`, que leva o script de um job em
+  `content.storage` e o cria com um `GlueJobOperator`:
+  <https://pypi.org/project/aws-smus-cicd-cli/> e
+  <https://github.com/aws/CICD-for-SageMakerUnifiedStudio>
+- Os jobs de processamento de dados e a página *Data processing jobs*, com um job do Visual ETL ou
+  de código (lido em 2026-10-14):
+  <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/smus-creating-jobs.html>
+- Um job do Visual ETL: os nós, o modo de permissão `project.spark.compatibility` e o *Save to
+  project*, sem dizer onde ficam os arquivos nem que o save cria um job do Glue (lido em
+  2026-10-14):
+  <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/getting-started-visual-etl.html>
+- O anúncio dos jobs no SageMaker, de 2025-07-15, com um fluxo do Visual ETL salvo como job
+  (lido em 2026-10-14):
+  <https://aws.amazon.com/blogs/big-data/introducing-jobs-in-amazon-sagemaker>
+- As transformações visuais customizadas do Visual ETL, num artigo de 2026-07-26 (lido em
+  2026-10-14):
+  <https://dev.classmethod.jp/en/articles/20260726-amazon-smus-custom-visual-transform/>
+
+## AWS Glue
+
+- O Glue 6.0, com o Spark 4.1 e o Python 3.13, num anúncio de 2026-08-21 (lido em 2026-10-14):
+  <https://aws.amazon.com/about-aws/whats-new/2026/08/aws-glue-6-0-price-reduction-iceberg-v3/>
+- A migração para o Glue 6.0, em que o `getResolvedOptions` não aceita mais um prefixo do nome
+  do argumento (lido em 2026-10-14):
+  <https://docs.aws.amazon.com/glue/latest/dg/migrating-version-60.html>
+- Os exemplos de política do Glue, cujo exemplo de etiqueta é de um gatilho e não de um job
+  (lido em 2026-10-14):
+  <https://docs.aws.amazon.com/glue/latest/dg/security_iam_id-based-policy-examples.html>
+- A resposta do suporte da AWS de que o editor visual não aceita parâmetros nos nós de origem e de
+  destino do S3 (lida em 2026-10-14):
+  <https://repost.aws/questions/QUb7gn8piCTmqTJPQa-SnOmw/how-to-parameterize-aws-glue-studio-job-s3-source-and-s3-target>
+- O `getResolvedOptions` do `aws-glue-libs`, lido no código em 2026-10-14 e usado nos testes do
+  script do `houseprice-etl` no PySpark 4.1.1:
+  <https://raw.githubusercontent.com/awslabs/aws-glue-libs/master/awsglue/utils.py> e
+  <https://raw.githubusercontent.com/awslabs/aws-glue-libs/master/awsglue/job.py>
 
 ## Apache Airflow
 
@@ -129,7 +176,8 @@ pacote repete.
   <https://pypi.org/pypi/apache-airflow-providers-standard/json>
 - As constraints do Airflow 3.0.6 para o Python 3.12, que fixam o
   `apache-airflow-providers-standard` 1.6.0 (lido em 2026-10-11), o `python-dateutil` 2.9.0.post0
-  e o `six` 1.17.0 (lidos em 2026-10-12):
+  e o `six` 1.17.0 (lidos em 2026-10-12), relidas em 2026-10-14 para instalar o Airflow do worker
+  num ambiente temporário:
   <https://raw.githubusercontent.com/apache/airflow/constraints-3.0.6/constraints-3.12.txt>
 - A dependência do Airflow no `six`, lida na API JSON do PyPI em 2026-10-12: o
   `apache-airflow-core` 3.0.6 pede o `python-dateutil`, e o `python-dateutil` 2.9.0.post0 pede o
@@ -138,6 +186,10 @@ pacote repete.
 - O `SageMakerProcessingOperator` do `apache-airflow-providers-amazon` 9.37.0, lido no código do
   wheel em 2026-10-12: o nome do job é descrito antes da criação, e só uma `ValidationException`
   conta como job ausente: <https://pypi.org/project/apache-airflow-providers-amazon/9.37.0/>
+- O `GlueJobOperator` e o `GlueJobHook` do `apache-airflow-providers-amazon` 9.32.0, o do worker,
+  lidos no código do wheel e rodados contra o `moto` em 2026-10-14: o `update_config`, o
+  `create_job_kwargs`, o `iam_role_arn`, a consulta do estado a cada 6 s e as linhas do log:
+  <https://pypi.org/project/apache-airflow-providers-amazon/9.32.0/>
 
 ## Ferramentas Python
 

@@ -356,6 +356,43 @@ the user's word: the steps live only on the page, and the per-example READMEs ke
 example shows, what its logs say and what the target's runs read, with a link to the page's
 section; `examples/README.md` keeps the table, the shared project, the prefix and the tests.
 
+On 2026-10-14 (23:44 UTC, in the Claude project's thread on a Visual ETL job in an application)
+the user asked to put "todo esse exemplo" in the repository "como uma aplicação de exemplo": the
+target's Visual ETL job packaged as an application of the CI/CD CLI `aws-smus-cicd-cli` 1.0.9,
+which the thread had written for the target in the Claude project's library (`alvo/visual-etl/`,
+with the target's values). At 23:42 UTC, on a decision card, the user had decided that a job an
+application carries is edited in the application's script, in git, and that the Visual ETL flow
+is only a draft whose generated script is copied once. The session of that day (branch
+`claude/project-thread-8oxrm3`) wrote `examples/houseprice-etl/` with these choices, which await
+the user's word:
+
+- **The folder** `examples/houseprice-etl/`, the target workflow's name, holds the definition with
+  the package's placeholders at its root, for the portal through `render`, and the application one
+  level down in `aplicacao/`, so `tests/test_examples.py`, whose `DEFINITIONS` globs
+  `examples/*/*.yaml`, does not take the manifest for a definition.
+- **Two forms of one workflow**: the definition, and `aplicacao/workflows/houseprice-etl.yaml` with
+  the CLI's variables (`{proj.id}`, `{proj.iam_role_arn}`,
+  `{proj.connection.default.s3_shared.s3Uri}`, `{domain.region}`) for the `deploy`; a test maps each
+  variable to the placeholder of the same value and asserts both fill the same.
+- **The subnets** keep their placeholders in the CLI form, since the CLI has no variable for them,
+  and `render` fills them once in a copy outside the repository, the start of the application's own
+  repository. The job gets two network connections,
+  `datazone-glue-network-connection-<SUBNET_AZ1|SUBNET_AZ2>-<PROJECT_ID>-dev`, from the two subnets
+  `space_values.py` prints, where the target's Visual ETL job had three; that the space's
+  `privateSubnets` are the connections' subnets is inferred.
+- **The manifest's region** is `${DOMAIN_REGION}`, the CLI's environment substitution, beside
+  `${DOMAIN_ID}`, `${DEV_PROJECT_NAME}` and `${TEST_PROJECT_NAME}`.
+- **`job.json`** is the task's `CreateJob` input with placeholders, rendered like the definition,
+  to create the job by hand if `glue:GetJob` on a missing job is refused; a test asserts it equal
+  to the operator's input built from the task.
+- **The paths** sit under `EXAMPLE_PREFIX`, `shared/exemplos/houseprice-etl` (`jobs/`, `entrada/`,
+  `saida/`), and the CLI's target directories are `exemplos/houseprice-etl/jobs` and
+  `exemplos/houseprice-etl/workflows` under `default.s3_shared`, in place of the target copy's
+  `shared/houseprice-etl/`.
+- **No data ships with the example**: the steps convert the preparation's `sample.csv` into
+  `entrada/house-price.parquet` with the space's pandas, or take a Parquet the project's Visual ETL
+  flow reads.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

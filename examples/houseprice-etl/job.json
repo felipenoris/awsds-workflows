@@ -1,0 +1,29 @@
+{
+  "Name": "houseprice-etl-<PROJECT_ID>",
+  "Description": "Job da aplica\u00e7\u00e3o houseprice-etl, criado e atualizado pelo workflow",
+  "Role": "arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>",
+  "ExecutionProperty": {
+    "MaxConcurrentRuns": 1
+  },
+  "Command": {
+    "Name": "glueetl",
+    "ScriptLocation": "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/jobs/etl_houseprice.py"
+  },
+  "MaxRetries": 0,
+  "GlueVersion": "6.0",
+  "WorkerType": "G.1X",
+  "NumberOfWorkers": 2,
+  "Timeout": 50,
+  "Connections": {
+    "Connections": [
+      "datazone-glue-network-connection-<SUBNET_AZ1>-<PROJECT_ID>-dev",
+      "datazone-glue-network-connection-<SUBNET_AZ2>-<PROJECT_ID>-dev"
+    ]
+  },
+  "DefaultArguments": {
+    "--custom-logGroup-prefix": "datazone-<PROJECT_ID>-dev"
+  },
+  "Tags": {
+    "AmazonDataZoneProject": "<PROJECT_ID>"
+  }
+}

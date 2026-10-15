@@ -10,8 +10,8 @@ nomeia esse lugar.
   "Design choices of the first session": o arquivo de ambiente do `package-job`, os valores do
   `render` por arquivo, os nomes genéricos dos placeholders, o `--subnet-name` obrigatório com
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
-  `docs/index.md` como runbook; e as da pasta de exemplos, de 2026-10-13 (`decisions.md`, "The
-  examples folder"). Fecha com a resposta do usuário no PR.
+  `docs/index.md` como runbook; e as da pasta de exemplos, de 2026-10-13 e 2026-10-14
+  (`decisions.md`, "The examples folder"). Fecha com a resposta do usuário no PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -81,6 +81,18 @@ nomeia esse lugar.
   execuções medidas; `packaging.md`) e ainda não num job: o `sudo` e o `tar` da imagem padrão no
   volume, o tempo de download de um objeto de 34 MB contra o do prefixo expandido e o custo por
   arquivo de uma entrada de código expandida não foram medidos. Fecha com uma execução no alvo.
+- **O `houseprice-etl` não rodou num projeto.** O exemplo leva um job do Visual ETL numa
+  aplicação da CLI de CI/CD `aws-smus-cicd-cli` 1.0.9 (`decisions.md`, "The examples folder");
+  fora da AWS, em 2026-10-14, o script rodou no PySpark 4.1.1, a task contra o Glue do `moto` e
+  o `bundle` da CLI sobre a pasta da aplicação (o `README.md` do exemplo, "Conferência"). Não
+  medidos: se o `glue:GetJob` sobre um job que ainda não existe passa pela política do papel do
+  projeto, que só o autoriza sobre jobs com a etiqueta do projeto; se o job que o workflow cria
+  aparece em *Data processing jobs*, com as execuções e os logs; onde ficam os logs com o
+  `--custom-logGroup-prefix` e se o projeto os lê; se as sub-redes do espaço são as das conexões
+  de rede do job; os nomes das conexões do projeto, que a CLI espera `default.s3_shared` e
+  `default.workflow_serverless`; e o `bundle` e o `deploy` contra um domínio, de uma máquina com
+  rede até a API do MWAA Serverless. Fecha com a primeira execução do exemplo no alvo e um
+  `deploy` da aplicação.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver
