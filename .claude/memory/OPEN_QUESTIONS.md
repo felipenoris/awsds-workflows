@@ -11,8 +11,10 @@ nomeia esse lugar.
   `render` por arquivo, os nomes genéricos dos placeholders, o `--subnet-name` obrigatório com
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
   `docs/index.md` como runbook; as da pasta de exemplos, de 2026-10-13 e 2026-10-14
-  (`decisions.md`, "The examples folder"), e as dos exemplos como aplicações, de 2026-10-16
-  (`decisions.md`, "The examples as applications"). Fecha com a resposta do usuário no PR.
+  (`decisions.md`, "The examples folder"), as dos exemplos como aplicações, de 2026-10-16
+  (`decisions.md`, "The examples as applications"), e as três do `lint` não levadas ao usuário,
+  que confirmou as cinco do PR #21 em 2026-10-16 (`decisions.md`, "The lint of an application").
+  Fecha com a resposta do usuário no PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -97,11 +99,11 @@ nomeia esse lugar.
   de rede do job são as que `space_values.py` imprime, que o laboratório preencheu à mão nas
   variáveis de stage. O usuário escolheu como o job nasce num projeto em que não existe (2026-10-16
   05:50 UTC; `decisions.md`, "The examples as applications"): um `glue:GetJob` sobre os jobs sem
-  etiqueta de projeto, escrito no Terraform do laboratório (AWS-DataScience PR #143) e no do alvo,
-  sem aplicar. Não medidos: o `GetJob` respondendo `EntityNotFoundException` sobre o nome livre, e
-  se o `CreateJob` com a etiqueta passa sem mais nada; até lá, os passos criam o job uma vez com o
-  `job.json`. Fecha com a aplicação do grant e uma execução que crie o job, e com as outras
-  execuções.
+  etiqueta de projeto, aplicado no laboratório no mesmo dia e medido por uma execução que criou o
+  job pelo operador (`cicd-cli.md`, "The Glue job in the lab"); no alvo, o statement está no
+  pedido de mudança, sem aplicar, e os passos mantêm o `job.json` para um projeto sem o grant.
+  Inferido, não medido: uma execução pelo portal de uma definição que referencia um parâmetro que
+  ela não declara falha no render como pela CLI. Fecha com as outras execuções.
 - **O `lint` no modo promovido e a tradução por conta.** O `lint` entrou no pacote (`lint.py`, o
   subcomando `lint`; `decisions.md`, "The lint of an application") com os dois modos, e o modo
   promovido não rodou numa esteira sobre uma cópia renderizada por conta: a tradução de um

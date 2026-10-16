@@ -45,7 +45,10 @@ A política gerenciada do papel do projeto, `SageMakerStudioProjectUserRolePolic
 `AmazonDataZone*` e `ProjectUserTag*`: o job leva a tag. O `glue:GetJob`, o `UpdateJob` e o
 `StartJobRun` ela autoriza só sobre um job com a tag do projeto, e um job que ainda não existe não
 tem tag: a primeira execução num projeto para no `GetJob` com `AccessDenied`, medido no
-laboratório em 2026-10-16, e o job se cria uma vez com o `job.json` antes dela ("Falhas"). As
+laboratório em 2026-10-16. Com um `glue:GetJob` a mais no papel do projeto, sobre os jobs sem a
+tag cujo nome termina no id do projeto, o `GetJob` responde `EntityNotFoundException`, o
+`CreateJob` com a tag passa e o operador cria o job, medido no laboratório no mesmo dia; sem esse
+grant, o job se cria uma vez com o `job.json` antes da primeira execução ("Falhas"). As
 conexões de rede são as do projeto, `datazone-glue-network-connection-<sub-rede>-<projeto>-dev`,
 que o workflow monta com as variáveis de stage `SUBNET_AZ1` e `SUBNET_AZ2`; o job do editor do
 ambiente alvo tinha três, uma por sub-rede, e que as do espaço sejam as mesmas é inferido. O
@@ -92,19 +95,20 @@ criou se lê no portal e se edita no git: a CLI o reimplanta.
 | `manifest.yaml` | o manifest da aplicação: as duas pastas, o workflow e os stages `dev` e `test` |
 | `workflows/houseprice-etl.yaml` | o workflow, na notação da CLI; o `render` o traduz para importar no portal |
 | `glue/etl_houseprice.py` | o script do job |
-| `job.json` | a entrada do `CreateJob` que a task faz, na notação da CLI, para criar o job uma vez antes da primeira execução |
+| `job.json` | a entrada do `CreateJob` que a task faz, na notação da CLI, para criar o job uma vez antes da primeira execução, onde o papel do projeto não tem o `glue:GetJob` sobre jobs sem tag |
 
 ## Os passos
 
 Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#houseprice-etl):
-um Parquet em `entrada/` de cada projeto, o job criado com o `job.json`, o `deploy` e o `run` no
-projeto de dev, o `bundle` e o `deploy` no de teste, e a leitura das execuções.
+um Parquet em `entrada/` de cada projeto, o job criado com o `job.json` onde o papel não tem o
+grant, o `deploy` e o `run` no projeto de dev, o `bundle` e o `deploy` no de teste, e a leitura
+das execuções.
 
 ## Falhas
 
 | A task diz | O que fazer |
 |---|---|
-| `AccessDeniedException` em `GetJob`, na primeira execução num projeto | a política do papel do projeto só autoriza `glue:GetJob` sobre jobs com a tag do projeto, e um job que ainda não existe não tem tag (laboratório, 2026-10-16): crie o job uma vez com o `job.json`, como diz a [página dos passos](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#houseprice-etl), e rode o workflow de novo |
+| `AccessDeniedException` em `GetJob`, na primeira execução num projeto | a política do papel do projeto só autoriza `glue:GetJob` sobre jobs com a tag do projeto, e um job que ainda não existe não tem tag (laboratório, 2026-10-16): crie o job uma vez com o `job.json`, como diz a [página dos passos](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#houseprice-etl), e rode o workflow de novo; ou dê ao papel o `glue:GetJob` sobre os jobs sem tag cujo nome termina no id do projeto, com que o operador cria o job (laboratório, 2026-10-16) |
 | `AccessDeniedException` em `CreateJob` | a política exige a tag `AmazonDataZoneProject` com o id do projeto e só aceita etiquetas `AmazonDataZone*` e `ProjectUserTag*`: confira `Tags` |
 | `iam:PassRole` não autorizado | `iam_role_arn` precisa ser o papel do projeto |
 | um erro sobre uma conexão, no `CreateJob` ou na execução do job | um nome de `Connections` não existe no projeto: copie os de um job do Visual ETL do projeto, com `aws glue get-job --job-name <job do Visual ETL> --query Job.Connections` |
@@ -153,6 +157,14 @@ No laboratório, entre dois projetos de uma conta, pela CLI 1.0.9 de um laptop:
   saiu com os nomes das conexões preenchidos. Um `update_config` vindo de uma variável de stage
   não muda nada: o operador chamou `UpdateJob` com `"false"` e com a variável vazia, porque o
   campo não passa pelo template e um texto vale como verdadeiro; o `true` literal fica.
+- **2026-10-16, com o grant do `GetJob`.** Com o papel do projeto de dev autorizado a ler os jobs
+  sem tag cujo nome termina no id do projeto e o job apagado, a execução terminou `SUCCESS` em
+  139 s: `GetJob` `EntityNotFoundException`, `CreateJob` e `StartJobRun` autorizados, o job criado
+  pelo operador com a tag do projeto, as conexões preenchidas e o `PythonVersion: "3"` posto pelo
+  serviço; o log diz `Checking if job already exists` e `Creating job`. Antes dela, uma execução
+  do workflow de dev numa forma experimental, `update_config: "{{ params.GLUE_UPDATE_CONFIG }}"`,
+  a partir do manifest do exemplo, que não declara a variável, falhou no render, antes de qualquer
+  task: `DAG template rendering failed: 'dict object' has no attribute 'GLUE_UPDATE_CONFIG'`.
 - **2026-10-16, o stage `test`.** O `bundle --targets test` gravou o `.zip` com o workflow igual
   ao do git, as variáveis por preencher, e o `deploy --targets test --bundle-archive-path <zip>`
   criou o workflow no projeto de teste, com o papel e a rede dele, e o executou. Com `wait: true`
