@@ -1,0 +1,67 @@
+applicationName: demo-devenv-job
+
+content:
+  storage:
+    - name: src
+      include:
+        - "src/*.tar.gz"
+    - name: workflows
+      include:
+        - "workflows/"
+  workflows:
+    - workflowName: demo-devenv-job
+      connectionName: default.workflow_serverless
+
+stages:
+  dev:
+    stage: DEV
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${DEV_PROJECT_NAME}
+    environment_variables:
+      SUBNET_AZ1: ${SUBNET_AZ1}
+      SUBNET_AZ2: ${SUBNET_AZ2}
+      PROJECT_SG: ${PROJECT_SG}
+      JOB_IMAGE_URI: ${JOB_IMAGE_URI}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: demo-devenv-job
+    deployment_configuration:
+      storage:
+        - name: src
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-devenv-job/src
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-devenv-job/workflows
+
+  test:
+    stage: TEST
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${TEST_PROJECT_NAME}
+    environment_variables:
+      SUBNET_AZ1: ${SUBNET_AZ1}
+      SUBNET_AZ2: ${SUBNET_AZ2}
+      PROJECT_SG: ${PROJECT_SG}
+      JOB_IMAGE_URI: ${JOB_IMAGE_URI}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: demo-devenv-job
+        - type: workflow.run
+          workflowName: demo-devenv-job
+          trailLogs: true
+    deployment_configuration:
+      storage:
+        - name: src
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-devenv-job/src
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-devenv-job/workflows

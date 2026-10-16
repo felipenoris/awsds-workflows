@@ -6,7 +6,7 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
 
 | Ambiente | O que é | O que rodou lá |
 |---|---|---|
-| o laboratório | uma conta de testes em `us-west-2`, com uma imagem customizada, `awsds-sandbox-dev-env` | os passos do guia, nas datas de cada seção abaixo |
+| o laboratório | uma conta de testes em `us-west-2`, com uma imagem customizada, `awsds-sandbox-dev-env` | os passos do guia, nas datas de cada seção abaixo, e o `houseprice-etl` pela CLI de CI/CD, de um laptop, em 2026-10-15 e 2026-10-16 |
 | o ambiente alvo | o SageMaker Unified Studio em que os workflows vão rodar | os exemplos, em 2026-10-12 e 2026-10-13, e leituras feitas de um espaço desde 2026-09-21 |
 | a máquina que empacota | o Linux com internet em que o pacote roda | o `.tar.gz` do `prepare-offline`, extraído e rodado noutra pasta, em 2026-10-13 |
 
@@ -29,8 +29,12 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
   `append_env` ([Uma task Bash](#uma-task-bash));
 - numa task Python do worker, de onde vem o `six` e o que o `sys.path` mostra
   ([demo-python-operator](#demo-python-operator));
-- o workflow do `houseprice-etl` num projeto, e o `GetJob` da primeira execução
-  ([houseprice-etl](#houseprice-etl)).
+- os cinco exemplos além do `houseprice-etl` pela CLI de CI/CD, e com eles o `.zip` de uma task
+  Python ou Bash passado pela CLI e uma variável de stage lida no `config` de um job e nos
+  `op_kwargs` de uma task Python
+  ([A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd));
+- uma execução do `houseprice-etl` sem `UpdateJob`, com o `Command` inteiro na definição, e o
+  caminho do portal com o workflow traduzido pelo `render` ([houseprice-etl](#houseprice-etl)).
 
 ## Instalação
 
@@ -343,9 +347,11 @@ No guia: [Como ler uma execução](../awsds_workflows.html#como-ler-uma-execucao
 No guia: [Os exemplos](../awsds_workflows.html#os-exemplos); os passos estão em
 [Os exemplos, passo a passo](examples.html).
 
-O `houseprice-etl` ainda não rodou num projeto. Os outros rodaram no ambiente alvo em 2026-10-12 e
-2026-10-13, e o `demo-devenv-job` parou lá na permissão do projeto. O `README.md` de cada exemplo
-traz as leituras inteiras de cada execução.
+O `houseprice-etl` rodou no laboratório pela CLI de CI/CD, nos stages `dev` e `test`, em
+2026-10-15 e 2026-10-16. Os outros rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, pelo
+portal, antes de virarem aplicações, e o `demo-devenv-job` parou lá na permissão do projeto;
+nenhum dos cinco rodou pela CLI ainda. O `README.md` de cada exemplo traz as leituras inteiras de
+cada execução.
 
 ### A preparação
 
@@ -353,6 +359,46 @@ Nos passos: [A preparação](examples.html#a-preparacao).
 
 - **Ambiente alvo, 2026-10-12.** A pasta `~/shared/` de um espaço é o prefixo `shared/` do projeto
   no bucket, então um `cp` para lá é um envio ao S3.
+- **Laboratório, 2026-10-15.** A CLI de CI/CD, pelo `boto3`, não leu o cache em que o `aws` guarda
+  a credencial de um perfil SSO: com o token SSO vencido, o `aws` ainda respondia, e a CLI parou
+  em `Token has expired and refresh failed`; a credencial exportada do perfil com
+  `aws configure export-credentials --format env` resolveu.
+
+### A aplicação pela CLI de CI/CD
+
+Nos passos: [A aplicação pela CLI de CI/CD](examples.html#a-aplicacao-pela-cli-de-cicd). Tudo
+medido com o `houseprice-etl`, entre dois projetos de uma conta, pela CLI 1.0.9 de um laptop.
+
+- **Laboratório, 2026-10-15.** O `deploy --targets dev --skip-validation --no-events` copiou os
+  dois arquivos para `shared/exemplos/houseprice-etl/` do projeto de dev e criou o workflow,
+  `READY` e só manual, com o papel, a rede e a chave do projeto, como um workflow feito no
+  portal; a definição gravada no S3 é a resolvida. Sem `--skip-validation`, o `deploy` abortou na
+  validação prévia, exit 1, sem escrever nada: a simulação do IAM sem as chaves de contexto das
+  chamadas reais leu como negadas permissões que as chamadas reais têm. Sem `--no-events`, o
+  `deploy` para no evento do fim, que não tem quem o trate na 1.0.9.
+- **Laboratório, 2026-10-15.** No portal, o workflow da CLI apareceu na lista, só manual, com a
+  definição só para leitura.
+- **Laboratório, 2026-10-16.** O `run` passou as variáveis de stage como parâmetros da execução,
+  o `OverrideParameters` do `get-workflow-run`; a definição gravada tem `{{ params.SUBNET_AZ1 }}`,
+  e o operador do Glue escreveu os valores nos nomes das conexões do job. Uma `{env.NOME}` fora
+  do `environment_variables` do stage derrubou o `workflow.create` com
+  `Failed to resolve variables`.
+- **Laboratório, 2026-10-16.** O `bundle --targets test` gravou `artifacts/houseprice-etl.zip`,
+  1.648 bytes, com o script e o workflow iguais aos do git, as variáveis por resolver, sem o
+  manifest. O `deploy --targets test --bundle-archive-path` leu as duas pastas do disco, ao lado
+  do manifest, criou o workflow no projeto de teste, com o papel e a rede dele, e o executou.
+  Com `wait: true` no `workflow.run`, a CLI caiu com um `TypeError` logo depois de iniciar a
+  execução, que terminou `SUCCESS`; com `trailLogs: true`, a execução terminou `SUCCESS` em 149 s
+  e a CLI voltou 0 depois de 5,5 min, sem transmitir uma linha de log. A saída 1 com uma
+  execução em falha foi lida no código, não medida.
+- **Laboratório, 2026-10-16.** Cada `deploy` gastou uma versão do workflow, com a definição
+  mudada ou não: duas versões para dois `deploy` no projeto de teste, três para três no de dev.
+- **Laboratório, 2026-10-16.** O `monitor` mostrou uma execução terminada como `INITIALIZING`,
+  com `Start Time: N/A`, e o `logs`, com o ARN do workflow, respondeu `No log events found` com
+  40 eventos no stream da execução: o `get-workflow-run` e o `get-log-events` são as leituras.
+- **Ainda não medido**: os outros cinco exemplos pela CLI; com eles, o `.zip` de uma task Python
+  ou Bash passado pela CLI como `Code`, e uma variável de stage lida no `config` de um job de
+  processamento e nos `op_kwargs` de uma task Python, que o código do Airflow renderiza.
 
 ### probe-worker
 
@@ -413,6 +459,23 @@ Nos passos: [houseprice-etl](examples.html#houseprice-etl).
   6.0; a task rodou contra o Glue e o STS do `moto`; e o manifest passou na validação da CLI de
   CI/CD 1.0.9 e no `bundle`. As versões e as chamadas de cada execução estão no `README.md` do
   exemplo.
-- **Ainda não medido**: o workflow do exemplo ainda não executou num projeto, nem importado no
-  portal nem pelo `deploy` da aplicação no stage `test`. A primeira execução responde se o
-  `GetJob` sobre um job que não existe passa pela política do papel do projeto.
+- **Laboratório, 2026-10-15 e 2026-10-16.** O `deploy`, o `run`, o `bundle` e o `deploy` no
+  stage `test` estão em [A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd).
+- **Laboratório, 2026-10-16.** A primeira execução no projeto de dev parou no `GetJob`,
+  `AccessDenied` para o papel do projeto, sem tentar o `CreateJob`: a política gerenciada do
+  papel, `SageMakerStudioProjectUserRolePolicy`, autoriza `glue:GetJob`, `UpdateJob`,
+  `StartJobRun` e `GetJobRun` só sobre um job com a etiqueta `AmazonDataZoneProject` do projeto,
+  e um job que não existe não tem etiqueta. Com o job criado uma vez com o `job.json`, a segunda
+  e as seguintes terminaram `SUCCESS`: o job do Glue em 86 s na segunda, o CSV igual à entrada,
+  e um CSV a mais em `saida/` a cada execução.
+- **Laboratório, 2026-10-16.** O operador chamou `UpdateJob` em toda execução, com a definição
+  sem mudança, porque o `GetJob` devolve o `Command` com `PythonVersion: "3"` e o `Command` que o
+  operador monta não o tem; a definição do exemplo leva o `Command` inteiro desde então. Um
+  `update_config` vindo de uma variável de stage não mudou nada: o operador chamou `UpdateJob`
+  com `"false"` e com a variável vazia, porque o campo não passa pelo template e um texto vale
+  como verdadeiro.
+- **Laboratório, 2026-10-16.** No projeto de teste, com o job criado uma vez da mesma forma, a
+  execução do `deploy` terminou `SUCCESS`, o job do Glue em 124 s e 545 linhas em `saida/`, as
+  da entrada do laboratório; a execução repetida com `trailLogs` terminou em 149 s.
+- **Ainda não medido**: uma execução sem `UpdateJob`, com o `Command` inteiro; o workflow
+  importado no portal a partir do `render` do YAML da CLI.

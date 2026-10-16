@@ -1,0 +1,66 @@
+applicationName: redshift-unload
+
+content:
+  storage:
+    - name: code
+      include:
+        - "code/*.zip"
+    - name: workflows
+      include:
+        - "workflows/"
+  workflows:
+    - workflowName: redshift-unload
+      connectionName: default.workflow_serverless
+      code: code/redshift-unload.zip
+
+stages:
+  dev:
+    stage: DEV
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${DEV_PROJECT_NAME}
+    environment_variables:
+      REDSHIFT_WORKGROUP: ${REDSHIFT_WORKGROUP}
+      REDSHIFT_DATABASE: ${REDSHIFT_DATABASE}
+      REDSHIFT_TABLE: ${REDSHIFT_TABLE}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: redshift-unload
+    deployment_configuration:
+      storage:
+        - name: code
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/redshift-unload/code
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/redshift-unload/workflows
+
+  test:
+    stage: TEST
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${TEST_PROJECT_NAME}
+    environment_variables:
+      REDSHIFT_WORKGROUP: ${REDSHIFT_WORKGROUP}
+      REDSHIFT_DATABASE: ${REDSHIFT_DATABASE}
+      REDSHIFT_TABLE: ${REDSHIFT_TABLE}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: redshift-unload
+        - type: workflow.run
+          workflowName: redshift-unload
+          trailLogs: true
+    deployment_configuration:
+      storage:
+        - name: code
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/redshift-unload/code
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/redshift-unload/workflows

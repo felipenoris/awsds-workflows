@@ -1,0 +1,48 @@
+applicationName: probe-worker
+
+content:
+  storage:
+    - name: workflows
+      include:
+        - "workflows/"
+  workflows:
+    - workflowName: probe-worker
+      connectionName: default.workflow_serverless
+
+stages:
+  dev:
+    stage: DEV
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${DEV_PROJECT_NAME}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: probe-worker
+    deployment_configuration:
+      storage:
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/probe-worker/workflows
+
+  test:
+    stage: TEST
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${TEST_PROJECT_NAME}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: probe-worker
+        - type: workflow.run
+          workflowName: probe-worker
+          trailLogs: true
+    deployment_configuration:
+      storage:
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/probe-worker/workflows

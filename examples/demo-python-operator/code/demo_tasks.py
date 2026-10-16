@@ -1,5 +1,5 @@
-"""A task Python de ``demo-python-operator``: ``demo_tasks.run``, com ``bucket``, ``inbox`` e
-``outbox`` como ``op_kwargs``.
+"""A task Python de ``demo-python-operator``: ``demo_tasks.run``, com ``inbox`` e ``outbox`` como
+``op_kwargs``, os dois URIs ``s3://`` que a definição monta com a conexão do projeto.
 
 Antes de entregar o trabalho ao modo S3 do projeto, a função imprime com o que o worker a roda: o
 interpretador, o ``sys.path``, a credencial e de onde cada pacote sondado foi importado, que é como
@@ -35,16 +35,15 @@ def print_environment() -> None:
 
 
 def run(
-    bucket: str,
     inbox: str,
     outbox: str,
     **context,
 ) -> int:
     """Resume cada objeto sob ``inbox`` em ``outbox`` e devolve quantos foram processados.
 
-    :param bucket: o bucket do projeto.
-    :param inbox: o prefixo em que os arquivos chegam.
-    :param outbox: o prefixo em que os resumos ficam, numa pasta por execução.
+    :param inbox: o URI ``s3://`` da caixa de entrada, em que os arquivos chegam.
+    :param outbox: o URI ``s3://`` da caixa de saída, em que os resumos ficam, numa pasta por
+        execução.
     :param context: o contexto que o Airflow passa à task; a função não o usa.
     :return: o número de objetos processados.
     :raises RuntimeError: quando não há nada sob a entrada, porque a execução começa depois que
@@ -54,7 +53,7 @@ def run(
 
     from awsds_demo_job import s3
 
-    processed = s3.run(bucket, inbox, outbox)
+    processed = s3.run(inbox, outbox)
     if not processed:
-        raise RuntimeError(f"nada sob s3://{bucket}/{inbox}, e o sensor viu um arquivo")
+        raise RuntimeError(f"nada sob {inbox}, e o sensor viu um arquivo")
     return processed

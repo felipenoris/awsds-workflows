@@ -1,5 +1,4 @@
 {
-  "EXAMPLE_PREFIX": "shared/exemplos/demo-devenv-job",
   "SMD_REGISTRY_ACCOUNT": "<SMD_REGISTRY_ACCOUNT>",
   "JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu"
 }

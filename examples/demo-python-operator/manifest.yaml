@@ -1,0 +1,58 @@
+applicationName: demo-python-operator
+
+content:
+  storage:
+    - name: code
+      include:
+        - "code/*.zip"
+    - name: workflows
+      include:
+        - "workflows/"
+  workflows:
+    - workflowName: demo-python-operator
+      connectionName: default.workflow_serverless
+      code: code/demo-python-operator.zip
+
+stages:
+  dev:
+    stage: DEV
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${DEV_PROJECT_NAME}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: demo-python-operator
+    deployment_configuration:
+      storage:
+        - name: code
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-python-operator/code
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-python-operator/workflows
+
+  test:
+    stage: TEST
+    domain:
+      id: ${DOMAIN_ID}
+      region: ${DOMAIN_REGION}
+    project:
+      name: ${TEST_PROJECT_NAME}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: demo-python-operator
+        - type: workflow.run
+          workflowName: demo-python-operator
+          trailLogs: true
+    deployment_configuration:
+      storage:
+        - name: code
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-python-operator/code
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/demo-python-operator/workflows

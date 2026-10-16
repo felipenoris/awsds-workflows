@@ -409,6 +409,93 @@ the user's word:
   `entrada/house-price.parquet` with the space's pandas, or take a Parquet the project's Visual ETL
   flow reads.
 
+## The examples as applications
+
+AWS-DataScience's D41 (the user's decisions of 2026-10-15, 04:40, 05:29 and 05:45 UTC, in its PR
+#137, amended by its PR #138 of 2026-10-16) made the SageMaker application, a folder with the
+manifest the CI/CD CLI `aws-smus-cicd-cli` reads, the unit that moves between projects and accounts:
+in dev and test the CLI deploys it, and the pipeline deploys its bundle beyond. What it fixed for
+this package: one YAML per example, in the CLI's notation, with `render` learning the CLI's
+variables; a processing job's code as the job's input under `src/`, the image carrying only the
+lock; the application's Glue job created or updated by the operator in dev and test and owned by the
+application's slice in Staging and Production (item 9); `{env.VAR}` for a value no project holds
+(item 1, amended); the order of the work (item 6): the lab's measurements first, then this reform,
+then AWS-DataScience's `examples/app-etl/`; Stage 10's decision 6, that the copy for another account
+is a translation of the CLI's variables into that account's literals, out of this reform; Stage 10's
+decision 13, no `schedule` in a promoted workflow; Stage 8's decision 9, that the `lint` lives in
+this package. The CLI was measured with `houseprice-etl` between two Sandbox projects, from the
+user's laptop, on 2026-10-15 and 2026-10-16 (`cicd-cli.md`).
+
+On those measurements the user decided, on cards: `update_config` stays the literal `true`, with
+`create_job_kwargs`, in dev and test, and the promoted copy drops both (2026-10-16 03:24 UTC, option
+B, after a stage variable in that field was measured to change nothing); how the job is born in a
+project where it does not exist is still open (the card of 02:14 UTC: created once from `job.json`,
+a `glue:GetJob` grant on untagged jobs, or a Python task that creates it; `OPEN_QUESTIONS.md`).
+
+The session of 2026-10-16 (branch `claude/smus-applications-rw30u1`, PR #20) wrote the plan in the
+Claude project's library (`discussoes/plano-reforma-exemplos.md`) and asked three questions, which
+the user answered at 04:20 UTC, "Perguntas 1, 2, e 3: faça conforme sua recomendação":
+
+- **One application per example**, each folder with its own manifest, which reads and deploys alone,
+  like `app-etl`; not one application with six workflows.
+- **The prefix is the literal `exemplos/<exemplo>`** after the `s3Uri` of the connection
+  `default.s3_shared`, the project's `shared/` folder; `EXAMPLE_PREFIX` left, since the CLI gives
+  `shared/` and a variable prefix would need a stage variable per example.
+- **The `lint` comes in a following PR**, before `app-etl`, with the rules (a) to (h) of Stage 8's
+  step 5.6, the manifest's and Stage 10's Glue rule; this PR keeps the examples' form.
+
+The session's choices, awaiting the user's word, which replace those of "The examples folder" where
+the two meet:
+
+- **The folder is the application**: `manifest.yaml` at the root, the workflow in
+  `workflows/<exemplo>.yaml` in the CLI's notation, the tasks' sources in `code/`, the job's code
+  input in `src/`, the Glue script in `glue/` (the names of AWS-DataScience's plan after its PR
+  #138; `glue/` for the `jobs/` of 2026-10-14). The definition with placeholders at the root and
+  `aplicacao/` left, since `render` gives the portal's definition from the CLI's workflow, and
+  `tests/test_examples.py` reads `examples/*/workflows/*.yaml`.
+- **`render` translates the CLI's variables before filling** (`CLI_VARIABLES`,
+  `translate_cli_variables`): `{proj.id}`, `{proj.iam_role_arn}`,
+  `{proj.connection.default.s3_shared.s3Uri}`, its `.bucket`, which the CLI derives from the URI,
+  `{domain.id}` and `{domain.region}` by their expression with placeholders, `{env.NOME}` by
+  `<NOME>`, and a variable outside the table refused, the rule (a) of the lint; `compare` normalizes
+  both sides the same way, with `{{ params.NOME }}`, the form the CLI writes a stage variable in, as
+  `<NOME>`; `render --placeholders` does not change.
+- **The subnets, the security group, the job's image and the Redshift names are stage variables**,
+  `{env.NOME}`, declared in both stages as `${NOME}` read from the shell, because the CLI has no
+  variable for them and a `{env.NOME}` without a declaration stops `workflow.create` (lab,
+  2026-10-16); the `run` passes them as the run's parameters, so a workflow of the CLI runs by the
+  CLI and is read in the portal.
+- **`extra_values.json` stays only where the portal path has a value to fill**: `demo-devenv-job`
+  (`SMD_REGISTRY_ACCOUNT` and the `JOB_IMAGE_URI` built from it) and `redshift-unload` (the three
+  `REDSHIFT_*`); the other four render with `space_values.json` alone.
+- **The manifest's form is the one the CLI 1.0.9 accepted in the lab**: `content.storage` items
+  without `connectionName`, so `bundle` and `deploy` read the folders from disk beside the manifest;
+  `content.workflows[0]` with the folder's name, `connectionName: default.workflow_serverless` and
+  `code: code/<exemplo>.zip` where a task has a `.zip`; the stages `dev` and `test` with
+  `${DOMAIN_ID}`, `${DOMAIN_REGION}`, `${DEV_PROJECT_NAME}` and `${TEST_PROJECT_NAME}`;
+  `bootstrap.actions` with `workflow.create` in both and `workflow.run` with `trailLogs: true` in
+  `test`, since `wait: true` crashes the 1.0.9; `deployment_configuration.storage` with
+  `targetDirectory: exemplos/<exemplo>/<pasta>` on `default.s3_shared`.
+- **The `.zip` and the `.tar.gz` are written into the folder the manifest uploads**: `package-task`
+  into `code/<exemplo>.zip`, `prepare-offline` into `src/awsds-demo-job.tar.gz`, and
+  `redshift-unload`'s `.zip` by Python's `zipfile`, since its module needs only the worker's
+  `boto3`; they, and the CLI's bundle in `artifacts/`, stay out of git.
+- **`demo_tasks.run` and `awsds_demo_job.s3` take `s3://` URIs** for the inbox and the outbox,
+  because the CLI gives the connection's whole `s3Uri` and not the key without the bucket; the
+  summary is the same.
+- **The `houseprice-etl`'s task carries the whole `Command`** (`Name`, `ScriptLocation`,
+  `PythonVersion: "3"`) in `create_job_kwargs`, because the lab's `UpdateJob` every run came from
+  that field, which `GetJob` returns with `PythonVersion` and the operator's input lacked; a run
+  without `UpdateJob` is not measured. The job is created once per project with `job.json`, in the
+  CLI's notation, until the card decides.
+- **The documentation's shape**: `docs/exemplos.md` leads every example through the CLI in a shared
+  section, with the commands as they ran in the lab (`--skip-validation`, `--no-events`, the readers
+  `get-workflow-run` and `get-log-events`), the portal as the other path through `render`, and a
+  `**Estado**` line per example saying what ran by the CLI and by the portal; the dates and readings
+  on `awsds_workflows.lab_notes` (its sections "A aplicação pela CLI de CI/CD" and
+  "houseprice-etl"); `docs/index.md` carries the translation table under "Os valores da definição"
+  and the `compare` of a CLI workflow.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

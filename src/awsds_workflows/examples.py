@@ -1,6 +1,6 @@
-"""[public] Os exemplos de workflow do repositório, passo a passo: a preparação, o ``.zip`` ou a
-pasta de código de cada um, a definição preenchida, os passos no portal, o que conferir e a
-aplicação da CLI de CI/CD com um job do Visual ETL.
+"""[public] Os exemplos de workflow do repositório, passo a passo: a preparação, a aplicação da
+CLI de CI/CD que cada um é, com o ``deploy`` e o ``run`` num projeto, o caminho pelo portal com o
+``render``, o ``.zip`` ou o ``.tar.gz`` de cada um, o que ler e a limpeza.
 
 # Os exemplos, passo a passo
 

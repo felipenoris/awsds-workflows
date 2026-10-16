@@ -8,18 +8,35 @@ e `probe_bash`, sem dependência, imprime como o worker roda um script e um mód
 | Task | Operador | O que faz |
 |---|---|---|
 | `wait_for_file` | `S3KeySensor` | espera `inbox/?*`, a cada 30 s, por 10 minutos |
-| `run_command` | `BashOperator` | `cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --bucket ... --inbox ... --outbox ...` |
+| `run_command` | `BashOperator` | `cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --inbox s3://... --outbox s3://...` |
 | `reach_pypi` | `BashOperator` | `reach_pypi.sh`, depois de `run_command`; termina com 1 quando nada respondeu, o esperado, e a execução termina `FAILED` |
 | `probe_bash` | `BashOperator` | inline: a pasta de trabalho, o `PYTHONPATH`, os modos dos arquivos extraídos, o `python3 -m` sem `cd`, de onde vêm o `petl` e o `six`, e `probe.sh` pelo caminho inteiro e executado direto |
+
+## A aplicação
+
+A pasta é uma aplicação da CLI de CI/CD do SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9:
+o `manifest.yaml` na raiz, o workflow em `workflows/`, na notação da CLI, e os scripts em `code/`.
+O `package-task`, com `--include` dos dois scripts, grava em `code/` o `.zip` com eles na raiz, o
+projeto compartilhado e as dependências dele, `code/demo-bash-operator.zip`, que fica fora do git.
+O item de storage `code` do manifest sobe só o `.zip`, e a entrada `code: code/demo-bash-operator.zip`
+do workflow diz à CLI qual arquivo passar como `Code` do workflow: ela o acha pelo nome entre os
+arquivos copiados, o copia para `operatorFiles/` da pasta `shared/` do projeto e cria o workflow
+apontando para essa cópia, lido no código da CLI e ainda não medido. Os URIs de `run_command` e o
+do sensor são o `s3Uri` da conexão `default.s3_shared` do projeto mais o literal
+`exemplos/demo-bash-operator/`, então o exemplo não tem variável de stage. O stage `test` executa
+o workflow uma vez, com `trailLogs: true`, e a execução termina `FAILED` pela task `reach_pypi`,
+o esperado. Pelo portal, o `render` traduz as variáveis da CLI e preenche com o
+`space_values.json`.
 
 ## Arquivos
 
 | Arquivo | O que é |
 |---|---|
-| `demo-bash-operator.yaml` | a definição, com placeholders |
-| `extra_values.json` | o arquivo de valores extras: o prefixo do exemplo no bucket, `EXAMPLE_PREFIX` |
-| `probe.sh` | o script que `probe_bash` chama: imprime `$0`, os argumentos e a pasta de trabalho |
-| `reach_pypi.sh` | a tentativa de alcançar a PyPI com o `urllib` e com o `pip`, com o tempo de cada uma |
+| `manifest.yaml` | o manifest da aplicação: as pastas `code/` e `workflows/`, o workflow com o `code` e os stages `dev` e `test` |
+| `workflows/demo-bash-operator.yaml` | o workflow, na notação da CLI |
+| `code/probe.sh` | o script que `probe_bash` chama: imprime `$0`, os argumentos e a pasta de trabalho |
+| `code/reach_pypi.sh` | a tentativa de alcançar a PyPI com o `urllib` e com o `pip`, com o tempo de cada uma |
+| `code/demo-bash-operator.zip` | o `.zip` que o `package-task` grava, fora do git |
 | [`../awsds-demo-job/`](../awsds-demo-job/) | o projeto que o `.zip` leva |
 
 Um `.sh` que um `bash_command` nomeia passa pelo Jinja antes de rodar: nenhum dos dois scripts
@@ -28,8 +45,8 @@ tem `{{` nem `{#`, e um teste do repositório confere isso.
 ## Os passos
 
 Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#demo-bash-operator): o `.zip` com os dois
-scripts e a definição na máquina que empacota, a amostra em `inbox/` num espaço, o workflow no
-portal e o hash do resultado.
+scripts em `code/` na máquina que empacota, o `deploy` e o `run` pela CLI, ou o workflow no
+portal, a amostra em `inbox/` num espaço e o hash do resultado.
 
 ## O que os logs dizem
 

@@ -1,10 +1,12 @@
-"""``python -m awsds_demo_job.s3 --bucket B --inbox PREFIXO --outbox PREFIXO``: o modo de uma
-task no worker.
+"""``python -m awsds_demo_job.s3 --inbox s3://B/PREFIXO/ --outbox s3://B/PREFIXO/``: o modo de
+uma task no worker.
 
-Cada objeto sob o prefixo de entrada vira um resumo sob ``<outbox>/<carimbo UTC>/``, e a origem é
-apagada só depois que a gravação do resumo voltou. O módulo roda com a credencial que recebe: no
-worker, a do papel do projeto, pelo endpoint de gateway do S3. O ``boto3`` é importado dentro de
-``run``, então o modo do job de processamento não precisa dele.
+Cada objeto sob o URI de entrada vira um resumo sob ``<outbox>/<carimbo UTC>/``, e a origem é
+apagada só depois que a gravação do resumo voltou. Os dois URIs têm a forma
+``s3://<bucket>/<prefixo>/``, a que a CLI de CI/CD monta a partir da conexão do projeto. O módulo
+roda com a credencial que recebe: no worker, a do papel do projeto, pelo endpoint de gateway do
+S3. O ``boto3`` é importado dentro de ``run``, então o modo do job de processamento não precisa
+dele.
 """
 
 from __future__ import annotations
@@ -17,44 +19,51 @@ from typing import Any
 from awsds_demo_job import transform
 
 
-def with_slash(
-    prefix: str,
-) -> str:
-    """O prefixo terminado em barra.
+def split_uri(
+    uri: str,
+) -> tuple[str, str]:
+    """O bucket e o prefixo de um URI ``s3://<bucket>/<prefixo>``, o prefixo terminado em barra.
 
-    :param prefix: um prefixo de chaves do S3, com ou sem a barra final.
-    :return: o prefixo com a barra final.
+    :param uri: o URI, com ou sem a barra final.
+    :return: o bucket e o prefixo com a barra final.
+    :raises ValueError: quando o URI não começa por ``s3://`` ou não tem prefixo.
     """
-    if prefix.endswith("/"):
-        return prefix
-    return prefix + "/"
+    if not uri.startswith("s3://"):
+        raise ValueError(f"não é um URI s3://: {uri}")
+    bucket, _separator, prefix = uri[len("s3://") :].partition("/")
+    if not bucket or not prefix.strip("/"):
+        raise ValueError(f"o URI precisa de bucket e prefixo, s3://<bucket>/<prefixo>/: {uri}")
+    if not prefix.endswith("/"):
+        prefix = prefix + "/"
+    return bucket, prefix
 
 
 def run(
-    bucket: str,
     inbox: str,
     outbox: str,
     client: Any = None,
 ) -> int:
     """Resume cada objeto sob ``inbox`` e devolve quantos foram processados.
 
-    :param bucket: o bucket do projeto.
-    :param inbox: o prefixo em que os arquivos chegam.
-    :param outbox: o prefixo em que os resumos ficam, numa pasta por execução.
+    :param inbox: o URI ``s3://`` da caixa de entrada, em que os arquivos chegam.
+    :param outbox: o URI ``s3://`` da caixa de saída, em que os resumos ficam, numa pasta por
+        execução.
     :param client: o cliente ``s3`` do ``boto3``; ``None`` cria um com a credencial do processo.
     :return: o número de objetos processados.
+    :raises ValueError: quando um dos URIs não tem a forma ``s3://<bucket>/<prefixo>/``.
     """
     if client is None:
         import boto3
 
         client = boto3.client("s3")
-    inbox = with_slash(inbox)
-    outbox = with_slash(outbox)
+    bucket, inbox_prefix = split_uri(inbox)
+    outbox_bucket, outbox_prefix = split_uri(outbox)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     # As chaves sob a entrada, sem o marcador de pasta que um mkdir deixa.
     keys = []
-    for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=inbox):
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=inbox_prefix):
         for entry in page.get("Contents", []):
             if not entry["Key"].endswith("/"):
                 keys.append(entry["Key"])
@@ -64,10 +73,10 @@ def run(
         name = key.rsplit("/", 1)[-1]
         data = client.get_object(Bucket=bucket, Key=key)["Body"].read()
         summary = transform.summarize(name, data)
-        target = f"{outbox}{stamp}/{transform.result_name(name)}"
-        client.put_object(Bucket=bucket, Key=target, Body=transform.render(summary))
+        target = f"{outbox_prefix}{stamp}/{transform.result_name(name)}"
+        client.put_object(Bucket=outbox_bucket, Key=target, Body=transform.render(summary))
         client.delete_object(Bucket=bucket, Key=key)
-        print(f"{name}: {summary['rows']} linhas -> s3://{bucket}/{target}; origem apagada")
+        print(f"{name}: {summary['rows']} linhas -> s3://{outbox_bucket}/{target}; origem apagada")
     print(f"{len(keys)} objeto(s) processado(s)")
     return len(keys)
 
@@ -82,13 +91,12 @@ def main(
         depois que o sensor viu um arquivo, então a entrada vazia é uma falha a mostrar.
     """
     parser = argparse.ArgumentParser(prog="awsds_demo_job.s3")
-    parser.add_argument("--bucket", required=True, help="o bucket do projeto")
-    parser.add_argument("--inbox", required=True, help="o prefixo em que os arquivos chegam")
-    parser.add_argument("--outbox", required=True, help="o prefixo em que os resumos ficam")
+    parser.add_argument("--inbox", required=True, help="o URI s3:// em que os arquivos chegam")
+    parser.add_argument("--outbox", required=True, help="o URI s3:// em que os resumos ficam")
     arguments = parser.parse_args(argv)
 
     print(f"python {sys.version.split()[0]} em {sys.executable}")
-    processed = run(arguments.bucket, arguments.inbox, arguments.outbox)
+    processed = run(arguments.inbox, arguments.outbox)
     if processed:
         return 0
     return 1

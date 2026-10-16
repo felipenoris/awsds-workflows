@@ -13,6 +13,8 @@ import json
 from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
+
 from awsds_demo_job import __main__ as local_mode
 from awsds_demo_job import s3 as worker_mode
 from awsds_demo_job import transform
@@ -153,10 +155,25 @@ class FakeS3:
         del self.objects[Key]
 
 
+def test_split_uri_gives_the_bucket_and_the_prefix_with_its_slash() -> None:
+    """Um URI ``s3://`` dá o bucket e o prefixo terminado em barra, com ou sem a barra no URI."""
+    assert worker_mode.split_uri("s3://b/p/inbox") == ("b", "p/inbox/")
+    assert worker_mode.split_uri("s3://b/p/inbox/") == ("b", "p/inbox/")
+
+
+@pytest.mark.parametrize("uri", ["b/p/inbox", "s3://b", "s3://b/", "s3:///p/"])
+def test_split_uri_refuses_what_is_not_a_bucket_and_a_prefix(
+    uri: str,
+) -> None:
+    """Um URI sem ``s3://``, sem bucket ou sem prefixo é recusado."""
+    with pytest.raises(ValueError, match="s3://"):
+        worker_mode.split_uri(uri)
+
+
 def test_worker_mode_deletes_the_source_after_writing_the_result() -> None:
     """O modo do worker grava o resumo numa pasta da caixa de saída e só então apaga a origem."""
     fake = FakeS3({"p/inbox/sample.csv": SAMPLE.read_bytes()})
-    assert worker_mode.run("b", "p/inbox", "p/outbox", client=fake) == 1
+    assert worker_mode.run("s3://b/p/inbox/", "s3://b/p/outbox", client=fake) == 1
     assert [kind for kind, _key in fake.order] == ["put", "delete"]
     assert "p/inbox/sample.csv" not in fake.objects
     results = [key for key in fake.objects if key.endswith("/sample.result.json")]

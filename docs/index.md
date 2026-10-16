@@ -22,7 +22,7 @@ SageMaker.
 | `package-task` | o `.zip` com o código de uma task Python ou Bash e as dependências dele | o worker |
 | `package-job` | a pasta de código de um job de processamento, só com o que a imagem do job não tem | um job de processamento |
 | `prepare-offline` | o `.tar.gz` da pasta de um projeto preparada com o próprio interpretador | um job de processamento, que o extrai no volume |
-| `render` | o arquivo de definição do workflow preenchido com os valores do projeto | a importação no portal |
+| `render` | o arquivo de definição do workflow preenchido com os valores do projeto, as variáveis da CLI de CI/CD traduzidas | a importação no portal |
 | `values` | os valores do projeto, lidos da conta | o `render` |
 | `compare` | o que difere no conteúdo de duas definições, como a versionada e a que o portal salvou | quem revisa uma mudança feita no portal |
 
@@ -236,9 +236,12 @@ UV_PYTHON=/opt/awsds/venv/bin/python awsds-workflows package-job ~/src/meu-proje
 ## Os exemplos
 
 A pasta [`examples/`](https://github.com/felipenoris/awsds-workflows/tree/main/examples) do
-repositório traz workflows de exemplo, cada um com a definição, o código e um `README.md` que diz
-o que ele mostra e o que cada execução leu. Os passos para reproduzi-los, na ordem em que cada
-comando roda, estão na página `awsds_workflows.examples`.
+repositório traz workflows de exemplo, cada um uma aplicação da CLI de CI/CD do SageMaker Unified
+Studio, a `aws-smus-cicd-cli` 1.0.9: uma pasta com o `manifest.yaml`, o workflow em `workflows/`,
+na notação da CLI, o código e um `README.md` que diz o que ele mostra e o que cada execução leu.
+A CLI leva a pasta a um projeto, cria o workflow lá e o executa; o portal é o outro caminho, com
+o workflow preenchido pelo `render`. Os passos para reproduzi-los, na ordem em que cada comando
+roda, estão na página `awsds_workflows.examples`.
 
 | Exemplo | O que ele mostra |
 |---|---|
@@ -247,23 +250,25 @@ comando roda, estão na página `awsds_workflows.examples`.
 | `demo-bash-operator` | uma task Bash sobre o mesmo projeto, com dois scripts, e a prova de que o worker não alcança a PyPI |
 | `demo-devenv-job` | um job de processamento na imagem padrão do SageMaker, sobre o `.tar.gz` da pasta do projeto gravado pelo `prepare-offline` |
 | `redshift-unload` | uma task Python que descarrega uma consulta ao Redshift Serverless no S3, com `UNLOAD` |
-| `houseprice-etl` | um job do Visual ETL numa aplicação da CLI de CI/CD do SageMaker Unified Studio: uma task `GlueJobOperator` cria ou atualiza o job do Glue e o executa |
+| `houseprice-etl` | um job do Visual ETL: uma task `GlueJobOperator` cria ou atualiza o job do Glue e o executa, e o script do job vai com a aplicação |
 
 - **O projeto dos `demo-*`.** Os três dividem um projeto `uv`, `examples/awsds-demo-job/`: um CSV
   entra, um resumo em JSON sai.
-- **Os valores.** Eles vêm do `space_values.json` que o script de
-  [Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco) escreve, mais o
-  `extra_values.json` da pasta de cada exemplo: um arquivo de modelo com o prefixo do exemplo no
-  bucket, `EXAMPLE_PREFIX`, e os valores que o espaço não dá, por preencher no job e no
-  `redshift-unload`. O `render` lê os dois, na ordem da linha de comando
+- **Os valores.** A CLI preenche as variáveis do projeto, como `{proj.id}`, ao criar o workflow,
+  e as de stage, `{env.NOME}`, o que nenhum projeto tem, vêm do shell em cada execução. Pelo
+  portal, o `render` traduz as variáveis da CLI e preenche com o `space_values.json` que o script
+  de [Os valores de dentro de um espaço](#os-valores-de-dentro-de-um-espaco) escreve e, no
+  `demo-devenv-job` e no `redshift-unload`, com o `extra_values.json` da pasta, um arquivo de
+  modelo com os valores que o espaço não dá, por preencher
   ([Os valores da definição](#os-valores-da-definicao)).
-- **Os testes do repositório** renderizam cada definição com o arquivo dela e valores fabricados,
-  constroem os dois `.zip`, preparam o `.tar.gz` do job e conferem que o workflow da aplicação do
-  `houseprice-etl`, com as variáveis da CLI, é a definição dele.
+- **Os testes do repositório** renderizam cada workflow com valores fabricados, conferem o
+  manifest de cada exemplo contra as pastas e o `.zip` dele, constroem os dois `.zip`, preparam o
+  `.tar.gz` do job e rodam o script do `houseprice-etl` sobre dublês.
 
 > [!NOTE]
-> **Estado**: os exemplos rodaram no ambiente alvo, menos o `demo-devenv-job`, que parou na
-> permissão do projeto, e o `houseprice-etl`, que ainda não rodou num projeto
+> **Estado**: o `houseprice-etl` rodou no laboratório pela CLI, nos dois stages; os outros
+> rodaram no ambiente alvo pelo portal, menos o `demo-devenv-job`, que parou na permissão do
+> projeto, e nenhum deles rodou pela CLI ainda
 > ([as notas](awsds_workflows/lab_notes.html#os-exemplos)).
 
 ## As peças
@@ -779,7 +784,7 @@ comando do job extrai no volume antes de rodar. O `JOB_PYTHON` da imagem não é
    ```
 
 3. **Copie o objeto para o prefixo da entrada de código**, como
-   `shared/exemplos/demo-devenv-job/code/` no exemplo, e nomeie esse prefixo na entrada `code` do
+   `shared/exemplos/demo-devenv-job/src/` no exemplo, e nomeie esse prefixo na entrada `code` do
    `config`, como na pasta do `package-job`:
 
    ```shell
@@ -1374,6 +1379,21 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
 
   Até a conta do registro entrar, o `render` recusa com `nenhum valor para:
   SMD_REGISTRY_ACCOUNT`; depois, o `JOB_IMAGE_URI` sai montado com ela e a `REGION`.
+- **Um workflow na notação da CLI de CI/CD**, o `aws-smus-cicd-cli`, guarda os valores do projeto
+  como variáveis dela e o que nenhum projeto tem como variáveis de stage, `{env.NOME}`. O `render`
+  troca cada uma pela expressão com placeholders antes de preencher, e recusa uma variável fora
+  desta tabela; assim o mesmo YAML que a CLI implanta num projeto se importa no portal, preenchido
+  com os valores desse projeto, sem a CLI ([Os exemplos](#os-exemplos)).
+
+  | Variável da CLI | O que o `render` lê no lugar dela |
+  |---|---|
+  | `{proj.id}` | `<PROJECT_ID>` |
+  | `{proj.iam_role_arn}` | `arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>` |
+  | `{proj.connection.default.s3_shared.s3Uri}` | `s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/` |
+  | `{proj.connection.default.s3_shared.bucket}` | `<PROJECTS_BUCKET>` |
+  | `{domain.id}` | `<DOMAIN_ID>` |
+  | `{domain.region}` | `<REGION>` |
+  | `{env.NOME}` | `<NOME>` |
 
 | Placeholder | O valor | De onde |
 |---|---|---|
@@ -1463,6 +1483,10 @@ Como o `compare` lê:
   o acrescenta a cada save, e o serviço o ignora, com o aviso
   `ignored attributes: is_paused_upon_creation` na resposta de cada `update-workflow`.
 - **Uma descrição escrita no portal** entra como a chave `description` do workflow.
+- **Um workflow na notação da CLI de CI/CD** se compara com a definição que a CLI implantou e o
+  portal guarda: o `compare` troca as variáveis da CLI dos dois lados pela expressão com
+  placeholders, como o `render` ([Os valores da definição](#os-valores-da-definicao)), e
+  `{{ params.NOME }}`, a forma em que a CLI grava uma variável de stage, por `<NOME>`.
 
 > [!IMPORTANT]
 > **Uma mudança que deve ficar entra à mão na cópia versionada**, com os placeholders no lugar dos

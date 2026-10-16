@@ -6,7 +6,11 @@ bloco (leituras do laboratório de 2026-10-10 e 2026-10-11). ``compare_definitio
 YAML e lista só o que muda no conteúdo; os comentários, o layout do editor na primeira linha
 inclusive, a ordem das chaves, as aspas e a forma dos textos e das listas não contam. Uma definição
 salva traz os valores da conta, e ``awsds_workflows.render.restore_placeholders``
-(``render --placeholders`` na linha de comando) devolve os placeholders antes da comparação.
+(``render --placeholders`` na linha de comando) devolve os placeholders antes da comparação. Um
+workflow na notação da CLI de CI/CD se compara com a definição que a CLI implantou e o portal
+guarda: as variáveis da CLI dos dois lados viram a expressão com placeholders
+(``awsds_workflows.render.translate_cli_variables``), e ``{{ params.NOME }}``, a forma em que a
+CLI grava uma variável de stage, vira ``<NOME>``.
 
 Uma diferença sai como ``- caminho: valor`` para o que só a primeira definição tem e
 ``+ caminho: valor`` para o que só a segunda tem, e um valor que muda dá as duas linhas. O caminho
@@ -29,15 +33,21 @@ Exemplo:
 
 from __future__ import annotations
 
+import io
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from awsds_workflows import render
 from awsds_workflows.errors import RefusalError
 
 __all__ = ["compare_definitions"]
+
+# A forma em que a CLI de CI/CD grava uma variável de stage no YAML que implanta.
+_STAGE_PARAMETER = re.compile(r"\{\{ params\.([A-Z][A-Z0-9_]+) \}\}")
 
 
 def compare_definitions(
@@ -58,8 +68,9 @@ def compare_definitions(
         o que só ela tem sai com ``+``.
     :return: as linhas das diferenças, na ordem das chaves da primeira definição, com as chaves que
         só a segunda tem no fim de cada mapeamento; vazia quando as duas dizem o mesmo.
-    :raises awsds_workflows.errors.RefusalError: quando um dos arquivos não existe, não é YAML ou
-        não é um mapeamento, a forma de uma definição de workflow.
+    :raises awsds_workflows.errors.RefusalError: quando um dos arquivos não existe, não é YAML,
+        não é um mapeamento, a forma de uma definição de workflow, ou tem uma variável da CLI
+        sem tradução.
     """
     differences: list[str] = []
     _compare_mappings(_load_definition(first), _load_definition(second), "", differences)
@@ -69,14 +80,18 @@ def compare_definitions(
 def _load_definition(
     path: Path,
 ) -> dict[Any, Any]:
-    """[private] O conteúdo do arquivo YAML, recusado quando não é um mapeamento."""
+    """[private] O conteúdo do arquivo YAML, com as variáveis da CLI e os ``{{ params.NOME }}``
+    trocados pelos placeholders, recusado quando não é um mapeamento."""
     if not path.is_file():
         raise RefusalError(f"o arquivo {path} não existe")
+    text = render.translate_cli_variables(path.read_text(encoding="utf-8"))
+    normalized = _STAGE_PARAMETER.sub(r"<\1>", text)
 
-    # Lido como arquivo, e não como texto, para que o erro do YAML nomeie o arquivo e a linha.
+    # O stream leva o nome do arquivo, para que o erro do YAML nomeie o arquivo e a linha.
+    stream = io.StringIO(normalized)
+    stream.name = str(path)
     try:
-        with path.open(encoding="utf-8") as stream:
-            content = yaml.safe_load(stream)
+        content = yaml.safe_load(stream)
     except yaml.YAMLError as error:
         raise RefusalError(f"{path} não é YAML: {error}") from error
 

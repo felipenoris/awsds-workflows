@@ -11,17 +11,40 @@ roda o `python -m awsds_demo_job` da pasta extraída sem rede e envia a saída a
 | `run_project` | `SageMakerProcessingOperator` | o `CreateProcessingJob` inteiro, no `config` |
 | `remove_source` | `S3DeleteObjectsOperator` | apaga o prefixo `inbox/` |
 
+## A aplicação
+
+A pasta é uma aplicação da CLI de CI/CD do SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9:
+o `manifest.yaml` na raiz, o workflow em `workflows/`, na notação da CLI, e o `.tar.gz` do projeto
+em `src/`. O item de storage `src` do manifest sobe só o `.tar.gz`, para
+`shared/exemplos/demo-devenv-job/src/` do projeto do stage, a entrada de código do job. O que a
+CLI não conhece são variáveis de stage, declaradas nos dois stages e lidas do shell no `deploy` e
+no `run`: `SUBNET_AZ1`, `SUBNET_AZ2` e `PROJECT_SG`, a rede do job, que o `space_values.json` de um
+espaço do projeto dá, e `JOB_IMAGE_URI`, a imagem,
+`<conta do registro>.dkr.ecr.<região>.amazonaws.com/sagemaker-distribution-prod:4.5.2-cpu`
+([A imagem do job](https://felipenoris.github.io/awsds-workflows/awsds_workflows.html#a-imagem-do-job)).
+A CLI as grava na definição como `{{ params.NOME }}` e as preenche em cada execução que
+inicia; que o operador de processamento renderize o `config` com elas foi lido no código do
+Airflow e ainda não medido, ao contrário do `create_job_kwargs` do job do Glue, medido no
+laboratório em 2026-10-16. A task `remove_source` recebe o bucket pela variável
+`{proj.connection.default.s3_shared.bucket}`, que a CLI tira do `s3Uri` da conexão, e o prefixo
+sem o bucket montado com `{domain.id}` e `{proj.id}`, porque a CLI não tem variável para a
+chave sem o bucket. O stage `test` executa o workflow uma vez, com `trailLogs: true`. Pelo
+portal, o `render` traduz as variáveis da CLI e preenche com o `space_values.json` e o
+`extra_values.json`.
+
 ## Arquivos
 
 | Arquivo | O que é |
 |---|---|
-| `demo-devenv-job.yaml` | a definição, com placeholders, para um projeto sem chave KMS própria |
-| `extra_values.json` | o arquivo de valores extras, de modelo: o prefixo do exemplo, a conta do registro da imagem por preencher e o URI da imagem padrão montado com ela |
+| `manifest.yaml` | o manifest da aplicação: as pastas `src/` e `workflows/`, o workflow, as quatro variáveis de stage e os stages `dev` e `test` |
+| `workflows/demo-devenv-job.yaml` | o workflow, na notação da CLI, para um projeto sem chave KMS própria |
+| `extra_values.json` | o arquivo de valores extras, de modelo, para o caminho do portal: a conta do registro da imagem por preencher e o URI da imagem padrão montado com ela |
+| `src/` | vazia no git: o `prepare-offline` grava aqui o `.tar.gz` do projeto, `src/awsds-demo-job.tar.gz` |
 | [`../awsds-demo-job/`](../awsds-demo-job/) | o projeto que o job roda; o `prepare-offline` do pacote grava, da pasta dele, o `.tar.gz` da entrada de código, com o próprio CPython 3.12 e as dependências |
 
-A entrada de código é um objeto só, `code/awsds-demo-job.tar.gz`: a pasta do projeto preparada,
-que roda de qualquer caminho com `.venv/bin/python`, sem o interpretador da imagem; o comando do
-job a extrai em `/opt/ml/processing/code/` antes de rodar
+A entrada de código é um objeto só, o `.tar.gz` em `src/` do projeto, montado em
+`/opt/ml/processing/code/`: a pasta do projeto preparada, que roda de qualquer caminho com
+`.venv/bin/python`, sem o interpretador da imagem; o comando do job a extrai ali antes de rodar
 ([A pasta do projeto preparada num `.tar.gz`](https://felipenoris.github.io/awsds-workflows/awsds_workflows.html#a-pasta-do-projeto-preparada-num-targz)).
 Um projeto que usa o ambiente da imagem e leva só o que ela não tem passa pelo `package-job`
 ([A pasta de código com `package-job`](https://felipenoris.github.io/awsds-workflows/awsds_workflows.html#a-pasta-de-codigo-com-package-job)).
@@ -29,10 +52,10 @@ Um projeto que usa o ambiente da imagem e leva só o que ela não tem passa pelo
 ## Os passos
 
 Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#demo-devenv-job), com o que vem antes do
-primeiro job: a permissão do projeto, a conta do registro da imagem no `extra_values.json` e as
-linhas da chave KMS de um projeto que tem uma; depois, o `.tar.gz` do projeto, gravado pelo
-`prepare-offline`, na entrada de código, a definição com os dois arquivos de valores, o workflow
-no portal e o log do contêiner.
+primeiro job: a permissão do projeto, a conta do registro da imagem e as linhas da chave KMS de um
+projeto que tem uma; depois, o `.tar.gz` do projeto, gravado pelo `prepare-offline` em `src/`, as
+quatro variáveis de stage no shell, o `deploy` e o `run` pela CLI, ou o workflow no portal, e o
+log do contêiner.
 
 ## O que o log diz
 
