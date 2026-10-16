@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from awsds_workflows import cli, package_job, package_task, prepare_offline, render
+from awsds_workflows import cli, lint, package_job, package_task, prepare_offline, render
 
 
 def test_help_exits_with_zero(
@@ -31,6 +31,7 @@ def test_help_exits_with_zero(
         "render",
         "values",
         "compare",
+        "lint",
     )
     for command in commands:
         assert command in printed
@@ -508,3 +509,113 @@ def test_compare_of_a_missing_file_is_refused_with_one(
     captured = capsys.readouterr()
     assert "salvo.yaml não existe" in captured.err
     assert captured.out == ""
+
+
+def write_definition(
+    path: Path,
+    retries: str,
+) -> Path:
+    """Grava uma definição de uma task Python, com ou sem ``retries``."""
+    path.write_text(
+        "meu-workflow:\n  dag_id: meu-workflow\n  tasks:\n    run:\n"
+        "      operator: airflow.providers.standard.operators.python.PythonOperator\n"
+        f"      python_callable: tasks.run\n{retries}",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_lint_of_an_application_prints_ok_with_the_files_read(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``lint`` de uma aplicação que passa imprime ``ok`` com o número de arquivos e termina
+    com 0."""
+    application = Path(__file__).resolve().parents[1] / "examples" / "houseprice-etl"
+    assert cli.main(["lint", str(application)]) == 0
+    assert capsys.readouterr().out == "ok: 3 arquivo(s)\n"
+
+
+def test_lint_prints_each_finding_and_exits_with_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``lint`` de uma definição que falha imprime cada recusa numa linha e termina com 1."""
+    definition = write_definition(tmp_path / "meu-workflow.yaml", "")
+    assert cli.main(["lint", str(definition)]) == 1
+    printed = capsys.readouterr().out
+    assert printed == (
+        f"{definition}: limites: task run: retries ausente; o serviço assume 1, escreva 0 a 3\n"
+    )
+
+
+def test_lint_passes_the_options_of_a_definition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--promoted``, cada ``--prefix``, cada ``--instance-type`` e ``--image-repository``
+    chegam a ``lint_definition``."""
+    received: dict[str, object] = {}
+
+    def fake_lint_definition(
+        path: Path,
+        **options: object,
+    ) -> list[lint.Finding]:
+        received["path"] = path
+        received.update(options)
+        return []
+
+    monkeypatch.setattr(lint, "lint_definition", fake_lint_definition)
+    definition = write_definition(tmp_path / "meu-workflow.yaml", "      retries: 0\n")
+    command = [
+        "lint",
+        str(definition),
+        "--promoted",
+        "--prefix",
+        "s3://meu-bucket/a/",
+        "--prefix",
+        "s3://meu-bucket/b/",
+        "--instance-type",
+        "ml.m5.xlarge",
+        "--image-repository",
+        "minha-imagem",
+    ]
+    assert cli.main(command) == 0
+    assert received == {
+        "path": definition,
+        "promoted": True,
+        "prefixes": ["s3://meu-bucket/a/", "s3://meu-bucket/b/"],
+        "instance_types": ["ml.m5.xlarge"],
+        "image_repository": "minha-imagem",
+    }
+    assert capsys.readouterr().out == "ok: 1 arquivo(s)\n"
+
+
+@pytest.mark.parametrize(
+    ("options", "reason"),
+    [
+        (["--promoted", "--prefix", "s3://b/"], "--promoted lê uma cópia renderizada"),
+        (["--prefix", "s3://b/"], "--prefix vale para um arquivo"),
+    ],
+)
+def test_lint_refuses_the_options_of_a_definition_on_a_folder(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    options: list[str],
+    reason: str,
+) -> None:
+    """``--promoted`` e ``--prefix`` valem para um arquivo, e numa pasta são recusados com 1."""
+    assert cli.main(["lint", str(tmp_path), *options]) == 1
+    captured = capsys.readouterr()
+    assert reason in captured.err
+    assert captured.out == ""
+
+
+def test_lint_promoted_without_a_prefix_is_refused(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--promoted`` pede ``--prefix``."""
+    definition = write_definition(tmp_path / "meu-workflow.yaml", "      retries: 0\n")
+    assert cli.main(["lint", str(definition), "--promoted"]) == 1
+    assert "--promoted pede --prefix" in capsys.readouterr().err

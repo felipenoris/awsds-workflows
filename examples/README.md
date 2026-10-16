@@ -43,5 +43,8 @@ workflow onde há task Python ou Bash, o `workflow.create` em `dev` e o `workflo
 `trailLogs` em `test`), roda a task Python e o módulo de `UNLOAD` sobre dublês do `boto3` e, com
 `-m network`, constrói os dois `.zip`, lê as raízes deles, prepara o `.tar.gz` do job e o roda
 extraído noutra pasta, sem `uv` e sem rede. No `houseprice-etl`, ele confere que o `job.json`
-preenchido é o `CreateJob` da task e roda o script sobre dublês do `awsglue` e do `pyspark`. O
-projeto compartilhado tem os próprios testes, que o `uv run pytest` da raiz também roda.
+preenchido é o `CreateJob` da task e roda o script sobre dublês do `awsglue` e do `pyspark`.
+`uv run pytest tests/test_lint.py` passa cada aplicação pelo `lint` do pacote, no modo de autoria,
+e a cópia renderizada do `demo-devenv-job` pelo modo promovido, que recusa só o que a tradução por
+conta troca. O projeto compartilhado tem os próprios testes, que o `uv run pytest` da raiz também
+roda.
