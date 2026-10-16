@@ -34,7 +34,9 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
   `op_kwargs` de uma task Python
   ([A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd));
 - uma execução do `houseprice-etl` sem `UpdateJob`, com o `Command` inteiro na definição, e o
-  caminho do portal com o workflow traduzido pelo `render` ([houseprice-etl](#houseprice-etl)).
+  caminho do portal com o workflow traduzido pelo `render` ([houseprice-etl](#houseprice-etl));
+- o `lint` no modo promovido numa esteira, e o tempo de provisionamento de um job dentro do teto da
+  task ([Regras de autoria](#regras-de-autoria)).
 
 ## Instalação
 
@@ -134,6 +136,13 @@ No guia: [Regras de autoria](../awsds_workflows.html#regras-de-autoria).
   `ConflictException: Workflow with given name already exists`.
 - **Laboratório, 2026-10-11.** Num workflow sem código, com o campo *Operator files zip S3
   location* esvaziado antes de salvar, o save não mandou o `Code`.
+- **Páginas do serviço, 2026-10-16.** Os limites que o `lint` confere: `retries` de 0 a 3,
+  `retry_delay` até 300 s e `execution_timeout` até 3.600 s, da página dos parâmetros que o
+  serviço valida; a cota de 50 KB por definição, da página de cotas; e os operadores do provedor
+  Amazon mais o `PythonOperator` e o `BashOperator`, da página dos operadores.
+- **Ainda não medido**: o `lint` no modo promovido numa esteira, sobre uma cópia renderizada por
+  conta; e o tempo de provisionamento e de encerramento de um job de processamento dentro dos
+  3.600 s da task, que decide a margem dos 2.820 s de `MaxRuntimeInSeconds`.
 
 ## Uma task de processamento
 

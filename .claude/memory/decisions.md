@@ -428,9 +428,14 @@ user's laptop, on 2026-10-15 and 2026-10-16 (`cicd-cli.md`).
 
 On those measurements the user decided, on cards: `update_config` stays the literal `true`, with
 `create_job_kwargs`, in dev and test, and the promoted copy drops both (2026-10-16 03:24 UTC, option
-B, after a stage variable in that field was measured to change nothing); how the job is born in a
-project where it does not exist is still open (the card of 02:14 UTC: created once from `job.json`,
-a `glue:GetJob` grant on untagged jobs, or a Python task that creates it; `OPEN_QUESTIONS.md`).
+B, after a stage variable in that field was measured to change nothing); and how the job is born in
+a project where it does not exist: a `glue:GetJob` grant on the jobs no project holds (2026-10-16
+05:50 UTC, "vamos pela opção 1: um grant de glue:GetJob", the recommended option of the card of
+02:14 UTC, over the job created once from `job.json` and a Python task that creates it). The grant
+is written in the lab's Terraform (AWS-DataScience PR #143, `sandbox/workflows/`, the statement
+`GetAGlueJobNoProjectHolds`: `glue:GetJob` on `job/*-<project id>` with no
+`AmazonDataZoneProject` tag) and in the target's change request, both unapplied; the examples'
+steps keep the `job.json` path until the grant is applied and a run creates the job.
 
 The session of 2026-10-16 (branch `claude/smus-applications-rw30u1`, PR #20) wrote the plan in the
 Claude project's library (`discussoes/plano-reforma-exemplos.md`) and asked three questions, which
@@ -495,6 +500,42 @@ the two meet:
   on `awsds_workflows.lab_notes` (its sections "A aplicação pela CLI de CI/CD" and
   "houseprice-etl"); `docs/index.md` carries the translation table under "Os valores da definição"
   and the `compare` of a CLI workflow.
+
+## The lint of an application
+
+The `lint` lives in this package by Stage 8's decision 9 of AWS-DataScience, and comes in the PR
+after the reform of the examples, before `app-etl`, by the user's answer of 2026-10-16 04:20 UTC
+("The examples as applications"). Its mandate: the rules (a) to (h) of Stage 8's step 5.6, the
+manifest's rules, Stage 10's Glue rule (class 2c) and the refusal of `schedule` (Stage 10's
+decision 13); the rule (d), the `VersionId` of the code in S3, is the pipeline's and stays out.
+The session of 2026-10-16 wrote the plan in the Claude project's library
+(`discussoes/plano-lint.md`) and asked three questions, which the user answered at 05:52 and
+05:54 UTC:
+
+- **Both modes now** (1 (a)): the authoring mode over the repository's files in the CLI's
+  notation, and the promoted mode (`--promoted`) over a rendered copy, with the plan's full set
+  of rules; not the authoring mode alone with the promoted one left for Stage 10.
+- **The volume's KMS key only in the promoted mode** (2 (a)): `VolumeKmsKeyId` is required of a
+  processing job in a promoted copy and not in authoring, where the default image's job in the
+  target has no project key.
+- **Any class of the Amazon provider, plus Python and Bash** (3 (b)): the `operator` passes when
+  it is a class of `airflow.providers.amazon.aws.` or the `PythonOperator` or `BashOperator` of
+  `airflow.providers.standard.operators.`, with no nominal table of the 199 classes AWS lists
+  (`operators.md`, read 2026-10-16), and `SageMakerNotebookOperator` refused by name (Stage 6d's
+  decision 14 (b)); the user asked for the context first ("pode explicar qual o contexto?") and
+  chose (b) over a table copied from the page, which would go stale as AWS adds operators.
+
+The session's choices, awaiting the user's word: `schedule` refused in both modes, since an
+example runs by `run` and a promoted workflow by a state machine; `retries` written in every
+task, since the service assumes 1; the tag `AmazonDataZoneProject` and the project's network
+connection pass in authoring and fail in the promoted mode; the definition's quota read as 50,000
+bytes; the job's `MaxRuntimeInSeconds` capped at 2,820 s, 13 minutes under the task's 3,600 s for
+the job's provisioning and shutdown, a margin chosen and not measured; the promoted mode asking
+for `--prefix`, so the `codigo` and `glue` rules never silently skip on a pipeline; the project
+values found by patterns over the text (`datazone_usr_role_`, `dzd_`, `smus-projects`,
+`dev/operatorFiles/`, `DataZone*`, `ProjectS3Path`, `alias/*-project`, the keys `domain_id` and
+`project_id`); and `lint_application` reading the files as the CLI 1.0.9 does, each `include` a
+folder or a `glob`, each `exclude` by folder, path or basename.
 
 ## Design choices of the first session
 

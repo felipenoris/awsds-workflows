@@ -157,7 +157,18 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    cd examples/<exemplo>
    ```
 
-2. **Confira o manifest e o acesso aos projetos**:
+2. **Confira a aplicação**, sem AWS:
+
+   ```shell
+   awsds-workflows lint .
+   ```
+
+   Ele lê o manifest, o workflow e os scripts das pastas copiadas contra as regras de
+   [O lint](../awsds_workflows.html#o-lint), e imprime `ok` com o número de arquivos lidos, ou
+   cada recusa numa linha, `arquivo: regra: motivo`, e termina com 1. Uma recusa aqui pararia o
+   `deploy` ou a execução.
+
+3. **Confira o manifest e o acesso aos projetos**:
 
    ```shell
    aws-smus-cicd-cli describe --manifest manifest.yaml --connect
@@ -167,7 +178,7 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    `default.s3_shared`, com o `s3Uri` da pasta `shared/`, e `default.workflow_serverless`. Um nome
    de projeto errado ou uma credencial vencida param aqui.
 
-3. **Implante no stage `dev`**:
+4. **Implante no stage `dev`**:
 
    ```shell
    aws-smus-cicd-cli deploy --manifest manifest.yaml --targets dev --skip-validation --no-events
@@ -192,7 +203,7 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    > `deploy`** com `Failed to resolve variables`: os exemplos declaram as variáveis de stage nos
    > dois stages, e o shell precisa de todas antes do `deploy` e do `run`.
 
-4. **Execute no stage `dev`**:
+5. **Execute no stage `dev`**:
 
    ```shell
    aws-smus-cicd-cli run --manifest manifest.yaml --targets dev --workflow <exemplo>
@@ -207,7 +218,7 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    > **Num exemplo com sensor, a amostra tem de estar em `inbox/` antes do `run`**: o sensor espera
    > 10 minutos, e depois disso a execução termina sem erro e sem rodar o resto.
 
-5. **Leia a execução** pela API, com o ARN e o id que o `run` imprimiu:
+6. **Leia a execução** pela API, com o ARN e o id que o `run` imprimiu:
 
    ```shell
    aws mwaa-serverless get-workflow-run --workflow-arn <ARN> --run-id <RUN_ID>
@@ -229,7 +240,7 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    > `No log events found` com o stream cheio. O `get-workflow-run` e o `get-log-events` são as
    > leituras.
 
-6. **Leve ao stage `test`**, o segundo projeto, com o bundle, o `.zip` que uma esteira guarda:
+7. **Leve ao stage `test`**, o segundo projeto, com o bundle, o `.zip` que uma esteira guarda:
 
    ```shell
    aws-smus-cicd-cli bundle --manifest manifest.yaml --targets test
@@ -251,7 +262,7 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    > **`wait: true` sem `trailLogs` derruba a CLI 1.0.9** logo depois de iniciar a execução, com
    > um `TypeError`; os manifests usam `trailLogs: true`.
 
-7. **No portal**, o workflow aparece na página *Workflows* do projeto, só para leitura, com a
+8. **No portal**, o workflow aparece na página *Workflows* do projeto, só para leitura, com a
    definição preenchida em *View code*: ele se edita no git, e a CLI o reimplanta.
 
 ## Os passos no portal
