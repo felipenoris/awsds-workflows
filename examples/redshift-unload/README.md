@@ -19,8 +19,9 @@ erro passa por uma máscara antes de sair. O módulo só usa o `boto3` que o wor
 
 A pasta é uma aplicação da CLI de CI/CD do SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9:
 o `manifest.yaml` na raiz, o workflow em `workflows/`, na notação da CLI, e o módulo em `code/`.
-O `package-task` grava em `code/` o `.zip` com o módulo na raiz, `code/redshift-unload.zip`, que
-fica fora do git; o item de storage `code` do manifest sobe só o `.zip`, e a entrada
+O `.zip` com o módulo na raiz, `code/redshift-unload.zip`, se monta com o `zipfile` do Python,
+porque o módulo só usa o `boto3` do worker, e fica fora do git; o item de storage `code` do
+manifest sobe só o `.zip`, e a entrada
 `code: code/redshift-unload.zip` do workflow diz à CLI qual arquivo passar como `Code` do
 workflow, lido no código da CLI e ainda não medido. Os três nomes do Redshift são variáveis de
 stage, `REDSHIFT_WORKGROUP`, `REDSHIFT_DATABASE` e `REDSHIFT_TABLE`, declaradas nos dois stages e
@@ -39,7 +40,7 @@ preenche com o `space_values.json` e o `extra_values.json`.
 | `workflows/redshift-unload.yaml` | o workflow, na notação da CLI |
 | `extra_values.json` | o arquivo de valores extras, de modelo, para o caminho do portal: os três nomes do Redshift, por preencher |
 | `code/redshift_unload.py` | o módulo da task, que vai sozinho no `.zip` |
-| `code/redshift-unload.zip` | o `.zip` que o `package-task` grava, fora do git |
+| `code/redshift-unload.zip` | o `.zip` com o módulo na raiz, montado com o `zipfile` do Python, fora do git |
 
 ## Os passos
 

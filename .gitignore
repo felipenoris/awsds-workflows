@@ -13,3 +13,5 @@ space_values*.json
 # O que o package-task e o prepare-offline gravam na pasta de um exemplo, antes do deploy.
 examples/*/code/*.zip
 examples/*/src/*.tar.gz
+# O bundle que a CLI de CI/CD grava na pasta de um exemplo.
+examples/*/artifacts/
