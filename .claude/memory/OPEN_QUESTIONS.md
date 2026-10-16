@@ -10,8 +10,9 @@ nomeia esse lugar.
   "Design choices of the first session": o arquivo de ambiente do `package-job`, os valores do
   `render` por arquivo, os nomes genéricos dos placeholders, o `--subnet-name` obrigatório com
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
-  `docs/index.md` como runbook; e as da pasta de exemplos, de 2026-10-13 e 2026-10-14
-  (`decisions.md`, "The examples folder"). Fecha com a resposta do usuário no PR.
+  `docs/index.md` como runbook; as da pasta de exemplos, de 2026-10-13 e 2026-10-14
+  (`decisions.md`, "The examples folder"), e as dos exemplos como aplicações, de 2026-10-16
+  (`decisions.md`, "The examples as applications"). Fecha com a resposta do usuário no PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -66,14 +67,17 @@ nomeia esse lugar.
   que, numa task Python, o pacote pré-instalado vence. Fecha com o exemplo `demo-python-operator`
   do repositório rodado no alvo: o `demo_tasks.py` dele imprime o `sys.path` e a origem do
   `petl`, do `six` e do `yaml` (2026-10-13).
-- **Os exemplos do repositório não rodaram a partir das cópias dele.** As definições de
-  `examples/` são as que rodaram no ambiente alvo em 2026-10-12 e 2026-10-13, com o prefixo
-  `<EXAMPLE_PREFIX>`, `shared/exemplos/<exemplo>` no `extra_values.json` de cada um, no lugar da
-  pasta pessoal, e o código e os scripts foram reescritos
-  em português; os dois `.zip` saem do projeto compartilhado com as raízes dos do alvo, mais o
-  `six` no da task Python (`packaging.md`, "The port verified against the original scripts").
-  Não medido: uma execução de cada exemplo a partir dos arquivos do repositório, pelos passos da
-  página `awsds_workflows.examples`. Fecha com essas execuções.
+- **Os cinco exemplos que rodaram no ambiente alvo não rodaram pela CLI de CI/CD.** Eles rodaram
+  pelo portal em 2026-10-12 e 2026-10-13, antes de virarem aplicações (`decisions.md`, "The examples
+  as applications"), com o prefixo da pasta pessoal; os workflows de `examples/*/workflows/` são os
+  mesmos na notação da CLI, com o prefixo literal `exemplos/<exemplo>`, e os dois `.zip` saem do
+  projeto compartilhado com as raízes dos do alvo (`packaging.md`, "The port verified against the
+  original scripts"). Não medidos: cada um pela CLI, pelos passos da página
+  `awsds_workflows.examples`, e com eles o `.zip` de uma task Python ou Bash passado pela CLI como
+  `code`, uma variável de stage lida no `config` de um job de processamento e nos `op_kwargs` de uma
+  task Python, que o Airflow renderiza, e o `demo-devenv-job` com o `src/` e o
+  `{env.JOB_IMAGE_URI}`; e cada um importado no portal a partir do `render` do workflow da CLI.
+  Fecha com essas execuções.
 - **O `.tar.gz` da pasta preparada num job.** O `demo-devenv-job` passou a esse formato pela
   palavra do usuário de 2026-10-13 (04:55 UTC; `decisions.md`, "The examples folder"), e o
   `prepare-offline` o grava desde o pedido das 05:15 UTC; provado na máquina que empacota
@@ -81,18 +85,27 @@ nomeia esse lugar.
   execuções medidas; `packaging.md`) e ainda não num job: o `sudo` e o `tar` da imagem padrão no
   volume, o tempo de download de um objeto de 34 MB contra o do prefixo expandido e o custo por
   arquivo de uma entrada de código expandida não foram medidos. Fecha com uma execução no alvo.
-- **O `houseprice-etl` não rodou num projeto.** O exemplo leva um job do Visual ETL numa
-  aplicação da CLI de CI/CD `aws-smus-cicd-cli` 1.0.9 (`decisions.md`, "The examples folder");
-  fora da AWS, em 2026-10-14, o script rodou no PySpark 4.1.1, a task contra o Glue do `moto` e
-  o `bundle` da CLI sobre a pasta da aplicação (o `README.md` do exemplo, "Conferência"). Não
-  medidos: se o `glue:GetJob` sobre um job que ainda não existe passa pela política do papel do
-  projeto, que só o autoriza sobre jobs com a etiqueta do projeto; se o job que o workflow cria
-  aparece em *Data processing jobs*, com as execuções e os logs; onde ficam os logs com o
-  `--custom-logGroup-prefix` e se o projeto os lê; se as sub-redes do espaço são as das conexões
-  de rede do job; os nomes das conexões do projeto, que a CLI espera `default.s3_shared` e
-  `default.workflow_serverless`; e o `bundle` e o `deploy` contra um domínio, de uma máquina com
-  rede até a API do MWAA Serverless. Fecha com a primeira execução do exemplo no alvo e um
-  `deploy` da aplicação.
+- **O `houseprice-etl` deixou medições por fazer no laboratório.** Pela CLI de CI/CD 1.0.9, entre
+  dois projetos de uma conta, em 2026-10-15 e 2026-10-16 (`cicd-cli.md`): o `deploy` criou o
+  workflow em cada projeto; a primeira execução parou no `glue:GetJob`, que a política do papel do
+  projeto só autoriza sobre um job com a etiqueta do projeto; o job criado uma vez com o `job.json`
+  fez as seguintes terminarem `SUCCESS`; o operador chamou `UpdateJob` em toda execução, pelo
+  `Command` que o `GetJob` devolve com `PythonVersion`; e o `bundle` e o `deploy` no stage `test`
+  rodaram. Não medidos: uma execução sem `UpdateJob`, com o `Command` inteiro em
+  `create_job_kwargs`; se o job aparece em *Data processing jobs*, com as execuções e os logs; onde
+  ficam os logs com o `--custom-logGroup-prefix` e se o projeto os lê; se as sub-redes das conexões
+  de rede do job são as que `space_values.py` imprime, que o laboratório preencheu à mão nas
+  variáveis de stage. Espera o usuário: como o job nasce num projeto em que não existe (o cartão de
+  2026-10-16: criado uma vez com o `job.json`, como os passos dizem; um `glue:GetJob` sobre jobs sem
+  etiqueta na política do projeto, o recomendado; ou uma task Python que o cria). Fecha com essas
+  execuções e com a escolha.
+- **O `lint` de uma aplicação e a tradução por conta.** O `lint` mora neste pacote (decisão 9 da
+  etapa 8 do AWS-DataScience) e vem numa PR seguinte, antes do `app-etl` (o usuário, 2026-10-16
+  04:20 UTC): as regras (a) a (h) do passo 5.6 da etapa 8, as do manifest e a do job do Glue da
+  etapa 10 (2.3); a regra (d), do `VersionId`, é do pipeline. A tradução de um workflow da CLI para
+  outra conta (decisão 6 da etapa 10: um arquivo que dá a cada variável da CLI o literal da conta, e
+  o corte do `update_config` e do `create_job_kwargs` do job do Glue) entra quando a etapa 10
+  renderizar para Staging e Produção. Fecha com as duas PRs.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

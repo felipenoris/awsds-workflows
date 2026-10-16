@@ -130,6 +130,11 @@ step of the runbook was measured in October 2026 (its stage log
   `--python >=3.11` and names `$AWSDS_PYTHON_ENV/bin/python` to its uv commands through
   `UV_PYTHON`. What the package does there is in `packaging.md` ("The interpreter `uv` needs").
 
+- **The CI/CD CLI from a laptop** (2026-10-15 and 2026-10-16): `aws-smus-cicd-cli` 1.0.9 deployed
+  and ran `houseprice-etl` between two projects of the account, from the user's Mac, with the
+  credential exported from the SSO profile; what it did, and what the Glue job's runs read, is in
+  `cicd-cli.md`.
+
 ## The target
 
 The SageMaker environment serialize-db's `SUITE_ALVO.md` refers to (user statement of 2026-10-11).
