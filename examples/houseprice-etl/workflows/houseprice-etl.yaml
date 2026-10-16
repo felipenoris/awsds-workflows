@@ -6,7 +6,7 @@ houseprice-etl:
       operator: airflow.providers.amazon.aws.operators.glue.GlueJobOperator
       job_name: houseprice-etl-{proj.id}
       job_desc: Job da aplicação houseprice-etl, criado e atualizado pelo workflow
-      script_location: "{proj.connection.default.s3_shared.s3Uri}exemplos/houseprice-etl/jobs/etl_houseprice.py"
+      script_location: "{proj.connection.default.s3_shared.s3Uri}exemplos/houseprice-etl/glue/etl_houseprice.py"
       iam_role_arn: "{proj.iam_role_arn}"
       region_name: "{domain.region}"
       update_config: true
@@ -14,14 +14,18 @@ houseprice-etl:
         "--SOURCE_PATH": "{proj.connection.default.s3_shared.s3Uri}exemplos/houseprice-etl/entrada/house-price.parquet"
         "--TARGET_PATH": "{proj.connection.default.s3_shared.s3Uri}exemplos/houseprice-etl/saida/"
       create_job_kwargs:
+        Command:
+          Name: glueetl
+          ScriptLocation: "{proj.connection.default.s3_shared.s3Uri}exemplos/houseprice-etl/glue/etl_houseprice.py"
+          PythonVersion: "3"
         GlueVersion: "6.0"
         WorkerType: G.1X
         NumberOfWorkers: 2
         Timeout: 50
         Connections:
           Connections:
-            - datazone-glue-network-connection-<SUBNET_AZ1>-{proj.id}-dev
-            - datazone-glue-network-connection-<SUBNET_AZ2>-{proj.id}-dev
+            - datazone-glue-network-connection-{env.SUBNET_AZ1}-{proj.id}-dev
+            - datazone-glue-network-connection-{env.SUBNET_AZ2}-{proj.id}-dev
         DefaultArguments:
           "--custom-logGroup-prefix": datazone-{proj.id}-dev
         Tags:

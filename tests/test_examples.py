@@ -1,18 +1,22 @@
 """Os exemplos de ``examples/``: cada definição renderiza com valores fabricados e é YAML válido,
-os placeholders de cada uma são os que ``scripts/space_values.py`` imprime mais os do
-``extra_values.json`` do próprio exemplo, que recusa o ``render`` enquanto um valor por preencher
-está como veio, os caminhos no S3 ficam sob ``<EXAMPLE_PREFIX>/``, que esse arquivo fixa em
-``shared/exemplos/<exemplo>``, a task Python e o módulo de ``UNLOAD`` rodam sobre dublês do
+os placeholders de cada uma, as variáveis da CLI de CI/CD traduzidas, são os que
+``scripts/space_values.py`` imprime mais os do ``extra_values.json`` do próprio exemplo, que
+recusa o ``render`` enquanto um valor por preencher está como veio, os caminhos no S3 ficam sob
+``shared/exemplos/<exemplo>/``, a task Python e o módulo de ``UNLOAD`` rodam sobre dublês do
 ``boto3``, os dois ``.zip`` saem do projeto compartilhado com as raízes dos que rodaram no
 ambiente alvo em 2026-10-12, e o ``.tar.gz`` do job, gravado por ``prepare_offline``, roda
 extraído noutra pasta, sem ``uv`` no ambiente, com o resumo das execuções medidas (``network``).
-Na aplicação de ``houseprice-etl``, o workflow com as variáveis da CLI de CI/CD é a definição do
-portal, o ``job.json`` é o ``CreateJob`` da task, o manifest copia o script para onde o workflow o
-lê, e o script do job do Glue roda sobre dublês do ``awsglue`` e do ``pyspark``.
+Numa aplicação da CLI de CI/CD, o ``manifest.yaml`` tem o nome da pasta e o workflow dela, cada
+item de storage é uma pasta do exemplo copiada para ``exemplos/<exemplo>/<pasta>`` do projeto,
+os dois stages declaram cada variável de stage do workflow, ``dev`` cria o workflow e ``test`` o
+cria e o executa com ``trailLogs``, e o workflow lê os arquivos onde o manifest os copia. No
+``houseprice-etl``, o ``job.json`` é o ``CreateJob`` da task, e o script do job do Glue roda
+sobre dublês do ``awsglue`` e do ``pyspark``.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import re
@@ -24,6 +28,7 @@ import types
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import boto3
 import pytest
@@ -38,8 +43,18 @@ from awsds_workflows import package_task, prepare_offline, render
 from awsds_workflows.errors import RefusalError
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
-DEFINITIONS = sorted(EXAMPLES.glob("*/*.yaml"))
+# As definições: as que ainda ficam na raiz da pasta do exemplo e as das aplicações, em workflows/.
+DEFINITIONS = sorted(
+    [path for path in EXAMPLES.glob("*/*.yaml") if path.name != "manifest.yaml"]
+    + list(EXAMPLES.glob("*/workflows/*.yaml"))
+)
 DEFINITION_IDS = [definition.stem for definition in DEFINITIONS]
+# Os manifests das aplicações da CLI de CI/CD.
+MANIFESTS = sorted(EXAMPLES.glob("*/manifest.yaml"))
+MANIFEST_IDS = [manifest.parent.name for manifest in MANIFESTS]
+# A variável da CLI com que todo caminho de uma aplicação no bucket começa: a pasta shared/ do
+# projeto.
+SHARED = "{proj.connection.default.s3_shared.s3Uri}"
 
 # Os valores que scripts/space_values.py imprime num espaço, fabricados sobre a conta de exemplo
 # da AWS.
@@ -69,18 +84,6 @@ TO_FILL = {
 RESULT_SHA256 = "1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191"
 # O que fica fora de uma cópia do projeto compartilhado: o que o uv e o pytest gravam.
 GENERATED = shutil.ignore_patterns(".venv", ".python", "__pycache__", ".pytest_cache", "uv.lock")
-# A pasta da aplicação de CI/CD do exemplo houseprice-etl.
-APPLICATION = EXAMPLES / "houseprice-etl" / "aplicacao"
-# Cada variável que a CLI aws-smus-cicd-cli troca no workflow da aplicação, com o que a definição
-# do portal leva no mesmo lugar.
-CLI_VARIABLES = {
-    "{proj.id}": "<PROJECT_ID>",
-    "{proj.iam_role_arn}": "arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>",
-    "{proj.connection.default.s3_shared.s3Uri}": (
-        "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/"
-    ),
-    "{domain.region}": "<REGION>",
-}
 # As raízes do .zip de cada task, as mesmas dos que rodaram no ambiente alvo em 2026-10-12, mais o
 # six, que o projeto compartilhado fixa para a task Python também.
 PROJECT_ROOTS = [
@@ -93,22 +96,43 @@ PROJECT_ROOTS = [
 ]
 
 
+def example_folder_of(
+    definition: Path,
+) -> Path:
+    """A pasta do exemplo da definição: a pasta dela, ou a de cima numa aplicação."""
+    if definition.parent.name == "workflows":
+        return definition.parent.parent
+    return definition.parent
+
+
 def placeholders_of(
     definition: Path,
 ) -> set[str]:
-    """Os nomes dos placeholders da definição."""
-    return set(render.PLACEHOLDER.findall(definition.read_text(encoding="utf-8")))
+    """Os nomes dos placeholders da definição, com as variáveis da CLI de CI/CD traduzidas."""
+    text = render.translate_cli_variables(definition.read_text(encoding="utf-8"))
+    return set(render.PLACEHOLDER.findall(text))
 
 
 def extra_values_of(
     definition: Path,
 ) -> dict[str, str]:
-    """O ``extra_values.json`` da pasta da definição, como veio, ou nada quando a pasta não tem
+    """O ``extra_values.json`` da pasta do exemplo, como veio, ou nada quando a pasta não tem
     um."""
-    model = definition.with_name("extra_values.json")
+    model = example_folder_of(definition) / "extra_values.json"
     if not model.is_file():
         return {}
     return render.load_values(model)
+
+
+def manifest_and_workflow_of(
+    manifest_path: Path,
+) -> tuple[dict[str, Any], str]:
+    """O manifest de uma aplicação, lido, e o texto do workflow dela,
+    ``workflows/<exemplo>.yaml``."""
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    name = manifest_path.parent.name
+    workflow = manifest_path.parent / "workflows" / f"{name}.yaml"
+    return manifest, workflow.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("definition", DEFINITIONS, ids=DEFINITION_IDS)
@@ -174,15 +198,16 @@ def test_the_values_to_fill_refuse_the_render_until_filled(
 def test_the_definition_keeps_its_files_under_the_example_prefix(
     definition: Path,
 ) -> None:
-    """Cada caminho no bucket do projeto fica sob ``<EXAMPLE_PREFIX>/``, que o
-    ``extra_values.json`` do exemplo fixa em ``shared/exemplos/<exemplo>``."""
-    text = definition.read_text(encoding="utf-8")
-    paths = re.findall(r"<PROJECT_ID>/(\S+)", text)
-    for path in paths:
-        assert path.startswith("<EXAMPLE_PREFIX>/"), path
-    if paths:
-        prefix = extra_values_of(definition)["EXAMPLE_PREFIX"]
-        assert prefix == f"shared/exemplos/{definition.stem}"
+    """Cada caminho no bucket do projeto fica sob ``shared/exemplos/<exemplo>/``: numa aplicação,
+    o literal depois do ``s3Uri`` da conexão; numa definição com ``<EXAMPLE_PREFIX>``, o que o
+    ``extra_values.json`` do exemplo fixa."""
+    text = render.translate_cli_variables(definition.read_text(encoding="utf-8"))
+    extra = extra_values_of(definition)
+    if "EXAMPLE_PREFIX" in extra:
+        assert extra["EXAMPLE_PREFIX"] == f"shared/exemplos/{definition.stem}"
+        text = text.replace("<EXAMPLE_PREFIX>", extra["EXAMPLE_PREFIX"])
+    for path in re.findall(r"<PROJECT_ID>/(\S+)", text):
+        assert path.startswith(f"shared/exemplos/{definition.stem}/"), path
 
 
 def test_the_bash_scripts_carry_no_jinja_delimiter() -> None:
@@ -475,47 +500,141 @@ def test_the_prepared_project_runs_extracted_elsewhere(
     assert hashlib.sha256(result).hexdigest() == RESULT_SHA256
 
 
-def rendered_definition_of(
-    example: str,
-) -> str:
-    """A definição do exemplo preenchida com os valores fabricados do espaço e os do
-    ``extra_values.json`` dele."""
-    definition = EXAMPLES / example / f"{example}.yaml"
-    values = {**SPACE_VALUES, **extra_values_of(definition)}
-    return render.fill_placeholders(definition.read_text(encoding="utf-8"), values)
+@pytest.mark.parametrize("manifest_path", MANIFESTS, ids=MANIFEST_IDS)
+def test_the_manifest_names_the_example_and_its_workflow(
+    manifest_path: Path,
+) -> None:
+    """O manifest tem o nome da pasta do exemplo e um workflow só, o de ``workflows/`` com o nome
+    do exemplo e o mesmo ``dag_id``, na conexão ``default.workflow_serverless``, sem
+    ``schedule``."""
+    name = manifest_path.parent.name
+    manifest, workflow_text = manifest_and_workflow_of(manifest_path)
+    assert manifest["applicationName"] == name
+
+    entries = manifest["content"]["workflows"]
+    assert [entry["workflowName"] for entry in entries] == [name]
+    assert entries[0]["connectionName"] == "default.workflow_serverless"
+
+    document = yaml.safe_load(render.translate_cli_variables(workflow_text))
+    assert list(document) == [name]
+    assert document[name]["dag_id"] == name
+    assert "schedule" not in document[name]
 
 
-def test_the_application_workflow_is_the_definition_with_the_cli_variables() -> None:
-    """O workflow da aplicação de ``houseprice-etl`` é a definição do portal com as variáveis da
-    CLI de CI/CD no lugar dos valores do projeto: com cada variável trocada pelo placeholder do
-    mesmo valor, os dois preenchem igual. Só as sub-redes, que a CLI não conhece, ficam como
-    placeholders."""
-    text = (APPLICATION / "workflows" / "houseprice-etl.yaml").read_text(encoding="utf-8")
-    assert set(render.PLACEHOLDER.findall(text)) == {"SUBNET_AZ1", "SUBNET_AZ2"}
+@pytest.mark.parametrize("manifest_path", MANIFESTS, ids=MANIFEST_IDS)
+def test_the_storage_items_are_folders_of_the_example_copied_under_its_prefix(
+    manifest_path: Path,
+) -> None:
+    """Cada item de ``content.storage`` é uma pasta do exemplo com o nome do item, sem
+    ``connectionName``, e cada stage o copia para ``exemplos/<exemplo>/<pasta>`` da conexão
+    ``default.s3_shared`` do projeto."""
+    folder = manifest_path.parent
+    manifest, _workflow_text = manifest_and_workflow_of(manifest_path)
+    items = manifest["content"]["storage"]
+    for item in items:
+        assert "connectionName" not in item, item["name"]
+        for pattern in item["include"]:
+            assert Path(pattern).parts[0] == item["name"], pattern
+            assert (folder / item["name"]).is_dir(), pattern
 
-    for variable, placeholder in CLI_VARIABLES.items():
-        text = text.replace(variable, placeholder)
-    assert re.search(r"\{(env|proj|domain|stage)\.", text) is None
+    for stage_name, stage in manifest["stages"].items():
+        deployment = stage["deployment_configuration"]["storage"]
+        assert sorted(entry["name"] for entry in deployment) == sorted(
+            item["name"] for item in items
+        ), stage_name
+        for entry in deployment:
+            assert entry["connectionName"] == "default.s3_shared", stage_name
+            assert entry["targetDirectory"] == f"exemplos/{folder.name}/{entry['name']}"
 
-    definition = EXAMPLES / "houseprice-etl" / "houseprice-etl.yaml"
-    from_cli = render.fill_placeholders(text, {**SPACE_VALUES, **extra_values_of(definition)})
-    from_portal = rendered_definition_of("houseprice-etl")
-    assert from_cli.splitlines()[0] == from_portal.splitlines()[0]
-    assert yaml.safe_load(from_cli) == yaml.safe_load(from_portal)
+
+@pytest.mark.parametrize("manifest_path", MANIFESTS, ids=MANIFEST_IDS)
+def test_the_stages_declare_every_stage_variable_of_the_workflow(
+    manifest_path: Path,
+) -> None:
+    """Cada ``{env.NOME}`` do workflow está em ``environment_variables`` dos dois stages, como
+    ``${NOME}`` lido do shell, e nenhum stage declara uma variável que o workflow não lê: uma sem
+    declaração derruba o ``workflow.create`` da CLI 1.0.9 (laboratório, 2026-10-16)."""
+    manifest, workflow_text = manifest_and_workflow_of(manifest_path)
+    used = set(re.findall(r"\{env\.([A-Z][A-Z0-9_]+)\}", workflow_text))
+    for stage_name, stage in manifest["stages"].items():
+        declared = stage.get("environment_variables", {})
+        assert set(declared) == used, stage_name
+        for variable, value in declared.items():
+            assert value == f"${{{variable}}}", variable
 
 
-def test_the_job_model_is_the_create_job_of_the_definition() -> None:
+@pytest.mark.parametrize("manifest_path", MANIFESTS, ids=MANIFEST_IDS)
+def test_dev_creates_the_workflow_and_test_creates_and_runs_it_trailing_the_logs(
+    manifest_path: Path,
+) -> None:
+    """O stage ``dev`` cria o workflow, porque o ``deploy`` só copia os arquivos, e o ``test`` o
+    cria e o executa com ``trailLogs: true``, que espera o fim; ``wait: true`` derruba a CLI
+    1.0.9 (laboratório, 2026-10-16)."""
+    name = manifest_path.parent.name
+    manifest, _workflow_text = manifest_and_workflow_of(manifest_path)
+    stages = manifest["stages"]
+    assert list(stages) == ["dev", "test"]
+    assert stages["dev"]["stage"] == "DEV"
+    assert stages["test"]["stage"] == "TEST"
+
+    create = {"type": "workflow.create", "workflowName": name}
+    run = {"type": "workflow.run", "workflowName": name, "trailLogs": True}
+    assert stages["dev"]["bootstrap"]["actions"] == [create]
+    assert stages["test"]["bootstrap"]["actions"] == [create, run]
+
+
+@pytest.mark.parametrize("manifest_path", MANIFESTS, ids=MANIFEST_IDS)
+def test_the_workflow_reads_its_files_where_the_manifest_copies_them(
+    manifest_path: Path,
+) -> None:
+    """Todo caminho do workflow no bucket começa pelo ``s3Uri`` da conexão e por
+    ``exemplos/<exemplo>/``, e um arquivo que ele nomeia numa pasta de storage existe no
+    exemplo."""
+    folder = manifest_path.parent
+    manifest, workflow_text = manifest_and_workflow_of(manifest_path)
+    storage_names = {item["name"] for item in manifest["content"]["storage"]}
+    prefix = f"exemplos/{folder.name}/"
+
+    paths = re.findall(r"s3Uri\}([^\s\"']+)", workflow_text)
+    assert paths, folder.name
+    for path in paths:
+        assert path.startswith(prefix), path
+        parts = path[len(prefix) :].split("/")
+        if parts[0] in storage_names and len(parts) == 2 and parts[1]:
+            assert (folder / parts[0] / parts[1]).is_file(), path
+
+
+@pytest.mark.parametrize("manifest_path", MANIFESTS, ids=MANIFEST_IDS)
+def test_the_operator_code_is_the_zip_of_the_example_in_a_storage_item(
+    manifest_path: Path,
+) -> None:
+    """Quando o workflow tem ``code``, ele é ``code/<exemplo>.zip``, o que o ``package-task``
+    grava pelos passos da página, e um item de storage o inclui."""
+    name = manifest_path.parent.name
+    manifest, _workflow_text = manifest_and_workflow_of(manifest_path)
+    code = manifest["content"]["workflows"][0].get("code")
+    if code is None:
+        return
+    assert code == f"code/{name}.zip"
+    patterns = []
+    for item in manifest["content"]["storage"]:
+        patterns.extend(item["include"])
+    assert any(fnmatch.fnmatch(code, pattern) for pattern in patterns), patterns
+
+
+def test_the_job_model_is_the_create_job_of_the_workflow() -> None:
     """O ``job.json`` de ``houseprice-etl``, preenchido, é a entrada do ``CreateJob`` que o
-    ``GlueJobOperator`` monta com a task da definição: o nome, a descrição, o papel, uma execução
-    por vez, o script, nenhuma nova tentativa e o ``create_job_kwargs``, o que o
-    ``apache-airflow-providers-amazon`` 9.32.0 do worker enviou a um Glue simulado em
-    2026-10-14."""
+    ``GlueJobOperator`` monta com a task do workflow: o nome, a descrição, o papel, uma execução
+    por vez, nenhuma nova tentativa e o ``create_job_kwargs``, com o ``Command`` inteiro, o que o
+    ``apache-airflow-providers-amazon`` 9.32.0 do worker enviou a um Glue simulado em 2026-10-14.
+    O ``Command`` leva o ``PythonVersion`` que o ``GetJob`` devolve, porque sem ele o operador
+    chamou ``UpdateJob`` em toda execução no laboratório (2026-10-16)."""
     folder = EXAMPLES / "houseprice-etl"
-    values = {**SPACE_VALUES, **extra_values_of(folder / "houseprice-etl.yaml")}
     job_text = (folder / "job.json").read_text(encoding="utf-8")
-    job = json.loads(render.fill_placeholders(job_text, values))
+    job = json.loads(render.fill_placeholders(job_text, SPACE_VALUES))
 
-    definition = yaml.safe_load(rendered_definition_of("houseprice-etl"))
+    workflow_text = (folder / "workflows" / "houseprice-etl.yaml").read_text(encoding="utf-8")
+    definition = yaml.safe_load(render.fill_placeholders(workflow_text, SPACE_VALUES))
     task = definition["houseprice-etl"]["tasks"]["run_glue_job"]
     expected = {
         "Name": task["job_name"],
@@ -527,33 +646,7 @@ def test_the_job_model_is_the_create_job_of_the_definition() -> None:
         **task["create_job_kwargs"],
     }
     assert job == expected
-
-
-def test_the_manifest_deploys_the_script_where_the_workflow_reads_it() -> None:
-    """O ``manifest.yaml`` da aplicação leva as pastas ``jobs/`` e ``workflows/`` dela e nomeia
-    o workflow dela, e o stage de teste copia o script para o caminho que o workflow passa ao job,
-    sob o prefixo do exemplo."""
-    manifest = yaml.safe_load((APPLICATION / "manifest.yaml").read_text(encoding="utf-8"))
-    for item in manifest["content"]["storage"]:
-        for folder in item["include"]:
-            assert (APPLICATION / folder).is_dir(), folder
-
-    workflow_text = (APPLICATION / "workflows" / "houseprice-etl.yaml").read_text(encoding="utf-8")
-    workflow = yaml.safe_load(workflow_text)
-    names = [item["workflowName"] for item in manifest["content"]["workflows"]]
-    assert names == list(workflow)
-
-    deployment = manifest["stages"]["test"]["deployment_configuration"]["storage"]
-    directories = {item["name"]: item["targetDirectory"] for item in deployment}
-    script = workflow["houseprice-etl"]["tasks"]["run_glue_job"]["script_location"]
-    shared = "{proj.connection.default.s3_shared.s3Uri}"
-    assert script == f"{shared}{directories['jobs']}/etl_houseprice.py"
-    assert (APPLICATION / "jobs" / "etl_houseprice.py").is_file()
-
-    definition = EXAMPLES / "houseprice-etl" / "houseprice-etl.yaml"
-    prefix = extra_values_of(definition)["EXAMPLE_PREFIX"]
-    for directory in directories.values():
-        assert f"shared/{directory}".startswith(f"{prefix}/"), directory
+    assert job["Command"]["PythonVersion"] == "3"
 
 
 class FakeWriter:
@@ -671,7 +764,8 @@ def test_the_glue_script_reads_the_parquet_and_appends_the_csv(
     argv = ["etl_houseprice.py", "--JOB_NAME", "houseprice-etl-abc123"]
     argv += ["--SOURCE_PATH", source, "--TARGET_PATH", target]
     monkeypatch.setattr(sys, "argv", argv)
-    runpy.run_path(str(APPLICATION / "jobs" / "etl_houseprice.py"), run_name="__main__")
+    script = EXAMPLES / "houseprice-etl" / "glue" / "etl_houseprice.py"
+    runpy.run_path(str(script), run_name="__main__")
 
     assert asked == [["SOURCE_PATH", "TARGET_PATH"]]
     assert session.read.choices == [("format", "parquet"), ("load", source)]

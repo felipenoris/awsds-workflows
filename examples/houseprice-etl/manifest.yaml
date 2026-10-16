@@ -2,9 +2,9 @@ applicationName: houseprice-etl
 
 content:
   storage:
-    - name: jobs
+    - name: glue
       include:
-        - "jobs/"
+        - "glue/"
       exclude:
         - __pycache__/
         - "*.pyc"
@@ -23,6 +23,21 @@ stages:
       region: ${DOMAIN_REGION}
     project:
       name: ${DEV_PROJECT_NAME}
+    environment_variables:
+      SUBNET_AZ1: ${SUBNET_AZ1}
+      SUBNET_AZ2: ${SUBNET_AZ2}
+    bootstrap:
+      actions:
+        - type: workflow.create
+          workflowName: houseprice-etl
+    deployment_configuration:
+      storage:
+        - name: glue
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/houseprice-etl/glue
+        - name: workflows
+          connectionName: default.s3_shared
+          targetDirectory: exemplos/houseprice-etl/workflows
 
   test:
     stage: TEST
@@ -31,6 +46,9 @@ stages:
       region: ${DOMAIN_REGION}
     project:
       name: ${TEST_PROJECT_NAME}
+    environment_variables:
+      SUBNET_AZ1: ${SUBNET_AZ1}
+      SUBNET_AZ2: ${SUBNET_AZ2}
     bootstrap:
       actions:
         - type: workflow.create
@@ -40,9 +58,9 @@ stages:
           trailLogs: true
     deployment_configuration:
       storage:
-        - name: jobs
+        - name: glue
           connectionName: default.s3_shared
-          targetDirectory: exemplos/houseprice-etl/jobs
+          targetDirectory: exemplos/houseprice-etl/glue
         - name: workflows
           connectionName: default.s3_shared
           targetDirectory: exemplos/houseprice-etl/workflows
