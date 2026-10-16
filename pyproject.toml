@@ -41,8 +41,8 @@ testpaths = ["tests", "examples/awsds-demo-job/tests"]
 pythonpath = [
     "scripts",
     "examples/awsds-demo-job/src",
-    "examples/demo-python-operator",
-    "examples/redshift-unload",
+    "examples/demo-python-operator/code",
+    "examples/redshift-unload/code",
 ]
 markers = [
     "network: roda o uv sobre projetos de teste gravados em tmp_path e precisa do PyPI; -m 'not network' os pula",

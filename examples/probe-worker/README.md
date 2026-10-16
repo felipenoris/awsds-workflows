@@ -8,10 +8,26 @@ ou Bash, para saber o que cabe no worker.
 |---|---|---|
 | `probe_worker` | `BashOperator` | os comandos inline abaixo, e `exit 0` |
 
+## A aplicação
+
+A pasta é uma aplicação da CLI de CI/CD do SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9:
+o `manifest.yaml` na raiz e o workflow em `workflows/`, sem variável da CLI nem de stage, porque a
+task não lê nada da conta. O `deploy` de um stage copia `workflows/` para
+`shared/exemplos/probe-worker/` do projeto do stage e cria o workflow
+`probe_worker_<projeto>_probe_worker`; o stage `test` o executa uma vez, com `trailLogs: true`.
+O mesmo arquivo entra no portal como está, sem o `render`.
+
+## Arquivos
+
+| Arquivo | O que é |
+|---|---|
+| `manifest.yaml` | o manifest da aplicação: a pasta `workflows/`, o workflow e os stages `dev` e `test` |
+| `workflows/probe-worker.yaml` | o workflow, sem placeholder nem variável |
+
 ## Os passos
 
-Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#probe-worker): a definição não tem
-placeholder, então entra no portal como está, sem o `render`.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#probe-worker): o `deploy` e o `run` pela
+CLI, ou o workflow no portal, e onde ler o que a task imprimiu.
 
 ## O que ela imprime
 

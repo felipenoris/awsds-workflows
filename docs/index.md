@@ -1385,6 +1385,7 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
   | `{proj.id}` | `<PROJECT_ID>` |
   | `{proj.iam_role_arn}` | `arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>` |
   | `{proj.connection.default.s3_shared.s3Uri}` | `s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/` |
+  | `{proj.connection.default.s3_shared.bucket}` | `<PROJECTS_BUCKET>` |
   | `{domain.id}` | `<DOMAIN_ID>` |
   | `{domain.region}` | `<REGION>` |
   | `{env.NOME}` | `<NOME>` |

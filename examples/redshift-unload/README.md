@@ -15,19 +15,38 @@ erro passa por uma máscara antes de sair. O módulo só usa o `boto3` que o wor
 |---|---|---|
 | `unload` | `PythonOperator` | `redshift_unload.unload`, com `select`, `destination`, `workgroup` e `database` como `op_kwargs` |
 
+## A aplicação
+
+A pasta é uma aplicação da CLI de CI/CD do SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9:
+o `manifest.yaml` na raiz, o workflow em `workflows/`, na notação da CLI, e o módulo em `code/`.
+O `package-task` grava em `code/` o `.zip` com o módulo na raiz, `code/redshift-unload.zip`, que
+fica fora do git; o item de storage `code` do manifest sobe só o `.zip`, e a entrada
+`code: code/redshift-unload.zip` do workflow diz à CLI qual arquivo passar como `Code` do
+workflow, lido no código da CLI e ainda não medido. Os três nomes do Redshift são variáveis de
+stage, `REDSHIFT_WORKGROUP`, `REDSHIFT_DATABASE` e `REDSHIFT_TABLE`, declaradas nos dois stages e
+lidas do shell no `deploy` e no `run`: a CLI as grava na definição como `{{ params.NOME }}` e
+as preenche em cada execução que inicia; que a task Python renderize os `op_kwargs` com elas foi
+lido no código do Airflow e ainda não medido. O destino é o `s3Uri` da conexão `default.s3_shared`
+do projeto mais o literal `exemplos/redshift-unload/` e a hora da execução. O stage `test` executa
+o workflow uma vez, com `trailLogs: true`. Pelo portal, o `render` traduz as variáveis da CLI e
+preenche com o `space_values.json` e o `extra_values.json`.
+
 ## Arquivos
 
 | Arquivo | O que é |
 |---|---|
-| `redshift-unload.yaml` | a definição, com placeholders |
-| `extra_values.json` | o arquivo de valores extras, de modelo: o prefixo do exemplo e os três nomes do Redshift, por preencher |
-| `redshift_unload.py` | o módulo da task, que vai sozinho no `.zip` |
+| `manifest.yaml` | o manifest da aplicação: as pastas `code/` e `workflows/`, o workflow com o `code`, as três variáveis de stage e os stages `dev` e `test` |
+| `workflows/redshift-unload.yaml` | o workflow, na notação da CLI |
+| `extra_values.json` | o arquivo de valores extras, de modelo, para o caminho do portal: os três nomes do Redshift, por preencher |
+| `code/redshift_unload.py` | o módulo da task, que vai sozinho no `.zip` |
+| `code/redshift-unload.zip` | o `.zip` que o `package-task` grava, fora do git |
 
 ## Os passos
 
-Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#redshift-unload): os nomes do Redshift
-no `extra_values.json`, o acesso do usuário do projeto ao banco do datashare, o `.zip` com o módulo na raiz, a definição
-com os dois arquivos de valores, o workflow no portal e onde ler o resultado.
+Estão na página [Os exemplos, passo a passo](https://felipenoris.github.io/awsds-workflows/awsds_workflows/examples.html#redshift-unload): o acesso do usuário do
+projeto ao banco do datashare, o `.zip` com o módulo na raiz em `code/`, os três nomes no shell,
+o `deploy` e o `run` pela CLI, ou o workflow no portal com o `extra_values.json` preenchido, e
+onde ler o resultado.
 
 ## Falhas
 

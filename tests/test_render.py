@@ -81,9 +81,14 @@ def test_fill_translates_the_cli_variables_before_filling() -> None:
 def test_translate_turns_the_table_and_a_stage_variable_into_placeholders() -> None:
     """A tabela dá a expressão de cada variável, e ``{env.NOME}`` vira ``<NOME>``, com as aspas
     do YAML em volta mantidas."""
-    text = 'ImageUri: "{env.JOB_IMAGE_URI}" em {domain.region}, domínio {domain.id}'
+    text = (
+        'ImageUri: "{env.JOB_IMAGE_URI}" em {domain.region}, domínio {domain.id}, '
+        "bucket {proj.connection.default.s3_shared.bucket}"
+    )
     translated = render.translate_cli_variables(text)
-    assert translated == 'ImageUri: "<JOB_IMAGE_URI>" em <REGION>, domínio <DOMAIN_ID>'
+    assert translated == (
+        'ImageUri: "<JOB_IMAGE_URI>" em <REGION>, domínio <DOMAIN_ID>, bucket <PROJECTS_BUCKET>'
+    )
 
 
 def test_translate_leaves_what_is_not_a_cli_variable() -> None:

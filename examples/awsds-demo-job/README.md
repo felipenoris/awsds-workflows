@@ -33,7 +33,8 @@ do git, como a `.venv/`.
 
 ## A pasta preparada num `.tar.gz`
 
-O `prepare-offline` do pacote grava a entrada de código do `demo-devenv-job`. Numa máquina Linux
+O `prepare-offline` do pacote grava a entrada de código do `demo-devenv-job`, em `src/` daquele
+exemplo, de onde o `deploy` da CLI de CI/CD a copia para o projeto. Numa máquina Linux
 x86_64 com internet, a plataforma do job, ele copia o projeto para uma pasta temporária, recria lá
 a `.venv/` com o CPython 3.12 que o `uv` baixa para dentro dela, o projeto instalado como pacote e
 as dependências de execução, sem o grupo `dev`, torna relativo cada link, grava o `.tar.gz` com a
@@ -42,7 +43,7 @@ e o `uv.lock` tem de existir:
 
 ```shell
 (cd examples/awsds-demo-job && uv lock)
-awsds-workflows prepare-offline examples/awsds-demo-job /tmp/awsds-demo-job.tar.gz
+awsds-workflows prepare-offline examples/awsds-demo-job examples/demo-devenv-job/src/awsds-demo-job.tar.gz
 ```
 
 A pasta extraída roda de qualquer caminho, sem `uv` e sem rede, com

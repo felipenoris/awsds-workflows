@@ -1,0 +1,13 @@
+# {"unload":{"x":120,"y":200}}
+redshift-unload:
+  dag_id: redshift-unload
+  tasks:
+    unload:
+      operator: airflow.providers.standard.operators.python.PythonOperator
+      python_callable: redshift_unload.unload
+      op_kwargs:
+        select: "SELECT * FROM {env.REDSHIFT_TABLE}"
+        destination: "{proj.connection.default.s3_shared.s3Uri}exemplos/redshift-unload/{{ macros.time.strftime('%Y%m%dT%H%M%S', macros.time.gmtime()) }}/"
+        workgroup: "{env.REDSHIFT_WORKGROUP}"
+        database: "{env.REDSHIFT_DATABASE}"
+      retries: 0

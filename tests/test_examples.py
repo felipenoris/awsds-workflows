@@ -1,15 +1,18 @@
-"""Os exemplos de ``examples/``: cada definição renderiza com valores fabricados e é YAML válido,
-os placeholders de cada uma, as variáveis da CLI de CI/CD traduzidas, são os que
+"""Os exemplos de ``examples/``, cada um uma aplicação da CLI de CI/CD: cada workflow renderiza
+com valores fabricados e é YAML válido, os placeholders de cada um, as variáveis da CLI traduzidas,
+são os que
 ``scripts/space_values.py`` imprime mais os do ``extra_values.json`` do próprio exemplo, que
 recusa o ``render`` enquanto um valor por preencher está como veio, os caminhos no S3 ficam sob
-``shared/exemplos/<exemplo>/``, a task Python e o módulo de ``UNLOAD`` rodam sobre dublês do
+``shared/exemplos/<exemplo>/``, os scripts Bash não têm delimitador do Jinja, a task Python e o
+módulo de ``UNLOAD`` rodam sobre dublês do
 ``boto3``, os dois ``.zip`` saem do projeto compartilhado com as raízes dos que rodaram no
 ambiente alvo em 2026-10-12, e o ``.tar.gz`` do job, gravado por ``prepare_offline``, roda
 extraído noutra pasta, sem ``uv`` no ambiente, com o resumo das execuções medidas (``network``).
-Numa aplicação da CLI de CI/CD, o ``manifest.yaml`` tem o nome da pasta e o workflow dela, cada
-item de storage é uma pasta do exemplo copiada para ``exemplos/<exemplo>/<pasta>`` do projeto,
-os dois stages declaram cada variável de stage do workflow, ``dev`` cria o workflow e ``test`` o
-cria e o executa com ``trailLogs``, e o workflow lê os arquivos onde o manifest os copia. No
+O ``manifest.yaml`` de cada aplicação tem o nome da pasta e o workflow dela, cada item de storage
+é uma pasta do exemplo copiada para ``exemplos/<exemplo>/<pasta>`` do projeto, os dois stages
+declaram cada variável de stage do workflow, ``dev`` cria o workflow e ``test`` o cria e o
+executa com ``trailLogs``, o workflow lê os arquivos onde o manifest os copia, e o ``code`` de
+uma task Python ou Bash é o ``.zip`` de ``code/``, com os fontes que o workflow nomeia. No
 ``houseprice-etl``, o ``job.json`` é o ``CreateJob`` da task, e o script do job do Glue roda
 sobre dublês do ``awsglue`` e do ``pyspark``.
 """
@@ -43,11 +46,8 @@ from awsds_workflows import package_task, prepare_offline, render
 from awsds_workflows.errors import RefusalError
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
-# As definições: as que ainda ficam na raiz da pasta do exemplo e as das aplicações, em workflows/.
-DEFINITIONS = sorted(
-    [path for path in EXAMPLES.glob("*/*.yaml") if path.name != "manifest.yaml"]
-    + list(EXAMPLES.glob("*/workflows/*.yaml"))
-)
+# Os workflows das aplicações, um por exemplo, em workflows/.
+DEFINITIONS = sorted(EXAMPLES.glob("*/workflows/*.yaml"))
 DEFINITION_IDS = [definition.stem for definition in DEFINITIONS]
 # Os manifests das aplicações da CLI de CI/CD.
 MANIFESTS = sorted(EXAMPLES.glob("*/manifest.yaml"))
@@ -99,10 +99,8 @@ PROJECT_ROOTS = [
 def example_folder_of(
     definition: Path,
 ) -> Path:
-    """A pasta do exemplo da definição: a pasta dela, ou a de cima numa aplicação."""
-    if definition.parent.name == "workflows":
-        return definition.parent.parent
-    return definition.parent
+    """A pasta do exemplo da definição, a de cima de ``workflows/``."""
+    return definition.parent.parent
 
 
 def placeholders_of(
@@ -198,21 +196,19 @@ def test_the_values_to_fill_refuse_the_render_until_filled(
 def test_the_definition_keeps_its_files_under_the_example_prefix(
     definition: Path,
 ) -> None:
-    """Cada caminho no bucket do projeto fica sob ``shared/exemplos/<exemplo>/``: numa aplicação,
-    o literal depois do ``s3Uri`` da conexão; numa definição com ``<EXAMPLE_PREFIX>``, o que o
-    ``extra_values.json`` do exemplo fixa."""
+    """Cada caminho no bucket do projeto fica sob ``shared/exemplos/<exemplo>/``: o literal depois
+    do ``s3Uri`` da conexão, e, num prefixo sem o bucket, depois do domínio e do projeto, que é
+    como o ``s3Uri`` se escreve."""
     text = render.translate_cli_variables(definition.read_text(encoding="utf-8"))
-    extra = extra_values_of(definition)
-    if "EXAMPLE_PREFIX" in extra:
-        assert extra["EXAMPLE_PREFIX"] == f"shared/exemplos/{definition.stem}"
-        text = text.replace("<EXAMPLE_PREFIX>", extra["EXAMPLE_PREFIX"])
     for path in re.findall(r"<PROJECT_ID>/(\S+)", text):
         assert path.startswith(f"shared/exemplos/{definition.stem}/"), path
 
 
 def test_the_bash_scripts_carry_no_jinja_delimiter() -> None:
     """Um ``.sh`` que um BashOperator chama passa pelo Jinja: nenhum tem ``{{`` nem ``{#``."""
-    for script in sorted(EXAMPLES.glob("demo-bash-operator/*.sh")):
+    scripts = sorted(EXAMPLES.glob("demo-bash-operator/code/*.sh"))
+    assert [script.name for script in scripts] == ["probe.sh", "reach_pypi.sh"]
+    for script in scripts:
         text = script.read_text(encoding="utf-8")
         assert "{{" not in text, script.name
         assert "{#" not in text, script.name
@@ -441,7 +437,7 @@ def test_the_python_archive_has_the_roots_of_the_target(
     dependências dele na raiz."""
     archive = package_task.build_archive(
         locked_demo_project,
-        EXAMPLES / "demo-python-operator" / "demo_tasks.py",
+        EXAMPLES / "demo-python-operator" / "code" / "demo_tasks.py",
         tmp_path / "demo-python-operator.zip",
     )
     assert archive.top_level == sorted(PROJECT_ROOTS + ["demo_tasks.py"])
@@ -459,7 +455,7 @@ def test_the_bash_archive_has_the_scripts_with_their_mode(
         locked_demo_project,
         None,
         tmp_path / "demo-bash-operator.zip",
-        include=[EXAMPLES / "demo-bash-operator" / script for script in scripts],
+        include=[EXAMPLES / "demo-bash-operator" / "code" / script for script in scripts],
     )
     assert archive.top_level == sorted(PROJECT_ROOTS + scripts)
     with zipfile.ZipFile(archive.path) as opened:
@@ -588,15 +584,16 @@ def test_the_workflow_reads_its_files_where_the_manifest_copies_them(
     manifest_path: Path,
 ) -> None:
     """Todo caminho do workflow no bucket começa pelo ``s3Uri`` da conexão e por
-    ``exemplos/<exemplo>/``, e um arquivo que ele nomeia numa pasta de storage existe no
-    exemplo."""
+    ``exemplos/<exemplo>/``, um arquivo que ele nomeia numa pasta de storage existe no exemplo, e
+    um exemplo que copia algo além do workflow lê algo do bucket."""
     folder = manifest_path.parent
     manifest, workflow_text = manifest_and_workflow_of(manifest_path)
     storage_names = {item["name"] for item in manifest["content"]["storage"]}
     prefix = f"exemplos/{folder.name}/"
 
     paths = re.findall(r"s3Uri\}([^\s\"']+)", workflow_text)
-    assert paths, folder.name
+    if storage_names != {"workflows"}:
+        assert paths, folder.name
     for path in paths:
         assert path.startswith(prefix), path
         parts = path[len(prefix) :].split("/")
@@ -608,18 +605,29 @@ def test_the_workflow_reads_its_files_where_the_manifest_copies_them(
 def test_the_operator_code_is_the_zip_of_the_example_in_a_storage_item(
     manifest_path: Path,
 ) -> None:
-    """Quando o workflow tem ``code``, ele é ``code/<exemplo>.zip``, o que o ``package-task``
-    grava pelos passos da página, e um item de storage o inclui."""
-    name = manifest_path.parent.name
-    manifest, _workflow_text = manifest_and_workflow_of(manifest_path)
+    """Um exemplo com a pasta ``code/`` tem ``code``, o ``code/<exemplo>.zip`` que o
+    ``package-task`` grava pelos passos da página, um item de storage o inclui, e cada módulo de
+    ``python_callable`` e cada ``.sh`` que um ``bash_command`` nomeia está em ``code/``; um
+    exemplo sem a pasta não tem ``code``."""
+    folder = manifest_path.parent
+    manifest, workflow_text = manifest_and_workflow_of(manifest_path)
     code = manifest["content"]["workflows"][0].get("code")
-    if code is None:
+    if not (folder / "code").is_dir():
+        assert code is None, code
         return
-    assert code == f"code/{name}.zip"
+    assert code == f"code/{folder.name}.zip"
     patterns = []
     for item in manifest["content"]["storage"]:
         patterns.extend(item["include"])
     assert any(fnmatch.fnmatch(code, pattern) for pattern in patterns), patterns
+
+    modules = re.findall(r"python_callable: (\w+)\.\w+", workflow_text)
+    scripts = re.findall(r"bash_command: (\w+\.sh)$", workflow_text, flags=re.MULTILINE)
+    assert modules or scripts, folder.name
+    for module in modules:
+        assert (folder / "code" / f"{module}.py").is_file(), module
+    for script in scripts:
+        assert (folder / "code" / script).is_file(), script
 
 
 def test_the_job_model_is_the_create_job_of_the_workflow() -> None:
