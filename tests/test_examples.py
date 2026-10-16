@@ -198,8 +198,8 @@ def test_demo_tasks_prints_the_environment_and_hands_the_work_to_the_project(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """``demo_tasks.run`` imprime o interpretador, o ``sys.path``, a credencial e a origem de cada
-    pacote sondado, chama o modo S3 do projeto com o bucket e os prefixos e devolve a contagem."""
-    calls: list[tuple[str, str, str]] = []
+    pacote sondado, chama o modo S3 do projeto com os dois URIs e devolve a contagem."""
+    calls: list[tuple[str, str]] = []
 
     class FakeSts:
         def get_caller_identity(self) -> dict[str, str]:
@@ -212,18 +212,17 @@ def test_demo_tasks_prints_the_environment_and_hands_the_work_to_the_project(
         return FakeSts()
 
     def fake_s3_run(
-        bucket: str,
         inbox: str,
         outbox: str,
     ) -> int:
-        calls.append((bucket, inbox, outbox))
+        calls.append((inbox, outbox))
         return 1
 
     monkeypatch.setattr(boto3, "client", fake_client)
     monkeypatch.setattr(s3, "run", fake_s3_run)
 
-    assert demo_tasks.run("meu-bucket", "entrada/", "saida/", ti="contexto") == 1
-    assert calls == [("meu-bucket", "entrada/", "saida/")]
+    assert demo_tasks.run("s3://meu-bucket/entrada/", "s3://meu-bucket/saida/", ti="c") == 1
+    assert calls == [("s3://meu-bucket/entrada/", "s3://meu-bucket/saida/")]
     printed = capsys.readouterr().out
     assert printed.startswith(f"python {sys.version.split()[0]} em {sys.executable}\n")
     assert "\nsys.path: [" in printed
@@ -242,7 +241,6 @@ def test_demo_tasks_refuses_an_empty_inbox(
         return None
 
     def fake_s3_run(
-        bucket: str,
         inbox: str,
         outbox: str,
     ) -> int:
@@ -251,7 +249,7 @@ def test_demo_tasks_refuses_an_empty_inbox(
     monkeypatch.setattr(demo_tasks, "print_environment", fake_print_environment)
     monkeypatch.setattr(s3, "run", fake_s3_run)
     with pytest.raises(RuntimeError, match="nada sob s3://meu-bucket/entrada/"):
-        demo_tasks.run("meu-bucket", "entrada/", "saida/")
+        demo_tasks.run("s3://meu-bucket/entrada/", "s3://meu-bucket/saida/")
 
 
 @pytest.fixture

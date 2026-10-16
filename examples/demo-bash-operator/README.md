@@ -8,7 +8,7 @@ e `probe_bash`, sem dependência, imprime como o worker roda um script e um mód
 | Task | Operador | O que faz |
 |---|---|---|
 | `wait_for_file` | `S3KeySensor` | espera `inbox/?*`, a cada 30 s, por 10 minutos |
-| `run_command` | `BashOperator` | `cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --bucket ... --inbox ... --outbox ...` |
+| `run_command` | `BashOperator` | `cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --inbox s3://... --outbox s3://...` |
 | `reach_pypi` | `BashOperator` | `reach_pypi.sh`, depois de `run_command`; termina com 1 quando nada respondeu, o esperado, e a execução termina `FAILED` |
 | `probe_bash` | `BashOperator` | inline: a pasta de trabalho, o `PYTHONPATH`, os modos dos arquivos extraídos, o `python3 -m` sem `cd`, de onde vêm o `petl` e o `six`, e `probe.sh` pelo caminho inteiro e executado direto |
 

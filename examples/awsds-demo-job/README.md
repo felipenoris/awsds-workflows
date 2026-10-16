@@ -6,7 +6,7 @@ de cada coluna numérica e o sha256 da entrada. Dois pontos de entrada dividem a
 | Comando | Onde roda | A entrada e a saída |
 |---|---|---|
 | `python -m awsds_demo_job --input PASTA --output PASTA` | num job de processamento, sem rede | pastas locais, que o SageMaker baixa antes e envia depois |
-| `python -m awsds_demo_job.s3 --bucket B --inbox PREFIXO --outbox PREFIXO` | numa task Python ou Bash, no worker | prefixos do S3, pelo `boto3` do worker |
+| `python -m awsds_demo_job.s3 --inbox s3://B/PREFIXO/ --outbox s3://B/PREFIXO/` | numa task Python ou Bash, no worker | dois URIs do S3, pelo `boto3` do worker |
 
 O código próprio usa só a biblioteca padrão. As duas dependências, `petl==1.7.28` e
 `six==1.16.0`, existem para as tasks mostrarem de onde cada pacote é importado: o `petl` não

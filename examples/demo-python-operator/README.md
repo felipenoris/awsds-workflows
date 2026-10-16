@@ -8,7 +8,7 @@ apagada.
 | Task | Operador | O que faz |
 |---|---|---|
 | `wait_for_file` | `S3KeySensor` | espera `inbox/?*`, a cada 30 s, por 10 minutos |
-| `run_project` | `PythonOperator` | `demo_tasks.run`, com `bucket`, `inbox` e `outbox` como `op_kwargs` |
+| `run_project` | `PythonOperator` | `demo_tasks.run`, com os URIs `inbox` e `outbox` como `op_kwargs` |
 
 ## Arquivos
 

@@ -15,7 +15,6 @@ demo-python-operator:
       dependencies: [wait_for_file]
       python_callable: demo_tasks.run
       op_kwargs:
-        bucket: <PROJECTS_BUCKET>
-        inbox: <DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/inbox/
-        outbox: <DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/outbox/
+        inbox: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/inbox/
+        outbox: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/outbox/
       retries: 0

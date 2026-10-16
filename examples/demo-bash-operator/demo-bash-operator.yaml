@@ -13,7 +13,7 @@ demo-bash-operator:
     run_command:
       operator: airflow.providers.standard.operators.bash.BashOperator
       dependencies: [wait_for_file]
-      bash_command: echo "cwd $(pwd) PYTHONPATH=${PYTHONPATH:-}" && cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --bucket <PROJECTS_BUCKET> --inbox <DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/inbox/ --outbox <DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/outbox/
+      bash_command: echo "cwd $(pwd) PYTHONPATH=${PYTHONPATH:-}" && cd /usr/local/airflow/dags && python3 -m awsds_demo_job.s3 --inbox s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/inbox/ --outbox s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/<EXAMPLE_PREFIX>/outbox/
       retries: 0
     reach_pypi:
       operator: airflow.providers.standard.operators.bash.BashOperator
