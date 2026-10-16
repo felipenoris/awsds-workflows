@@ -434,8 +434,10 @@ a project where it does not exist: a `glue:GetJob` grant on the jobs no project 
 02:14 UTC, over the job created once from `job.json` and a Python task that creates it). The grant
 is written in the lab's Terraform (AWS-DataScience PR #143, `sandbox/workflows/`, the statement
 `GetAGlueJobNoProjectHolds`: `glue:GetJob` on `job/*-<project id>` with no
-`AmazonDataZoneProject` tag) and in the target's change request, both unapplied; the examples'
-steps keep the `job.json` path until the grant is applied and a run creates the job.
+`AmazonDataZoneProject` tag) and in the target's change request. The lab applied it on 2026-10-16
+at 14:54 UTC, and a run at 15:22 UTC, from a deleted job, created the job by the operator
+(`cicd-cli.md`, "The Glue job in the lab"); the target's is unapplied, and the examples' steps
+keep the `job.json` path for a project whose role lacks the grant.
 
 The session of 2026-10-16 (branch `claude/smus-applications-rw30u1`, PR #20) wrote the plan in the
 Claude project's library (`discussoes/plano-reforma-exemplos.md`) and asked three questions, which
@@ -492,7 +494,8 @@ the two meet:
   `PythonVersion: "3"`) in `create_job_kwargs`, because the lab's `UpdateJob` every run came from
   that field, which `GetJob` returns with `PythonVersion` and the operator's input lacked; a run
   without `UpdateJob` is not measured. The job is created once per project with `job.json`, in the
-  CLI's notation, until the card decides.
+  CLI's notation, where the project role lacks the `glue:GetJob` grant of the user's decision of
+  05:50 UTC (above).
 - **The documentation's shape**: `docs/exemplos.md` leads every example through the CLI in a shared
   section, with the commands as they ran in the lab (`--skip-validation`, `--no-events`, the readers
   `get-workflow-run` and `get-log-events`), the portal as the other path through `render`, and a
@@ -525,17 +528,18 @@ The session of 2026-10-16 wrote the plan in the Claude project's library
   decision 14 (b)); the user asked for the context first ("pode explicar qual o contexto?") and
   chose (b) over a table copied from the page, which would go stale as AWS adds operators.
 
-The session's choices, awaiting the user's word: `schedule` refused in both modes, since an
-example runs by `run` and a promoted workflow by a state machine; `retries` written in every
-task, since the service assumes 1; the tag `AmazonDataZoneProject` and the project's network
-connection pass in authoring and fail in the promoted mode; the definition's quota read as 50,000
-bytes; the job's `MaxRuntimeInSeconds` capped at 2,820 s, 13 minutes under the task's 3,600 s for
-the job's provisioning and shutdown, a margin chosen and not measured; the promoted mode asking
-for `--prefix`, so the `codigo` and `glue` rules never silently skip on a pipeline; the project
+The session's choices listed in PR #21, confirmed by the user on 2026-10-16 at 14:30 UTC ("Ok em
+relação a suas 5 escolhas"): `schedule` refused in both modes, since an example runs by `run` and
+a promoted workflow by a state machine; `retries` written in every task, since the service assumes
+1; the job's `MaxRuntimeInSeconds` capped at 2,820 s, 13 minutes under the task's 3,600 s for the
+job's provisioning and shutdown, a margin chosen and not measured; the promoted mode asking for
+`--prefix`, so the `codigo` and `glue` rules never silently skip on a pipeline; and the project
 values found by patterns over the text (`datazone_usr_role_`, `dzd_`, `smus-projects`,
 `dev/operatorFiles/`, `DataZone*`, `ProjectS3Path`, `alias/*-project`, the keys `domain_id` and
-`project_id`); and `lint_application` reading the files as the CLI 1.0.9 does, each `include` a
-folder or a `glob`, each `exclude` by folder, path or basename.
+`project_id`). The session's other choices, not put to the user: the tag `AmazonDataZoneProject`
+and the project's network connection pass in authoring and fail in the promoted mode; the
+definition's quota read as 50,000 bytes; and `lint_application` reading the files as the CLI
+1.0.9 does, each `include` a folder or a `glob`, each `exclude` by folder, path or basename.
 
 ## Design choices of the first session
 

@@ -477,6 +477,22 @@ Nos passos: [houseprice-etl](examples.html#houseprice-etl).
   e um job que não existe não tem etiqueta. Com o job criado uma vez com o `job.json`, a segunda
   e as seguintes terminaram `SUCCESS`: o job do Glue em 86 s na segunda, o CSV igual à entrada,
   e um CSV a mais em `saida/` a cada execução.
+- **Laboratório, 2026-10-16, com o grant do `GetJob`.** Com a política do papel do projeto de dev
+  autorizando o `glue:GetJob` sobre os jobs sem etiqueta de projeto cujo nome termina no id do
+  projeto, aplicada às 14:54 UTC, e o job apagado, a execução das 15:22 UTC terminou `SUCCESS` em
+  139 s: o `GetJob` respondeu `EntityNotFoundException`, o `CreateJob` com a etiqueta passou só
+  com a política gerenciada, e o operador criou o job com o papel do projeto, o script em `glue/`,
+  as conexões preenchidas, o `PythonVersion: "3"` posto pelo serviço e a etiqueta do projeto; o
+  log da task diz `Checking if job already exists` e depois `Creating job`. O controle negativo,
+  por simulação sobre o papel de dev: o `GetJob` sobre o job do projeto de teste, sobre um nome
+  livre terminado no id desse projeto e sobre um nome com outro sufixo continua negado.
+- **Laboratório, 2026-10-16.** Uma execução cuja definição referencia um parâmetro que o manifest
+  não declara falha no render, antes de qualquer task e de qualquer chamada ao Glue: o workflow
+  de dev numa forma experimental, `update_config: "{{ params.GLUE_UPDATE_CONFIG }}"`, executado
+  pelo manifest do exemplo, que não declara a variável, terminou com `DAG template rendering
+  failed: 'dict object' has no attribute 'GLUE_UPDATE_CONFIG'`; o parâmetro não é preenchido
+  vazio. Pelo portal, que não passa parâmetros à execução, falharia do mesmo jeito (inferido). A
+  regra `manifest` do `lint` recusa um `{env.NOME}` que um stage não declara.
 - **Laboratório, 2026-10-16.** O operador chamou `UpdateJob` em toda execução, com a definição
   sem mudança, porque o `GetJob` devolve o `Command` com `PythonVersion: "3"` e o `Command` que o
   operador monta não o tem; a definição do exemplo leva o `Command` inteiro desde então. Um

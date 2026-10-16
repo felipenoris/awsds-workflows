@@ -26,7 +26,7 @@ está em [As notas do laboratório](lab_notes.html#os-exemplos).
 | [demo-bash-operator](#demo-bash-operator) | uma task Bash sobre o mesmo `.zip`, com dois scripts, e a prova de que o worker não alcança a PyPI | o `.zip` em `code/` e a amostra em `inbox/` |
 | [demo-devenv-job](#demo-devenv-job) | um job de processamento na imagem padrão do SageMaker, sobre o `.tar.gz` da pasta do projeto preparada | a permissão do projeto, o `.tar.gz` em `src/`, a rede do projeto e a imagem no shell, e a amostra em `inbox/` |
 | [redshift-unload](#redshift-unload) | uma task Python que descarrega uma consulta ao Redshift Serverless no S3 | o `.zip` em `code/`, os nomes do Redshift no shell e o acesso do usuário do projeto ao banco |
-| [houseprice-etl](#houseprice-etl) | um job do Visual ETL: a task cria ou atualiza o job do Glue e o executa | um Parquet em `entrada/`, as sub-redes no shell e o job criado uma vez com o `job.json` |
+| [houseprice-etl](#houseprice-etl) | um job do Visual ETL: a task cria ou atualiza o job do Glue e o executa | um Parquet em `entrada/`, as sub-redes no shell e o `glue:GetJob` do papel do projeto sobre jobs sem etiqueta, ou o job criado uma vez com o `job.json` |
 
 ## A preparação
 
@@ -753,10 +753,14 @@ não tem `.zip`; o script vai ao projeto em `glue/`, pelo `deploy` ou à mão. O
 parâmetro da task está no `README.md` do exemplo.
 
 > [!IMPORTANT]
-> **O job se cria uma vez, antes da primeira execução, em cada projeto.** A política do papel do
-> projeto só autoriza o `GetJob` sobre um job com a etiqueta do projeto, e um job que ainda não
-> existe não tem etiqueta: a primeira execução para em `AccessDeniedException` no `GetJob`, antes
-> de tentar o `CreateJob`. O `job.json` do exemplo é a entrada do `CreateJob` que a task faria.
+> **O operador só cria o job com um `glue:GetJob` a mais no papel do projeto.** A política
+> gerenciada do papel só autoriza o `GetJob` sobre um job com a etiqueta do projeto, e um job que
+> ainda não existe não tem etiqueta: a primeira execução para em `AccessDeniedException` no
+> `GetJob`, antes de tentar o `CreateJob`. Com o papel autorizado a ler os jobs sem etiqueta cujo
+> nome termina no id do projeto, o `GetJob` responde que o job não existe e o operador o cria
+> (laboratório, 2026-10-16). Sem esse grant, crie o job uma vez, antes da primeira execução, em
+> cada projeto, pelos passos 3 e 4: o `job.json` do exemplo é a entrada do `CreateJob` que a task
+> faria.
 
 1. **No espaço**, prepare um Parquet: o que um fluxo do Visual ETL do projeto lê, ou a amostra da
    preparação convertida:
@@ -775,7 +779,7 @@ parâmetro da task está no `README.md` do exemplo.
    cp house-price.parquet ~/shared/exemplos/houseprice-etl/entrada/
    ```
 
-3. **Na máquina que empacota**, preencha o modelo do job com os valores do projeto:
+3. **Sem o grant, na máquina que empacota**, preencha o modelo do job com os valores do projeto:
 
    ```shell
    awsds-workflows render examples/houseprice-etl/job.json \
@@ -785,8 +789,8 @@ parâmetro da task está no `README.md` do exemplo.
    O `render` traduz as variáveis da CLI do arquivo, como num workflow, e preenche as sub-redes
    com o `space_values.json`.
 
-4. **Crie o job uma vez**, num espaço, com o arquivo levado para lá, ou na máquina que empacota,
-   com a credencial da preparação:
+4. **Sem o grant, crie o job uma vez**, num espaço, com o arquivo levado para lá, ou na máquina
+   que empacota, com a credencial da preparação:
 
    ```shell
    aws glue create-job --cli-input-json file://houseprice-etl.job.json
@@ -824,8 +828,9 @@ parâmetro da task está no `README.md` do exemplo.
    definição `/tmp/houseprice-etl.yaml`, salve e execute.
 
 9. **Leia** o log de `run_glue_job`: `Checking if job already exists: houseprice-etl-<projeto>`;
-   `Updating job: houseprice-etl-<projeto>` e `Updated configurations: {...}`, com os campos que
-   diferem, quando o job difere da definição; uma linha
+   com o grant e o job ainda não criado, `Creating job`; `Updating job: houseprice-etl-<projeto>`
+   e `Updated configurations: {...}`, com os campos que diferem, quando o job difere da definição;
+   uma linha
    `Polling for AWS Glue Job houseprice-etl-<projeto> current run state with status RUNNING` a cada
    6 s e, no fim, `Exiting Job jr_... Run State: SUCCEEDED` e
    `AWS Glue Job: houseprice-etl-<projeto> status: SUCCEEDED. Run Id: jr_...`. Com a definição
@@ -843,9 +848,9 @@ parâmetro da task está no `README.md` do exemplo.
     logs. A API cria o job sem `JobMode`, que o Glue trata como `SCRIPT`, o tipo *Code* da página
     (inferido).
 
-11. **No stage `test`**, o projeto de teste pede o Parquet dos passos 1 e 2 e o job dos passos 3 e
-    4, com o `space_values.json` de um espaço dele, antes do `bundle` e do `deploy` de
-    [A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd), que executa o workflow uma
+11. **No stage `test`**, o projeto de teste pede o Parquet dos passos 1 e 2 e, sem o grant, o job
+    dos passos 3 e 4, com o `space_values.json` de um espaço dele, antes do `bundle` e do `deploy`
+    de [A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd), que executa o workflow uma
     vez.
 
 As falhas estão na tabela do `README.md` do exemplo.
@@ -853,8 +858,9 @@ As falhas estão na tabela do `README.md` do exemplo.
 > [!NOTE]
 > **Estado**: rodou no laboratório pela CLI, nos stages `dev` e `test`: a primeira execução parou
 > no `GetJob`, o job se criou uma vez com o `job.json`, e as seguintes terminaram em sucesso, com
-> o `UpdateJob` em cada uma até a definição levar o `Command` inteiro; uma execução sem
-> `UpdateJob`, e o caminho do portal, ainda não ([as notas](lab_notes.html#houseprice-etl)).
+> o `UpdateJob` em cada uma até a definição levar o `Command` inteiro; com o grant do `GetJob` no
+> papel do projeto, o operador criou o job; uma execução sem `UpdateJob`, e o caminho do portal,
+> ainda não ([as notas](lab_notes.html#houseprice-etl)).
 
 ## Limpeza
 

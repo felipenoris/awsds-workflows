@@ -62,6 +62,27 @@ this file keeps what they leave out and the facts in one place.
   create-job --cli-input-json`) made the following runs `SUCCESS`: the Glue job in 86 s on the
   second, the CSV equal to the input, one CSV more in `saida/` per run; in the test project 124 s
   and 545 lines, and 149 s for the repeated run.
+- **The `glue:GetJob` grant on the jobs no project holds**, the user's decision of 2026-10-16
+  05:50 UTC (`decisions.md`, "The examples as applications"), measured the same day: the lab's
+  policy `awsds-sandbox-workflows` at `v3` with the statement `GetAGlueJobNoProjectHolds`
+  (`glue:GetJob` on `job/*-<project id>` with no `AmazonDataZoneProject` tag), applied at 14:54
+  UTC; the dev project's job deleted at 15:18 UTC; the run of 15:22 UTC, from the lab's copy of
+  the example, `SUCCESS` in 139 s. CloudTrail, the project role's session: `GetJob`
+  `EntityNotFoundException` ("Job not found."), no longer `AccessDenied`; `CreateJob` `ok` under
+  the managed policy's `GlueCreateAndTagPermissions` alone; `StartJobRun` `ok`. The task's log:
+  "Checking if job already exists", then "Creating job". The job came out with the project role,
+  the script under `glue/`, the connections rendered, `PythonVersion: "3"` filled by the service
+  and the project's tag. The negative control, by `simulate-principal-policy` on the dev
+  project's role: `GetJob` on the test project's job, on a free name ending in the test project's
+  id and on a name with another suffix `implicitDeny`; on a free name ending in its own id
+  `allowed`. The target's change request carries the same statement, unapplied.
+- **A run whose definition references a parameter the manifest does not declare fails at the
+  render**, before any task and any Glue call: the dev workflow in the morning's experimental
+  form, `update_config: "{{ params.GLUE_UPDATE_CONFIG }}"`, run after the job's deletion from the
+  repository's manifest, which declares no such variable, ended with `User template error: DAG
+  template rendering failed: 'dict object' has no attribute 'GLUE_UPDATE_CONFIG'`; the parameter
+  is not rendered empty. A portal run, which passes no parameters, would fail the same way
+  (inferred). The `lint`'s `manifest` rule refuses an `{env.NOME}` a stage does not declare.
 - **`UpdateJob` every run** with the definition unchanged: `GetJob` returns the `Command` with
   `PythonVersion: "3"` and the operator's input lacked it; the example carries the whole `Command`
   since, unmeasured. `update_config` from a stage variable changes nothing: the field is not a
