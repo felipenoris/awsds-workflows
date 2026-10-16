@@ -6,12 +6,13 @@ ordem em que cada comando roda. Cada passo diz onde ele acontece:
   clonado; os comandos rodam na raiz do clone;
 - **no espaço**: um terminal de um espaço do projeto no SageMaker Unified Studio, JupyterLab ou
   Code Editor; a pasta `~/shared/` dele é o prefixo `shared/` do projeto no bucket, então um `cp`
-  para lá é um envio ao S3 (lido no ambiente alvo em 2026-10-12);
+  para lá é um envio ao S3;
 - **no portal**: a página *Workflows* do projeto no SageMaker Unified Studio.
 
 Os termos estão em [Os conceitos](../awsds_workflows.html#os-conceitos). O que cada exemplo
 mostra, task por task, e as leituras inteiras de cada execução estão no `README.md` da pasta
-dele.
+dele; o que cada um leu no ambiente alvo, com as datas, está em
+[As notas do laboratório](lab_notes.html#os-exemplos).
 
 | Exemplo | O que ele mostra | O que ele pede além do `space_values.json` |
 |---|---|---|
@@ -24,51 +25,79 @@ dele.
 
 ## A preparação
 
-1. **Na máquina que empacota**, instale o pacote e clone o repositório:
+1. **Na máquina que empacota**, instale o pacote:
 
    ```shell
    uv tool install git+https://github.com/felipenoris/awsds-workflows
+   ```
+
+2. **Clone o repositório** e entre na pasta dele, onde rodam os comandos desta página:
+
+   ```shell
    git clone https://github.com/felipenoris/awsds-workflows
    cd awsds-workflows
+   ```
+
+3. **Confira o comando**:
+
+   ```shell
    awsds-workflows --help
    ```
 
-   Os comandos desta página rodam nessa pasta. O que o `render` grava leva os ids da conta: vai
-   para `/tmp`, nunca para o repositório.
-
-2. **Leve ao espaço** dois arquivos do clone, pelo botão de upload do JupyterLab:
+4. **Leve ao espaço** dois arquivos do clone, pelo botão de upload do JupyterLab:
    `scripts/space_values.py` e `examples/awsds-demo-job/sample.csv`.
 
-3. **No espaço**, leia os valores do projeto e confira o `~/shared/`:
+5. **No espaço**, grave os valores do projeto:
 
    ```shell
    python space_values.py > space_values.json
+   ```
+
+   Num projeto sem chave KMS própria, o aviso `o ambiente Tooling não tem kmsKeyArn` no stderr é
+   normal ([Os valores de dentro de um espaço](../awsds_workflows.html#os-valores-de-dentro-de-um-espaco)).
+
+6. **No espaço**, confira o JSON:
+
+   ```shell
    cat space_values.json
+   ```
+
+   Ele traz `ACCOUNT_ID`, `DOMAIN_ID`, `PROJECTS_BUCKET`, `PROJECT_ID`, `PROJECT_ROLE_NAME`,
+   `PROJECT_SG`, `REGION`, `SUBNET_AZ1` e `SUBNET_AZ2`, e `PROJECT_KEY_ID` quando o projeto tem
+   chave KMS própria.
+
+7. **No espaço**, confira a montagem do `~/shared/`:
+
+   ```shell
    mount | grep -i shared
    ```
 
-   O JSON traz `ACCOUNT_ID`, `DOMAIN_ID`, `PROJECTS_BUCKET`, `PROJECT_ID`, `PROJECT_ROLE_NAME`,
-   `PROJECT_SG`, `REGION`, `SUBNET_AZ1` e `SUBNET_AZ2`, e `PROJECT_KEY_ID` quando o projeto tem
-   chave KMS própria; sem ela, o aviso `o ambiente Tooling não tem kmsKeyArn` no stderr é
-   normal ([Os valores de dentro de um espaço](../awsds_workflows.html#os-valores-de-dentro-de-um-espaco)).
-   O `mount` tem de mostrar uma linha `s3fs on /mnt/custom-file-systems/s3/shared`, a montagem
-   que faz do `~/shared/` o bucket do projeto; sem ela, os passos que gravam em `~/shared/` não
-   valem.
+   > [!WARNING]
+   > **O `mount` tem de mostrar uma linha `s3fs on /mnt/custom-file-systems/s3/shared`**, a
+   > montagem que faz do `~/shared/` o bucket do projeto. Sem ela, os passos que gravam em
+   > `~/shared/` não valem.
 
-4. **Copie o `space_values.json` para a máquina que empacota**, pelo download do JupyterLab ou
-   colando a saída do `cat` num arquivo. Ele leva os ids da conta e fica fora do git: o
-   `.gitignore` do repositório ignora `space_values*.json`.
+8. **Copie o `space_values.json` para a máquina que empacota**, pelo download do JupyterLab ou
+   colando a saída do `cat` num arquivo.
 
-5. **O arquivo de valores extras de cada exemplo**, `examples/<exemplo>/extra_values.json` no
-   clone, é o segundo arquivo do `render`, depois do `space_values.json`. Ele fixa
-   `EXAMPLE_PREFIX`, o prefixo do exemplo no bucket do projeto, `shared/exemplos/<exemplo>`, a
-   pasta `~/shared/exemplos/<exemplo>/` de um espaço, onde os passos abaixo gravam; quem o troca
-   troca esses caminhos. Um valor igual ao próprio nome entre `<` e `>`, como
-   `"REDSHIFT_WORKGROUP": "<REDSHIFT_WORKGROUP>"`, está por preencher, e até lá o `render`
-   recusa com `nenhum valor para: REDSHIFT_WORKGROUP`. Um valor pode referenciar outros
-   placeholders, como o `JOB_IMAGE_URI` do job, que leva a `REGION` do `space_values.json`
-   ([Os valores da definição](../awsds_workflows.html#os-valores-da-definicao)). O
-   `probe-worker` não tem o arquivo: a definição dele não tem placeholder.
+> [!CAUTION]
+> **Os ids da conta ficam fora do git.** O `space_values.json` os leva, e o `.gitignore` do
+> repositório ignora `space_values*.json`. O que o `render` grava também os leva: vai para `/tmp`,
+> nunca para o repositório.
+
+**O arquivo de valores extras de cada exemplo**, `examples/<exemplo>/extra_values.json` no clone,
+é o segundo arquivo do `render`, depois do `space_values.json`:
+
+- ele fixa `EXAMPLE_PREFIX`, o prefixo do exemplo no bucket do projeto, `shared/exemplos/<exemplo>`,
+  a pasta `~/shared/exemplos/<exemplo>/` de um espaço, onde os passos abaixo gravam; quem o troca
+  troca esses caminhos;
+- um valor igual ao próprio nome entre `<` e `>`, como
+  `"REDSHIFT_WORKGROUP": "<REDSHIFT_WORKGROUP>"`, está por preencher, e até lá o `render` recusa
+  com `nenhum valor para: REDSHIFT_WORKGROUP`;
+- um valor pode referenciar outros placeholders, como o `JOB_IMAGE_URI` do job, que leva a `REGION`
+  do `space_values.json`
+  ([Os valores da definição](../awsds_workflows.html#os-valores-da-definicao));
+- o `probe-worker` não tem o arquivo: a definição dele não tem placeholder.
 
 ## Os passos no portal
 
@@ -78,15 +107,24 @@ nome, o `.zip` e a definição dele.
 1. **Crie um workflow novo e vazio**, com o nome do exemplo.
 2. **O `.zip`**, num exemplo que tem um: em *Settings → Storage → Python/Bash Operator Files*,
    envie o arquivo; o campo abaixo passa a mostrar `dev/operatorFiles/<nome>.zip`. Num exemplo
-   sem `.zip`, esvazie o campo *Operator files zip S3 location*. Os dois antes do save: sem isso,
-   o save falha com `Code not found in specified S3 location`.
-3. **A definição**: *Actions → Import definition file*, com o YAML preenchido, e salve. Uma
-   importação não substitui um workflow já salvo: apague o antigo antes. Uma versão nova do `.zip`
-   pede um envio e um save novos, porque o workflow roda a cópia que o serviço tirou no último
-   save ([O `.zip` no workflow](../awsds_workflows.html#o-zip-no-workflow)).
-4. **Execute** e abra o log de cada task na execução. Num exemplo com sensor, a amostra tem de
-   estar em `inbox/` antes: o sensor espera 10 minutos, e depois disso a execução termina sem erro
-   e sem rodar o resto.
+   sem `.zip`, esvazie o campo *Operator files zip S3 location*.
+
+   > [!WARNING]
+   > **O envio ou o campo vazio vêm antes do save**: sem isso, o save falha com
+   > `Code not found in specified S3 location`.
+
+3. **A definição**: *Actions → Import definition file*, com o YAML preenchido, e salve. Uma versão
+   nova do `.zip` pede um envio e um save novos, porque o workflow roda a cópia que o serviço tirou
+   no último save ([O `.zip` no workflow](../awsds_workflows.html#o-zip-no-workflow)).
+
+   > [!WARNING]
+   > **Uma importação não substitui um workflow já salvo**: apague o antigo antes.
+
+4. **Execute** e abra o log de cada task na execução.
+
+> [!IMPORTANT]
+> **Num exemplo com sensor, a amostra tem de estar em `inbox/` antes de executar**: o sensor espera
+> 10 minutos, e depois disso a execução termina sem erro e sem rodar o resto.
 
 ## probe-worker
 
@@ -95,11 +133,15 @@ Uma task Bash inline, sem `.zip` e sem placeholder: a definição entra no porta
 
 1. **No portal**: workflow `probe-worker`, o campo *Operator files zip S3 location* vazio, a
    definição `examples/probe-worker/probe-worker.yaml` do clone, salve e execute.
-2. **Leia** o log de `probe_worker`: `--- disco`, com o `df -h` e o tempo de gravar 1 GiB em
-   `/var/tmp`; `--- CPU e memória`; `--- ferramentas`, onde estão `aws`, `tar`, `unzip` e
-   `gzip`, ou `ausente`; e `--- pacotes`, o Python, sete pacotes ou `ausente`, e a lista das
-   distribuições, que a task também devolve como XCom. No ambiente alvo, em 2026-10-13: 19G livres
-   em `/`, 2 vCPUs e 4,7 GiB, só o `gzip`, o Python 3.12.14 e 164 distribuições, em 13,3 s.
+2. **Leia** o log de `probe_worker`:
+   - `--- disco`, com o `df -h` e o tempo de gravar 1 GiB em `/var/tmp`;
+   - `--- CPU e memória`;
+   - `--- ferramentas`, onde estão `aws`, `tar`, `unzip` e `gzip`, ou `ausente`;
+   - `--- pacotes`, o Python, sete pacotes ou `ausente`, e a lista das distribuições, que a task
+     também devolve como XCom.
+
+> [!NOTE]
+> **Estado**: rodou no ambiente alvo ([as notas](lab_notes.html#probe-worker)).
 
 ## demo-python-operator
 
@@ -107,33 +149,45 @@ Um sensor espera um arquivo em `inbox/`, e a task Python chama `demo_tasks.run`,
 o que o worker a roda e resume cada CSV da caixa de entrada num JSON em `outbox/<carimbo>/`,
 apagando a origem.
 
-1. **Na máquina que empacota**, o `.zip` e a definição:
+1. **Na máquina que empacota**, trave o projeto:
 
    ```shell
    (cd examples/awsds-demo-job && uv lock)
+   ```
+
+2. **Monte o `.zip`**:
+
+   ```shell
    awsds-workflows package-task examples/awsds-demo-job \
        examples/demo-python-operator/demo_tasks.py /tmp/demo-python-operator.zip
+   ```
+
+   O `package-task` imprime o tamanho e a raiz: `awsds_demo_job`, `demo_tasks.py`, `petl`,
+   `six.py` e os `dist-info`; o `boto3` e o PyYAML, que o worker tem, ficam de fora.
+
+3. **Preencha a definição**:
+
+   ```shell
    awsds-workflows render examples/demo-python-operator/demo-python-operator.yaml \
        --values-file space_values.json \
        --values-file examples/demo-python-operator/extra_values.json > /tmp/demo-python-operator.yaml
    ```
 
-   O `package-task` imprime o tamanho, 274 KB em 2026-10-13, e a raiz: `awsds_demo_job`,
-   `demo_tasks.py`, `petl`, `six.py` e os `dist-info`; o `boto3` e o PyYAML, que o worker tem,
-   ficam de fora. Um `nenhum valor para: ...` do `render` é um placeholder sem valor no
-   `space_values.json`, ou um arquivo a menos na linha de comando: pare.
+   > [!WARNING]
+   > **Um `nenhum valor para: ...` do `render`** é um placeholder sem valor no
+   > `space_values.json`, ou um arquivo a menos na linha de comando: pare.
 
-2. **No espaço**, a amostra na caixa de entrada:
+4. **No espaço**, ponha a amostra na caixa de entrada:
 
    ```shell
    mkdir -p ~/shared/exemplos/demo-python-operator/inbox
    cp sample.csv ~/shared/exemplos/demo-python-operator/inbox/
    ```
 
-3. **No portal**: workflow `demo-python-operator`, o `.zip` `/tmp/demo-python-operator.zip`, a
+5. **No portal**: workflow `demo-python-operator`, o `.zip` `/tmp/demo-python-operator.zip`, a
    definição `/tmp/demo-python-operator.yaml`, salve e execute.
 
-4. **Leia** o log de `run_project`:
+6. **Leia** o log de `run_project`:
 
    ```
    python 3.12.14 em /opt/mwaa-serverless-venv/bin/python3
@@ -148,20 +202,20 @@ apagando a origem.
 
    e, do Airflow, `Done. Returned value was: 1`. O `petl` vem do `.zip` e o PyYAML do worker,
    que numa task Python vence a cópia do `.zip`. O `six` está nos dois, 1.16.0 no `.zip` e 1.17.0
-   no worker: a linha dele diz qual venceu, e o `sys.path` diz por quê; as duas ainda não foram
-   lidas.
+   no worker: a linha dele diz qual venceu, e o `sys.path` diz por quê.
 
-5. **No espaço**, o hash do resultado, o mesmo do laboratório (2026-10-11) e do ambiente alvo
-   (2026-10-12):
+7. **No espaço**, confira o hash do resultado:
 
    ```shell
    sha256sum ~/shared/exemplos/demo-python-operator/outbox/*/sample.result.json
    ```
 
-   `1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191`. A task apagou a amostra
-   de `inbox/`: outra execução pede outro `cp`.
+   Ele tem de ser `1b2bc4d73bc49bca1a23a6d0971c1365362e785826a33adfcebec7925a248191`. A task
+   apagou a amostra de `inbox/`: outra execução pede outro `cp`.
 
-No ambiente alvo, em 2026-10-12 às 19:16 UTC, a task rodou em 2,4 s.
+> [!NOTE]
+> **Estado**: rodou no ambiente alvo, com o hash do laboratório; as linhas do `six` e do
+> `sys.path` ainda não foram lidas ([as notas](lab_notes.html#demo-python-operator)).
 
 ## demo-bash-operator
 
@@ -169,35 +223,46 @@ O mesmo projeto, numa task Bash: `run_command` roda o modo S3 do projeto com `py
 do `.zip`; `reach_pypi` roda o script `reach_pypi.sh` do `.zip`, que tenta a PyPI; e `probe_bash`,
 sem dependência, mostra como o worker roda um script e um módulo do `.zip`.
 
-1. **Na máquina que empacota**, o `.zip`, sem módulo de entrada e com os dois scripts, e a
-   definição:
+1. **Na máquina que empacota**, trave o projeto:
 
    ```shell
    (cd examples/awsds-demo-job && uv lock)
+   ```
+
+2. **Monte o `.zip`**, sem módulo de entrada e com os dois scripts:
+
+   ```shell
    awsds-workflows package-task examples/awsds-demo-job /tmp/demo-bash-operator.zip \
        --include examples/demo-bash-operator/probe.sh \
        --include examples/demo-bash-operator/reach_pypi.sh
-   awsds-workflows render examples/demo-bash-operator/demo-bash-operator.yaml \
-       --values-file space_values.json \
-       --values-file examples/demo-bash-operator/extra_values.json > /tmp/demo-bash-operator.yaml
    ```
 
    A raiz traz `probe.sh` e `reach_pypi.sh`, com o bit de execução, além do projeto, do `petl` e
    do `six.py`.
 
-2. **No espaço**, a amostra na caixa de entrada:
+3. **Preencha a definição**:
+
+   ```shell
+   awsds-workflows render examples/demo-bash-operator/demo-bash-operator.yaml \
+       --values-file space_values.json \
+       --values-file examples/demo-bash-operator/extra_values.json > /tmp/demo-bash-operator.yaml
+   ```
+
+4. **No espaço**, ponha a amostra na caixa de entrada:
 
    ```shell
    mkdir -p ~/shared/exemplos/demo-bash-operator/inbox
    cp sample.csv ~/shared/exemplos/demo-bash-operator/inbox/
    ```
 
-3. **No portal**: workflow `demo-bash-operator`, o `.zip` `/tmp/demo-bash-operator.zip`, a
+5. **No portal**: workflow `demo-bash-operator`, o `.zip` `/tmp/demo-bash-operator.zip`, a
    definição `/tmp/demo-bash-operator.yaml`, salve e execute.
 
-4. **Leia** os quatro logs. A execução termina `FAILED` por causa de `reach_pypi`, que sai com 1
-   quando nada respondeu: "sem internet" é o resultado esperado, e as outras três tasks terminam
-   em sucesso.
+6. **Leia** os quatro logs.
+
+   > [!IMPORTANT]
+   > **A execução termina `FAILED` por causa de `reach_pypi`**, que sai com 1 quando nada
+   > respondeu: "sem internet" é o resultado esperado, e as outras três tasks terminam em sucesso.
 
    - `run_command`: `cwd /var/tmp/airflowtmp...` e o `PYTHONPATH`, que começa por
      `/usr/local/airflow/dags`; depois, as linhas da task Python,
@@ -215,14 +280,15 @@ sem dependência, mostra como o worker roda um script e um módulo do `.zip`.
      `pip: o download falhou, saída 1` e `Command exited with return code 1`. Onde um firewall de
      DNS recusa o nome, a falha vem em segundos, com `resolve: pypi.org falhou`.
 
-5. **No espaço**, o hash do resultado, o mesmo da task Python:
+7. **No espaço**, confira o hash do resultado, o mesmo da task Python:
 
    ```shell
    sha256sum ~/shared/exemplos/demo-bash-operator/outbox/*/sample.result.json
    ```
 
-No ambiente alvo, em 2026-10-12, cada task rodou num worker próprio: `probe_bash` em 11,7 s,
-`run_command` em 9,2 s e `reach_pypi` em 116 s, 43 s do `urllib` e 64 s do `pip`.
+> [!NOTE]
+> **Estado**: rodou no ambiente alvo, cada task num worker próprio
+> ([as notas](lab_notes.html#demo-bash-operator)).
 
 ## demo-devenv-job
 
@@ -237,14 +303,16 @@ próprio CPython 3.12 e as dependências dentro dela, que roda de qualquer camin
 Um projeto que usa o ambiente da imagem e leva só o que ela não tem passa pelo `package-job`
 ([A pasta de código com `package-job`](../awsds_workflows.html#a-pasta-de-codigo-com-package-job)).
 
-Antes do primeiro job:
+> [!WARNING]
+> **Sem a permissão do projeto, a execução para antes de existir um job.** O operador descreve o
+> job antes de criá-lo e põe nele a etiqueta do projeto, e o papel do projeto, como o blueprint o
+> cria, não deixa nem uma coisa nem outra: sem a política de
+> [A permissão do projeto](../awsds_workflows.html#a-permissao-do-projeto), a execução para em
+> `AccessDeniedException` em `sagemaker:DescribeProcessingJob`. Quem aplica a política é a
+> infraestrutura, no Terraform do projeto ou à mão.
 
-- **A permissão do projeto.** O operador descreve o job antes de criá-lo e põe nele a etiqueta
-  do projeto, e o papel do projeto, como o blueprint o cria, não deixa nem uma coisa nem outra:
-  sem a política de [A permissão do projeto](../awsds_workflows.html#a-permissao-do-projeto), a
-  execução para em `AccessDeniedException` em `sagemaker:DescribeProcessingJob`, como no ambiente
-  alvo em 2026-10-12. Quem aplica a política é a infraestrutura, no Terraform do projeto ou à
-  mão.
+Antes do primeiro job, além da permissão:
+
 - **A conta do registro da imagem**, em `examples/demo-devenv-job/extra_values.json`. A imagem
   padrão é a SageMaker Distribution 4.5, no registro da região, cuja conta um parâmetro público
   do SSM dá, num espaço:
@@ -280,15 +348,18 @@ Antes do primeiro job:
     KmsKeyId: arn:aws:kms:<REGION>:<ACCOUNT_ID>:key/<PROJECT_KEY_ID>
   ```
 
-1. **Na máquina que empacota**, num Linux x86_64, a plataforma do job, trave o projeto, grave o
-   `.tar.gz` dele e renderize a definição com os dois arquivos de valores:
+Os passos:
+
+1. **Na máquina que empacota**, num Linux x86_64, a plataforma do job, trave o projeto:
 
    ```shell
    (cd examples/awsds-demo-job && uv lock)
+   ```
+
+2. **Grave o `.tar.gz`** do projeto:
+
+   ```shell
    awsds-workflows prepare-offline examples/awsds-demo-job /tmp/awsds-demo-job.tar.gz
-   awsds-workflows render examples/demo-devenv-job/demo-devenv-job.yaml \
-       --values-file space_values.json \
-       --values-file examples/demo-devenv-job/extra_values.json > /tmp/demo-devenv-job.yaml
    ```
 
    O `prepare-offline` copia o projeto para uma pasta temporária, sem alterar a do exemplo,
@@ -296,41 +367,63 @@ Antes do primeiro job:
    como pacote e as dependências de execução, torna relativo cada link, grava o `.tar.gz` com a
    raiz `awsds-demo-job/` e prova, extraindo-o noutra pasta temporária, que o `.venv/bin/python`
    de lá roda sem o `uv`. Ele imprime o tamanho do arquivo e o da pasta extraída, com a versão do
-   interpretador: em 2026-10-13, `34111121 bytes, 100119806 extraídos, com o CPython 3.12.13 em
-   Linux x86_64`, em 14 s. Noutra plataforma ele para antes de qualquer download
+   interpretador, e a raiz:
+
+   ```text
+   /tmp/awsds-demo-job.tar.gz: 34111121 bytes, 100119806 extraídos, com o CPython 3.12.13 em Linux x86_64
+   raiz: awsds-demo-job/
+   ```
+
+   Noutra plataforma ele para antes de qualquer download
    ([A pasta do projeto preparada num `.tar.gz`](../awsds_workflows.html#a-pasta-do-projeto-preparada-num-targz)).
+
+3. **Preencha a definição** com os dois arquivos de valores:
+
+   ```shell
+   awsds-workflows render examples/demo-devenv-job/demo-devenv-job.yaml \
+       --values-file space_values.json \
+       --values-file examples/demo-devenv-job/extra_values.json > /tmp/demo-devenv-job.yaml
+   ```
 
    Com a conta do registro por preencher, o `render` recusa: `nenhum valor para:
    SMD_REGISTRY_ACCOUNT`; sem o segundo arquivo, `nenhum valor para: EXAMPLE_PREFIX,
    JOB_IMAGE_URI`.
 
-2. **Leve ao espaço** o `/tmp/awsds-demo-job.tar.gz` e, lá, copie-o para a entrada de código e
-   confira no S3, com o bucket, o domínio e o projeto do `space_values.json`:
+4. **Leve ao espaço** o `/tmp/awsds-demo-job.tar.gz` e, lá, copie-o para a entrada de código:
 
    ```shell
    mkdir -p ~/shared/exemplos/demo-devenv-job/code
    cp awsds-demo-job.tar.gz ~/shared/exemplos/demo-devenv-job/code/
+   ```
+
+   Uma versão nova do projeto é o `prepare-offline` de novo e a cópia por cima do objeto, que a
+   execução seguinte já lê.
+
+5. **No espaço**, confira a cópia no S3, com o bucket, o domínio e o projeto do
+   `space_values.json`:
+
+   ```shell
    aws s3 ls s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/demo-devenv-job/code/
    ```
 
-   O `aws s3 ls` tem de listar o `awsds-demo-job.tar.gz` com o tamanho que o `prepare-offline`
-   imprimiu, além do marcador de pasta de zero bytes; se não listar, pare: a cópia não chegou ao
-   S3, de onde o job lê o prefixo inteiro a cada execução. Uma versão nova do projeto é o
-   `prepare-offline` de novo e a cópia por cima do objeto, que a execução seguinte já lê.
+   > [!WARNING]
+   > **O `aws s3 ls` tem de listar o `awsds-demo-job.tar.gz`** com o tamanho que o
+   > `prepare-offline` imprimiu, além do marcador de pasta de zero bytes. Se não listar, pare: a
+   > cópia não chegou ao S3, de onde o job lê o prefixo inteiro a cada execução.
 
-3. **No espaço**, a amostra na caixa de entrada, um arquivo por vez, porque `remove_source` apaga
-   o prefixo inteiro:
+6. **No espaço**, ponha a amostra na caixa de entrada, um arquivo por vez, porque `remove_source`
+   apaga o prefixo inteiro:
 
    ```shell
    mkdir -p ~/shared/exemplos/demo-devenv-job/inbox
    cp sample.csv ~/shared/exemplos/demo-devenv-job/inbox/
    ```
 
-4. **No portal**: workflow `demo-devenv-job`, o campo *Operator files zip S3 location* vazio, a
+7. **No portal**: workflow `demo-devenv-job`, o campo *Operator files zip S3 location* vazio, a
    definição `/tmp/demo-devenv-job.yaml`, salve e execute. O formulário do editor não expressa o
    `config` inteiro do job: só a importação o guarda.
 
-5. **Leia** o log de `run_project`, que imprime o `config` do job e espera o fim dele, e o log do
+8. **Leia** o log de `run_project`, que imprime o `config` do job e espera o fim dele, e o log do
    contêiner, no grupo `/aws/sagemaker/ProcessingJobs`, no console do CloudWatch ou num espaço:
 
    ```shell
@@ -344,20 +437,15 @@ Antes do primeiro job:
    `sample.csv: 10 linhas -> /opt/ml/processing/outbox/sample.result.json` e
    `1 arquivo(s) processado(s)`; depois, `remove_source` esvazia `inbox/`.
 
-6. **No espaço**, o hash do resultado, o mesmo dos outros dois `demo-*`:
+9. **No espaço**, confira o hash do resultado, o mesmo dos outros dois `demo-*`:
 
    ```shell
    sha256sum ~/shared/exemplos/demo-devenv-job/outbox/*/sample.result.json
    ```
 
-No ambiente alvo, em 2026-10-12 às 18:12 UTC, a execução passou pelo sensor e parou na
-permissão, antes de existir um job, com a pasta do projeto expandida no S3 como entrada de
-código: do pull da imagem à gravação da saída, o caminho do job não foi medido lá, nem o usuário
-do contêiner da imagem padrão, e o `.tar.gz` ainda não rodou num job. No laboratório, em
-2026-10-11, com uma imagem customizada e a chave KMS do projeto, a definição sobre a pasta
-expandida rodou em cerca de 15 minutos e 0,03 USD. Na máquina que empacota, em 2026-10-13, o
-`.tar.gz` extraído noutra pasta, por um usuário sem privilégio e sem `uv` nem rede, escreveu o
-resumo com o mesmo sha256, em 1,3 s de extração para 100 MB.
+> [!NOTE]
+> **Estado**: no ambiente alvo, a execução parou na permissão do projeto, antes de existir um job,
+> e o `.tar.gz` ainda não rodou num job ([as notas](lab_notes.html#demo-devenv-job)).
 
 ## redshift-unload
 
@@ -389,33 +477,41 @@ S3, em Parquet, e `SELECT pg_last_unload_count()`. Antes:
   GRANT USAGE ON DATABASE <banco do datashare> TO "IAMR:user-project@<projeto>";
   ```
 
-  No ambiente alvo, em 2026-10-13, o workflow parou em
-  `Permission denied to query database created from datashare` até esse `GRANT`, que bastou
-  sozinho, o que indica um banco criado sem `WITH PERMISSIONS` (inferido). Num banco criado
-  `WITH PERMISSIONS`, o usuário também precisa de `USAGE` no esquema e de `SELECT` nas tabelas. A
-  primeira linha do log de cada execução diz quem precisa da permissão.
+  > [!WARNING]
+  > **Sem esse `GRANT`, o workflow para em
+  > `Permission denied to query database created from datashare`.** Num banco criado
+  > `WITH PERMISSIONS`, o usuário também precisa de `USAGE` no esquema e de `SELECT` nas tabelas.
+  > A primeira linha do log de cada execução diz quem precisa da permissão.
 
-1. **Na máquina que empacota**, o `.zip`, só com o módulo na raiz, e a definição:
+Os passos:
+
+1. **Na máquina que empacota**, monte o `.zip`, só com o módulo na raiz:
 
    ```shell
    python3 -m zipfile -c /tmp/redshift-unload.zip examples/redshift-unload/redshift_unload.py
+   ```
+
+   O módulo só usa o `boto3` que o worker traz, então o `.zip` dispensa o `package-task`.
+
+2. **Preencha a definição**:
+
+   ```shell
    awsds-workflows render examples/redshift-unload/redshift-unload.yaml \
        --values-file space_values.json \
        --values-file examples/redshift-unload/extra_values.json > /tmp/redshift-unload.yaml
    ```
 
-   O módulo só usa o `boto3` que o worker traz, então o `.zip` dispensa o `package-task`. Com um
-   nome do Redshift por preencher, o `render` recusa nomeando-o.
+   Com um nome do Redshift por preencher, o `render` recusa nomeando-o.
 
-2. **No portal**: workflow `redshift-unload`, o `.zip` `/tmp/redshift-unload.zip`, a definição
+3. **No portal**: workflow `redshift-unload`, o `.zip` `/tmp/redshift-unload.zip`, a definição
    `/tmp/redshift-unload.yaml`, salve e execute. Não há sensor nem job: a task roda na hora, e não
    depende da permissão do projeto para jobs.
 
-3. **Leia** o log de `unload`: `usuário do banco: IAMR:user-project@<projeto>`,
+4. **Leia** o log de `unload`: `usuário do banco: IAMR:user-project@<projeto>`,
    `<n> linha(s) descarregada(s) em <s> s sob s3://.../shared/exemplos/redshift-unload/<data-hora>/`
    e `Done. Returned value was: <n>`.
 
-4. **No espaço**, os arquivos, numa pasta por execução, com a data e a hora dela:
+5. **No espaço**, liste os arquivos, numa pasta por execução, com a data e a hora dela:
 
    ```shell
    ls ~/shared/exemplos/redshift-unload/*/
@@ -424,9 +520,13 @@ S3, em Parquet, e `SELECT pg_last_unload_count()`. Antes:
    Os `.parquet` e o `manifest`. Com zero linhas, o `UNLOAD` não grava nada, e a contagem diz 0.
    As outras falhas estão na tabela do `README.md` do exemplo.
 
-Para testar a função antes, num espaço, copie `redshift_unload.py` para lá e rode o exemplo da
-docstring dele, com um destino de teste. No ambiente alvo, em 2026-10-13, ela descarregou 101
-linhas em 5,5 s no espaço e no workflow, numa task de 23,4 s.
+> [!TIP]
+> **Para testar a função antes**, num espaço, copie `redshift_unload.py` para lá e rode o exemplo
+> da docstring dele, com um destino de teste.
+
+> [!NOTE]
+> **Estado**: rodou no ambiente alvo, depois do `GRANT`
+> ([as notas](lab_notes.html#redshift-unload)).
 
 ## houseprice-etl
 
@@ -438,21 +538,24 @@ SageMaker Unified Studio, a `aws-smus-cicd-cli` 1.0.9, que tem os passos dela em
 [A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd). O porquê de cada parâmetro da task
 está no `README.md` do exemplo.
 
-1. **Na máquina que empacota**, a definição e o modelo do job:
+1. **Na máquina que empacota**, preencha a definição:
 
    ```shell
    awsds-workflows render examples/houseprice-etl/houseprice-etl.yaml \
        --values-file space_values.json \
        --values-file examples/houseprice-etl/extra_values.json > /tmp/houseprice-etl.yaml
+   ```
+
+2. **Preencha o modelo do job**, a entrada do `CreateJob` que a task faz, para o passo 9, se a
+   primeira execução não conseguir criar o job:
+
+   ```shell
    awsds-workflows render examples/houseprice-etl/job.json \
        --values-file space_values.json \
        --values-file examples/houseprice-etl/extra_values.json > /tmp/houseprice-etl.job.json
    ```
 
-   O `job.json` é a entrada do `CreateJob` que a task faz, para o passo 6, se a primeira execução
-   não conseguir criar o job.
-
-2. **Leve ao espaço** o `examples/houseprice-etl/aplicacao/jobs/etl_houseprice.py` do clone e,
+3. **Leve ao espaço** o `examples/houseprice-etl/aplicacao/jobs/etl_houseprice.py` do clone e,
    lá, copie-o para o caminho que a definição passa ao job:
 
    ```shell
@@ -460,29 +563,35 @@ está no `README.md` do exemplo.
    cp etl_houseprice.py ~/shared/exemplos/houseprice-etl/jobs/
    ```
 
-3. **No espaço**, um Parquet em `entrada/house-price.parquet`: o que um fluxo do Visual ETL do
-   projeto lê, ou a amostra da preparação convertida:
+4. **No espaço**, prepare um Parquet: o que um fluxo do Visual ETL do projeto lê, ou a amostra da
+   preparação convertida:
 
    ```shell
    python -c "import pandas; pandas.read_csv('sample.csv').to_parquet('house-price.parquet')"
-   mkdir -p ~/shared/exemplos/houseprice-etl/entrada
-   cp house-price.parquet ~/shared/exemplos/houseprice-etl/entrada/
    ```
 
    O pandas e o pyarrow vêm com a imagem padrão do espaço (inferido); sem eles, o comando para em
    `ModuleNotFoundError`, e qualquer Parquet serve.
 
-4. **No portal**: workflow `houseprice-etl`, o campo *Operator files zip S3 location* vazio, a
+5. **No espaço**, ponha o Parquet em `entrada/house-price.parquet`:
+
+   ```shell
+   mkdir -p ~/shared/exemplos/houseprice-etl/entrada
+   cp house-price.parquet ~/shared/exemplos/houseprice-etl/entrada/
+   ```
+
+6. **No portal**: workflow `houseprice-etl`, o campo *Operator files zip S3 location* vazio, a
    definição `/tmp/houseprice-etl.yaml`, salve e execute.
 
-5. **Leia** o log de `run_glue_job`. Na primeira execução,
+7. **Leia** o log de `run_glue_job`. Na primeira execução,
    `Checking if job already exists: houseprice-etl-<projeto>`,
    `Creating job: houseprice-etl-<projeto>`, uma linha
    `Polling for AWS Glue Job houseprice-etl-<projeto> current run state with status RUNNING` a cada
    6 s e, no fim, `Exiting Job jr_... Run State: SUCCEEDED` e
    `AWS Glue Job: houseprice-etl-<projeto> status: SUCCEEDED. Run Id: jr_...`. Execute de novo, sem
-   mudar nada: a segunda execução encontra o job e não tem a linha `Creating job`. Cada execução
-   acrescenta arquivos `part-*.csv`, sem cabeçalho, à saída:
+   mudar nada: a segunda execução encontra o job e não tem a linha `Creating job`.
+
+8. **No espaço**, confira a saída. Cada execução acrescenta arquivos `part-*.csv`, sem cabeçalho:
 
    ```shell
    ls ~/shared/exemplos/houseprice-etl/saida/
@@ -493,7 +602,7 @@ está no `README.md` do exemplo.
    logs. A API cria o job sem `JobMode`, que o Glue trata como `SCRIPT`, o tipo *Code* da página
    (inferido).
 
-6. **Se a primeira execução parar em `AccessDeniedException` no `GetJob`**, leve ao espaço o
+9. **Se a primeira execução parar em `AccessDeniedException` no `GetJob`**, leve ao espaço o
    `/tmp/houseprice-etl.job.json`, crie o job uma vez e execute o workflow de novo:
 
    ```shell
@@ -502,13 +611,20 @@ está no `README.md` do exemplo.
 
    As outras falhas estão na tabela do `README.md` do exemplo.
 
+> [!NOTE]
+> **Estado**: o workflow do exemplo ainda não executou num projeto; o script, a task e o manifest
+> foram conferidos fora da AWS ([as notas](lab_notes.html#houseprice-etl)).
+
 ### A aplicação pela CLI de CI/CD
 
 A CLI leva a aplicação do stage `dev` do `manifest.yaml` ao stage `test`, dois projetos do mesmo
 domínio. Ela chama o DataZone, o S3 e o MWAA Serverless, e roda na máquina que empacota ou num
 runner de CI, com rede até as APIs da AWS e credenciais do domínio: um espaço do ambiente alvo não
-alcança a PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferido). Esta
-parte ainda não rodou num projeto.
+alcança a PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferido).
+
+> [!NOTE]
+> **Estado**: o `deploy` desta aplicação no stage `test` ainda não rodou num projeto, e o workflow
+> dela ainda não executou ([as notas](lab_notes.html#houseprice-etl)).
 
 1. **Na máquina que empacota**, uma cópia da aplicação fora do clone, com as sub-redes
    preenchidas:
@@ -552,17 +668,25 @@ parte ainda não rodou num projeto.
    `workflows/houseprice-etl.yaml` lidos do disco. O `deploy` copia as duas pastas para
    `shared/exemplos/houseprice-etl/` do projeto de teste, troca as variáveis do workflow pelos
    valores desse projeto, cria o workflow `houseprice_etl_<projeto de teste>_houseprice_etl` e o
-   executa uma vez, imprimindo os logs: essa execução cria o job. O Parquet do passo 3 tem de
-   estar em `shared/exemplos/houseprice-etl/entrada/` do projeto de teste antes do `deploy`, e uma
-   execução que pare no `GetJob` pede o passo 6 no projeto de teste.
-
-O exemplo ainda não rodou num projeto; o que foi conferido fora da AWS, em 2026-10-14, está no
-`README.md` dele.
+   executa uma vez, imprimindo os logs: essa execução cria o job. O Parquet dos passos 4 e 5 de
+   [houseprice-etl](#houseprice-etl) tem de estar em `shared/exemplos/houseprice-etl/entrada/` do
+   projeto de teste antes do `deploy`, e uma execução que pare no `GetJob` pede o passo 9 no
+   projeto de teste.
 
 ## Limpeza
 
-No portal, apague os workflows; no espaço, `rm -r ~/shared/exemplos/`. O grupo de logs de cada
-workflow e os `.zip` em `dev/operatorFiles/` ficam
-([Limpeza](../awsds_workflows.html#limpeza)). O job do `houseprice-etl` se apaga na página
-*Data processing jobs* ou, num espaço, com
-`aws glue delete-job --job-name houseprice-etl-<PROJECT_ID>`.
+1. **No portal**, apague os workflows.
+2. **No espaço**, apague as pastas dos exemplos:
+
+   ```shell
+   rm -r ~/shared/exemplos/
+   ```
+
+3. **O job do `houseprice-etl`** se apaga na página *Data processing jobs* ou, num espaço, com:
+
+   ```shell
+   aws glue delete-job --job-name houseprice-etl-<PROJECT_ID>
+   ```
+
+O grupo de logs de cada workflow e os `.zip` em `dev/operatorFiles/` ficam
+([Limpeza](../awsds_workflows.html#limpeza)).

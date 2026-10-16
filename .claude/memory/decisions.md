@@ -95,6 +95,22 @@ the decision card's recommendation: every reader sees the site dark, whatever th
 setting. The colors are in `docs/theme/`, the folder pdoc reads with `-t`: pdoc 16.0.0's
 `dark-mode` example for the page and Pygments' `monokai` for the code, as in that example.
 
+On 2026-10-16 at 00:42 UTC the user asked for a revision of the `pdoc` documentation against a
+critique of it: no walls of text; procedures as numbered steps, each terminal command in its own
+code block; the lab diary (dates, "medido em", "ainda não medido") apart from the manual; visible
+callouts for warnings, errors and restrictions; and an opening that says who the documentation is
+for and what problem it solves, with a quickstart. At 00:56 UTC, on a decision card the
+coordinator session relayed, the user chose "Página própria" over marking the measurements in the
+text: the lab's dates, readings and history moved to their own page, `awsds_workflows.lab_notes`
+(`docs/laboratorio.md`), and a section of the guide or of the examples' page keeps a `> [!NOTE]`
+with the step's state (`**Estado**: ...`) and a link to its notes. This replaces the PR #9
+convention above of "medido no laboratório em <data>" and "ainda não medido" in the text. The
+callouts are markdown2's GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`,
+`[!CAUTION]`), colored for the dark site by `docs/theme/custom.css`. Every section and anchor of
+`docs/index.md` and `docs/exemplos.md` stays, and the opening of `docs/index.md` has "Para quem
+é", "O problema que resolve" and the section "Início rápido". The CLI subsection of
+`docs/exemplos.md` keeps its commands for the examples' reform, which owns it.
+
 ## The supported Python versions
 
 On 2026-10-11 at 20:55 UTC the user asked that the package be compatible with Python 3.12 and that
