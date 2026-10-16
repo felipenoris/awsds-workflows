@@ -95,17 +95,23 @@ nomeia esse lugar.
   `create_job_kwargs`; se o job aparece em *Data processing jobs*, com as execuções e os logs; onde
   ficam os logs com o `--custom-logGroup-prefix` e se o projeto os lê; se as sub-redes das conexões
   de rede do job são as que `space_values.py` imprime, que o laboratório preencheu à mão nas
-  variáveis de stage. Espera o usuário: como o job nasce num projeto em que não existe (o cartão de
-  2026-10-16: criado uma vez com o `job.json`, como os passos dizem; um `glue:GetJob` sobre jobs sem
-  etiqueta na política do projeto, o recomendado; ou uma task Python que o cria). Fecha com essas
-  execuções e com a escolha.
-- **O `lint` de uma aplicação e a tradução por conta.** O `lint` mora neste pacote (decisão 9 da
-  etapa 8 do AWS-DataScience) e vem numa PR seguinte, antes do `app-etl` (o usuário, 2026-10-16
-  04:20 UTC): as regras (a) a (h) do passo 5.6 da etapa 8, as do manifest e a do job do Glue da
-  etapa 10 (2.3); a regra (d), do `VersionId`, é do pipeline. A tradução de um workflow da CLI para
-  outra conta (decisão 6 da etapa 10: um arquivo que dá a cada variável da CLI o literal da conta, e
-  o corte do `update_config` e do `create_job_kwargs` do job do Glue) entra quando a etapa 10
-  renderizar para Staging e Produção. Fecha com as duas PRs.
+  variáveis de stage. O usuário escolheu como o job nasce num projeto em que não existe (2026-10-16
+  05:50 UTC; `decisions.md`, "The examples as applications"): um `glue:GetJob` sobre os jobs sem
+  etiqueta de projeto, escrito no Terraform do laboratório (AWS-DataScience PR #143) e no do alvo,
+  sem aplicar. Não medidos: o `GetJob` respondendo `EntityNotFoundException` sobre o nome livre, e
+  se o `CreateJob` com a etiqueta passa sem mais nada; até lá, os passos criam o job uma vez com o
+  `job.json`. Fecha com a aplicação do grant e uma execução que crie o job, e com as outras
+  execuções.
+- **O `lint` no modo promovido e a tradução por conta.** O `lint` entrou no pacote (`lint.py`, o
+  subcomando `lint`; `decisions.md`, "The lint of an application") com os dois modos, e o modo
+  promovido não rodou numa esteira sobre uma cópia renderizada por conta: a tradução de um
+  workflow da CLI para outra conta (decisão 6 da etapa 10 do AWS-DataScience: um arquivo que dá a
+  cada variável da CLI o literal da conta, e o corte do `update_config` e do `create_job_kwargs` do
+  job do Glue) entra quando a etapa 10 renderizar para Staging e Produção, e o `lint --promoted`
+  é a conferência dessa cópia. Não medido também: o tempo de provisionamento e de encerramento de
+  um job de processamento dentro dos 3.600 s da task, que decide a margem dos 2.820 s de
+  `MaxRuntimeInSeconds` (`docs/laboratorio.md`, "Regras de autoria"). Fecha com a etapa 10 e com
+  um job cronometrado.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

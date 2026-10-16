@@ -29,10 +29,18 @@ pacote repete.
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/operators-python-bash-detail.html>
 - Os operadores suportados, e o histórico do guia que data a chegada dos operadores Python e Bash em
   2026-08-17: <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/operators.html> e
-  <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/doc-history.html>
+  <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/doc-history.html>; a versão em
+  Markdown da página, com a lista inteira, 199 classes do provedor Amazon por área mais o
+  `PythonOperator` e o `BashOperator`, lida em 2026-10-16 para a regra `operador` do `lint`:
+  <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/operators.md>
 - Os parâmetros do Airflow suportados, os limites de `retries`, `retry_delay` e
-  `execution_timeout` e os ignorados:
+  `execution_timeout` e os ignorados (lida de novo em 2026-10-16, para a regra `limites` do
+  `lint`: `retries` de 0 a 3, `retry_delay` de 0 a 300 s, `execution_timeout` até 3.600 s,
+  `start_date` "must be in the future"):
   <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/supported-airflow-parameters.html>
+- As cotas do MWAA Serverless na AWS, com os 50 KB de uma definição, as 50 versões por workflow e os
+  60 minutos de uma task (lida em 2026-10-16):
+  <https://docs.aws.amazon.com/mwaa/latest/mwaa-serverless-userguide/mwaa-serverless-quotas.html>
 - As cotas do MWAA Serverless numa página fora da AWS, com o *Maximum task execution timeout* de 60
   minutos, ajustável (lida em 2026-10-12):
   <https://www.awsfundamentals.com/limits/airflow-serverless>

@@ -25,6 +25,7 @@ SageMaker.
 | `render` | o arquivo de definição do workflow preenchido com os valores do projeto, as variáveis da CLI de CI/CD traduzidas | a importação no portal |
 | `values` | os valores do projeto, lidos da conta | o `render` |
 | `compare` | o que difere no conteúdo de duas definições, como a versionada e a que o portal salvou | quem revisa uma mudança feita no portal |
+| `lint` | as recusas de uma aplicação da CLI de CI/CD, ou de uma definição, contra as regras do serviço e da esteira | quem escreve a aplicação, antes do `deploy`, e a esteira, antes de promover |
 
 As páginas desta documentação:
 
@@ -36,7 +37,8 @@ As páginas desta documentação:
   aponta para lá;
 - **a referência de cada módulo**, no menu: `awsds_workflows.package_task`,
   `awsds_workflows.package_job`, `awsds_workflows.prepare_offline`, `awsds_workflows.render`,
-  `awsds_workflows.compare`, `awsds_workflows.errors` e `awsds_workflows.cli`.
+  `awsds_workflows.compare`, `awsds_workflows.lint`, `awsds_workflows.errors` e
+  `awsds_workflows.cli`.
 
 | Seção | Para quem | O que traz |
 |---|---|---|
@@ -48,7 +50,7 @@ As páginas desta documentação:
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, o que muda, e o arquivo de ambiente |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
-| [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os erros do save, os templates, o sensor |
+| [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os erros do save, os templates, o sensor e o `lint` que confere uma aplicação |
 | [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, a pasta de código com `package-job` e o `.tar.gz` da pasta do projeto com `prepare-offline` |
 | [O código de uma task Python ou Bash](#o-codigo-de-uma-task-python-ou-bash) | cientista de dados | o `.zip` com `package-task`, e uma task Python |
 | [Uma task Bash](#uma-task-bash) | cientista de dados | o `BashOperator`: o comando, o ambiente do worker e o código que ele chama |
@@ -559,6 +561,67 @@ se nada chegar.
 do timeout. A API lê então o estado do sensor como `NONE`, e não `SKIPPED`, e não lista instância
 para as tasks seguintes; só o log da task diz `Skipping task.` A espera cobra os seus 10 minutos
 (cerca de 0,015 USD).
+
+### O lint
+
+O `lint` confere uma aplicação da CLI de CI/CD, a pasta com o `manifest.yaml`, contra as regras
+desta seção, os limites do serviço e o que uma esteira exige de um workflow que vai a outra conta,
+sem chamar a AWS. Rode-o antes do `deploy`:
+
+```shell
+awsds-workflows lint examples/demo-devenv-job
+```
+
+Ele lê o manifest, cada YAML das pastas que `content.storage` copia, as definições, e os scripts
+`.py`, `.sh` e `.sql` dessas pastas; imprime cada recusa numa linha, `arquivo: regra: motivo`, e
+termina com 1; sem recusa, imprime `ok` com o número de arquivos lidos e termina com 0. Uma
+definição sozinha passa pelas regras que não dependem do manifest:
+
+```shell
+awsds-workflows lint workflows/meu-workflow.yaml
+```
+
+O `lint` tem dois modos:
+
+- **autoria**, o padrão: os arquivos do repositório, na notação da CLI; as variáveis da tabela de
+  [Os valores da definição](#os-valores-da-definicao) passam, e a etiqueta `AmazonDataZoneProject`
+  e a conexão de rede do projeto também, porque os projetos de dev e de teste as pedem;
+- **promovido**, `--promoted`: uma cópia renderizada por conta, a que uma esteira leva a outra
+  conta, onde não pode sobrar variável da CLI, placeholder nem valor do projeto de autoria, a
+  imagem é nomeada por digest e o job de processamento leva a chave do volume. Ele pede
+  `--prefix`, o prefixo da versão no bucket, sob o qual a entrada de código do job e o script do
+  Glue têm de estar:
+
+  ```shell
+  awsds-workflows lint /tmp/meu-workflow.yaml --promoted \
+      --prefix s3://meu-bucket/workflows/meu-workflow/v1.0.0/ \
+      --instance-type ml.m5.xlarge --image-repository minha-imagem
+  ```
+
+`--instance-type`, repetível, e `--image-repository` restringem o job de processamento nos dois
+modos; numa aplicação, os prefixos são as pastas que o manifest copia em todos os stages, e
+`--prefix` é recusado.
+
+As regras, pelo nome que a recusa traz:
+
+| Regra | O que recusa |
+|---|---|
+| `forma` | um YAML que não lê, ou sem uma chave só no topo, o nome do workflow, com `tasks`, um mapeamento de tasks, cada uma com `operator` |
+| `projeto` | uma variável da CLI fora da tabela; um valor que só existe no projeto de autoria: `datazone_usr_role_`, um id de domínio `dzd_`, `smus-projects`, `dev/operatorFiles/`, uma variável `DataZone*` ou `ProjectS3Path`, um alias de chave `-project`, as chaves `domain_id` e `project_id`; no modo promovido, também uma variável da CLI ou um placeholder por preencher, a etiqueta `AmazonDataZoneProject`, uma conexão `datazone-glue-network-connection-` e um prefixo `datazone-<projeto>-dev` |
+| `datas` | `start_date`, no DAG ou em `default_args`, porque o serviço exige uma data futura e a esteira a escreve; `schedule` e `schedule_interval`, porque um workflow é iniciado pelo `run` ou por uma máquina de estados |
+| `operador` | um `operator` que não é uma classe de `airflow.providers.amazon.aws.` nem o `PythonOperator` ou o `BashOperator` de `airflow.providers.standard.operators.`, os que o serviço roda; e `SageMakerNotebookOperator`, pelo nome, porque uma task de notebook roda um job de treinamento cuja rede e chave a definição não controla |
+| `limites` | `retries` ausente, porque o serviço assume 1, ou fora de 0 a 3; `retry_delay` acima de 300 s; `execution_timeout` e o `timeout` de um sensor acima de 3.600 s; o arquivo acima de 50.000 bytes, a cota de uma definição; as grafias `retry_delay_sec` e `execution_timeout_secs` do dag-factory contam |
+| `imagem` | um `ImageUri` literal que não é `<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>`, ou de outro repositório que o de `--image-repository`; na autoria, um placeholder passa |
+| `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId` |
+| `templates` | um `{{ }}` cujo primeiro nome o serviço não renderiza, ou um método sobre o que uma macro devolveu ([Os templates](#os-templates)) |
+| `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas que o manifest copia em todos os stages, ou dos `--prefix` |
+| `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas |
+| `manifest` | um item de `content.storage` com `connectionName`, um `content.git`, o catálogo ou os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
+
+> [!NOTE]
+> **Estado**: os seis exemplos passam no modo de autoria, no teste do repositório; nenhuma esteira
+> rodou o modo promovido ainda, e a margem do job é uma escolha
+> ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
 
 ## Uma task de processamento
 

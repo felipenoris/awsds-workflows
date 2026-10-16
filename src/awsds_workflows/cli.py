@@ -18,6 +18,11 @@ depois para o ambiente do SageMaker, que não tem internet.
 - ``values`` imprime os valores em JSON, o formato de ``--values-file``.
 - ``compare`` imprime as diferenças de conteúdo entre duas definições de workflow, como a cópia
   versionada e a que o portal salvou com os placeholders de volta (``awsds_workflows.compare``).
+- ``lint`` confere uma aplicação da CLI de CI/CD, a pasta com o ``manifest.yaml``, ou uma
+  definição de workflow sozinha, contra as regras do serviço e da esteira
+  (``awsds_workflows.lint``): sem opção, na notação da CLI, como os arquivos do repositório; com
+  ``--promoted``, uma cópia renderizada por conta, que pede ``--prefix``, o prefixo da versão no
+  bucket. ``--instance-type`` e ``--image-repository`` restringem o job de processamento.
 
 Os valores de ``render`` e ``values`` vêm de ``--values-file``, repetido para vários arquivos, de
 ``--profile`` (a leitura da conta, que pede ``--subnet-name``) ou dos dois: cada arquivo, na ordem
@@ -25,7 +30,8 @@ da linha de comando, completa e substitui o que veio antes dele, a leitura da co
 anteriores. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o papel do projeto não tem
 a etiqueta ``KmsKeyId``, e nenhum arquivo também, o comando avisa na saída de erro e segue. Uma
 recusa imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
-O ``compare`` termina com 0 com ou sem diferenças.
+O ``compare`` termina com 0 com ou sem diferenças; o ``lint`` imprime cada recusa numa linha e
+termina com 1, ou imprime ``ok`` com o número de arquivos lidos e termina com 0.
 
 Exemplo:
 
@@ -44,6 +50,9 @@ Exemplo:
     awsds-workflows render --placeholders salvo.yaml --values-file valores.json
     awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*' > valores.json
     awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
+    awsds-workflows lint examples/demo-devenv-job
+    awsds-workflows lint /tmp/meu-workflow.yaml --promoted \\
+        --prefix s3://meu-bucket/workflows/meu-workflow/v1.0.0/ --instance-type ml.m5.xlarge
 """
 
 from __future__ import annotations
@@ -53,7 +62,7 @@ import json
 import sys
 from pathlib import Path
 
-from awsds_workflows import compare, package_job, package_task, prepare_offline, render
+from awsds_workflows import compare, lint, package_job, package_task, prepare_offline, render
 from awsds_workflows.errors import RefusalError
 
 __all__ = ["main"]
@@ -108,6 +117,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_render_parser(commands)
     _add_values_parser(commands)
     _add_compare_parser(commands)
+    _add_lint_parser(commands)
     return parser
 
 
@@ -275,6 +285,50 @@ def _add_compare_parser(
         help="a segunda definição, como a que o portal salvou, com os placeholders de volta",
     )
     command.set_defaults(handler=_compare)
+
+
+def _add_lint_parser(
+    commands: argparse._SubParsersAction,
+) -> None:
+    """[private] O subcomando ``lint``."""
+    command = commands.add_parser(
+        "lint",
+        help="confere uma aplicação da CLI de CI/CD, ou uma definição de workflow, contra as "
+        "regras do MWAA Serverless e da esteira",
+    )
+    command.add_argument(
+        "path",
+        type=Path,
+        help="a pasta da aplicação, com o manifest.yaml, ou o arquivo de uma definição",
+    )
+    command.add_argument(
+        "--promoted",
+        action="store_true",
+        help="o modo promovido: o arquivo é uma cópia renderizada por conta, sem variável da CLI "
+        "nem placeholder, com a imagem por digest e a chave do volume; pede --prefix",
+    )
+    command.add_argument(
+        "--prefix",
+        action="append",
+        default=[],
+        metavar="S3_PREFIX",
+        help="um prefixo S3 sob o qual a entrada de código do job e o script do Glue têm de "
+        "estar, na notação do arquivo; repetível; só para um arquivo, porque numa aplicação os "
+        "prefixos vêm do manifest",
+    )
+    command.add_argument(
+        "--instance-type",
+        action="append",
+        default=[],
+        metavar="TYPE",
+        help="um tipo de instância que um job de processamento pode pedir; repetível",
+    )
+    command.add_argument(
+        "--image-repository",
+        metavar="REPOSITORY",
+        help="o repositório ECR que um ImageUri literal tem de nomear",
+    )
+    command.set_defaults(handler=_lint)
 
 
 def _add_value_source_arguments(
@@ -461,4 +515,43 @@ def _compare(
         return 0
     for line in differences:
         print(line)
+    return 0
+
+
+def _lint(
+    arguments: argparse.Namespace,
+) -> int:
+    """[private] Imprime cada recusa numa linha e termina com 1, ou ``ok`` com o número de
+    arquivos lidos e 0; uma pasta é uma aplicação, um arquivo é uma definição."""
+    if arguments.path.is_dir():
+        if arguments.promoted:
+            raise RefusalError("--promoted lê uma cópia renderizada: passe o arquivo, não a pasta")
+        if arguments.prefix:
+            raise RefusalError(
+                "--prefix vale para um arquivo; numa aplicação, os prefixos vêm do manifest"
+            )
+        report = lint.lint_application(
+            arguments.path,
+            instance_types=arguments.instance_type,
+            image_repository=arguments.image_repository,
+        )
+        files = report.files
+        findings = report.findings
+    else:
+        if arguments.promoted and not arguments.prefix:
+            raise RefusalError("--promoted pede --prefix, o prefixo da versão promovida no bucket")
+        files = [arguments.path]
+        findings = lint.lint_definition(
+            arguments.path,
+            promoted=arguments.promoted,
+            prefixes=arguments.prefix,
+            instance_types=arguments.instance_type,
+            image_repository=arguments.image_repository,
+        )
+
+    for finding in findings:
+        print(finding)
+    if findings:
+        return 1
+    print(f"ok: {len(files)} arquivo(s)")
     return 0
