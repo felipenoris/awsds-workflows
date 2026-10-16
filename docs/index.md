@@ -22,7 +22,7 @@ SageMaker.
 | `package-task` | o `.zip` com o código de uma task Python ou Bash e as dependências dele | o worker |
 | `package-job` | a pasta de código de um job de processamento, só com o que a imagem do job não tem | um job de processamento |
 | `prepare-offline` | o `.tar.gz` da pasta de um projeto preparada com o próprio interpretador | um job de processamento, que o extrai no volume |
-| `render` | o arquivo de definição do workflow preenchido com os valores do projeto | a importação no portal |
+| `render` | o arquivo de definição do workflow preenchido com os valores do projeto, as variáveis da CLI de CI/CD traduzidas | a importação no portal |
 | `values` | os valores do projeto, lidos da conta | o `render` |
 | `compare` | o que difere no conteúdo de duas definições, como a versionada e a que o portal salvou | quem revisa uma mudança feita no portal |
 
@@ -1374,6 +1374,20 @@ awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*
 
   Até a conta do registro entrar, o `render` recusa com `nenhum valor para:
   SMD_REGISTRY_ACCOUNT`; depois, o `JOB_IMAGE_URI` sai montado com ela e a `REGION`.
+- **Um workflow na notação da CLI de CI/CD**, o `aws-smus-cicd-cli`, guarda os valores do projeto
+  como variáveis dela e o que nenhum projeto tem como variáveis de stage, `{env.NOME}`. O `render`
+  troca cada uma pela expressão com placeholders antes de preencher, e recusa uma variável fora
+  desta tabela; assim o mesmo YAML que a CLI implanta num projeto se importa no portal, preenchido
+  com os valores desse projeto, sem a CLI ([Os exemplos](#os-exemplos)).
+
+  | Variável da CLI | O que o `render` lê no lugar dela |
+  |---|---|
+  | `{proj.id}` | `<PROJECT_ID>` |
+  | `{proj.iam_role_arn}` | `arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>` |
+  | `{proj.connection.default.s3_shared.s3Uri}` | `s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/` |
+  | `{domain.id}` | `<DOMAIN_ID>` |
+  | `{domain.region}` | `<REGION>` |
+  | `{env.NOME}` | `<NOME>` |
 
 | Placeholder | O valor | De onde |
 |---|---|---|
@@ -1463,6 +1477,10 @@ Como o `compare` lê:
   o acrescenta a cada save, e o serviço o ignora, com o aviso
   `ignored attributes: is_paused_upon_creation` na resposta de cada `update-workflow`.
 - **Uma descrição escrita no portal** entra como a chave `description` do workflow.
+- **Um workflow na notação da CLI de CI/CD** se compara com a definição que a CLI implantou e o
+  portal guarda: o `compare` troca as variáveis da CLI dos dois lados pela expressão com
+  placeholders, como o `render` ([Os valores da definição](#os-valores-da-definicao)), e
+  `{{ params.NOME }}`, a forma em que a CLI grava uma variável de stage, por `<NOME>`.
 
 > [!IMPORTANT]
 > **Uma mudança que deve ficar entra à mão na cópia versionada**, com os placeholders no lugar dos

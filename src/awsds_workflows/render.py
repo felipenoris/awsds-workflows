@@ -7,6 +7,14 @@ placeholder sem valor; ``restore_placeholders`` faz o inverso numa definição q
 para que a cópia versionada se compare com o arquivo importado. O texto preenchido vai para a tela
 e para o portal, nunca para o repositório.
 
+Uma definição na notação da CLI de CI/CD do SageMaker Unified Studio, a ``aws-smus-cicd-cli``,
+guarda os valores do projeto como variáveis dela, ``{proj.id}``, ``{proj.iam_role_arn}``,
+``{proj.connection.default.s3_shared.s3Uri}``, ``{domain.id}`` e ``{domain.region}``, e o que
+nenhum projeto tem como variável de stage, ``{env.NOME}``. ``translate_cli_variables`` troca cada
+uma pela expressão com placeholders da tabela ``CLI_VARIABLES``, e ``{env.NOME}`` por ``<NOME>``;
+``fill_placeholders`` faz essa troca antes de preencher, e com isso o YAML que a CLI implanta num
+projeto se importa no portal preenchido com os valores desse projeto, sem a CLI.
+
 Um valor pode referenciar outros placeholders, que os dois caminhos trocam antes pelos valores
 deles, um nível: ``"JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/..."``
 monta o URI com a conta do registro e a região dos outros valores. Um valor que referencia um
@@ -61,16 +69,39 @@ from typing import Any
 from awsds_workflows.errors import RefusalError
 
 __all__ = [
+    "CLI_VARIABLE",
+    "CLI_VARIABLES",
     "PLACEHOLDER",
     "fill_placeholders",
     "load_values",
     "read_values",
     "restore_placeholders",
+    "translate_cli_variables",
 ]
 
 PLACEHOLDER = re.compile(r"<([A-Z][A-Z0-9_]+)>")
 """[public] O padrão de um placeholder: ``<`` e ``>`` em volta de um nome que começa por
 maiúscula e segue com maiúsculas, dígitos e ``_``."""
+
+CLI_VARIABLE = re.compile(r"\{(env|proj|domain|stage)\.([^}]+)\}")
+"""[public] O padrão de uma variável da CLI de CI/CD, o que ela mesma lê (código da 1.0.9): um
+dos namespaces ``env``, ``proj``, ``domain`` e ``stage``, um ponto e um caminho, entre ``{`` e
+``}``."""
+
+CLI_VARIABLES = {
+    "{proj.id}": "<PROJECT_ID>",
+    "{proj.iam_role_arn}": "arn:aws:iam::<ACCOUNT_ID>:role/<PROJECT_ROLE_NAME>",
+    "{proj.connection.default.s3_shared.s3Uri}": (
+        "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/"
+    ),
+    "{domain.id}": "<DOMAIN_ID>",
+    "{domain.region}": "<REGION>",
+}
+"""[public] A expressão com placeholders de cada variável da CLI de CI/CD que a tradução conhece,
+o que a CLI escreve no lugar dela num projeto: o id do projeto, o ARN do papel do projeto, o
+``s3Uri`` da conexão ``default.s3_shared``, que é a pasta ``shared/`` do projeto no bucket, e o
+id e a região do domínio. Uma variável de stage, ``{env.NOME}``, vira ``<NOME>`` e não está
+aqui."""
 
 _PROJECT_ROLE_PREFIX = "datazone_usr_role_"
 
@@ -81,21 +112,28 @@ def fill_placeholders(
 ) -> str:
     """[public] Troca cada placeholder do texto pelo seu valor.
 
+    Uma variável da CLI de CI/CD no texto é trocada antes pela expressão com placeholders dela
+    (``translate_cli_variables``), e preenchida como as outras.
+
     Exemplo:
 
     .. code-block:: python
 
         fill_placeholders("bucket: <PROJECTS_BUCKET>", {"PROJECTS_BUCKET": "meu-bucket"})
         # 'bucket: meu-bucket'
+        fill_placeholders("job_name: etl-{proj.id}", {"PROJECT_ID": "abc123"})
+        # 'job_name: etl-abc123'
 
-    :param text: o texto com os placeholders, como uma definição de workflow.
+    :param text: o texto com os placeholders, como uma definição de workflow, ou com as
+        variáveis da CLI de CI/CD, como o workflow de uma aplicação.
     :param values: o valor de cada placeholder, pelo nome sem ``<`` e ``>``; um valor pode
         referenciar outros placeholders, trocados antes pelos valores deles.
     :return: o texto com cada placeholder trocado.
     :raises awsds_workflows.errors.RefusalError: quando um placeholder do texto não tem valor, ou
         um valor referencia um placeholder sem valor ou a si mesmo, com todos os que faltam na
-        mensagem.
+        mensagem; e quando uma variável da CLI não tem tradução.
     """
+    text = translate_cli_variables(text)
     resolved = _resolve_values(values)
     found = {match.group(1) for match in PLACEHOLDER.finditer(text)}
     missing = sorted(found - set(resolved))
@@ -137,6 +175,53 @@ def restore_placeholders(
     for name, value in by_length:
         text = text.replace(value, f"<{name}>")
     return text
+
+
+def translate_cli_variables(
+    text: str,
+) -> str:
+    """[public] Troca cada variável da CLI de CI/CD do texto pela expressão com placeholders dela.
+
+    Exemplo:
+
+    .. code-block:: python
+
+        translate_cli_variables("job_name: etl-{proj.id}, Subnets: ['{env.SUBNET_AZ1}']")
+        # "job_name: etl-<PROJECT_ID>, Subnets: ['<SUBNET_AZ1>']"
+
+    :param text: o texto com as variáveis, como o workflow de uma aplicação.
+    :return: o texto com cada variável trocada: as da tabela ``CLI_VARIABLES`` pela expressão
+        dela, e ``{env.NOME}`` por ``<NOME>``.
+    :raises awsds_workflows.errors.RefusalError: quando uma variável não está na tabela, ou uma
+        de stage não tem um nome de placeholder, com todas as que faltam na mensagem.
+    """
+    found = {match.group(0) for match in CLI_VARIABLE.finditer(text)}
+
+    translations: dict[str, str] = {}
+    unknown: list[str] = []
+    for variable in sorted(found):
+        translation = _translation_of(variable)
+        if translation is None:
+            unknown.append(variable)
+        else:
+            translations[variable] = translation
+    if unknown:
+        raise RefusalError(f"variável da CLI sem tradução: {', '.join(unknown)}")
+    return CLI_VARIABLE.sub(lambda match: translations[match.group(0)], text)
+
+
+def _translation_of(
+    variable: str,
+) -> str | None:
+    """[private] A expressão com placeholders de uma variável da CLI: a da tabela, ``<NOME>`` para
+    uma de stage com nome de placeholder, e ``None`` para as outras."""
+    if variable in CLI_VARIABLES:
+        return CLI_VARIABLES[variable]
+    match = CLI_VARIABLE.fullmatch(variable)
+    placeholder = f"<{match.group(2)}>"
+    if match.group(1) == "env" and PLACEHOLDER.fullmatch(placeholder):
+        return placeholder
+    return None
 
 
 def _resolve_values(

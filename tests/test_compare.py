@@ -8,6 +8,7 @@ template, as listas em bloco, o ``-c`` entre aspas, o layout do editor mantido e
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -203,6 +204,33 @@ def test_a_date_is_written_as_text(
     """Uma data, que o YAML lê como data e o JSON não representa, sai como texto."""
     differences = compare_texts(tmp_path, "dag_id: meu-job\n", "start_date: 2026-10-11\n")
     assert differences == ['- dag_id: "meu-job"', '+ start_date: "2026-10-11"']
+
+
+def test_a_cli_workflow_compares_with_what_the_cli_deployed(
+    tmp_path: Path,
+) -> None:
+    """Um workflow na notação da CLI de CI/CD se compara com a definição que a CLI implantou, com
+    os placeholders de volta: as variáveis da CLI viram placeholders dos dois lados, e
+    ``{{ params.NOME }}``, a forma em que a CLI grava uma variável de stage, vira ``<NOME>``."""
+    first = (
+        "job_name: etl-{proj.id}\n"
+        'subnet: "{env.SUBNET_AZ1}"\n'
+        'uri: "{proj.connection.default.s3_shared.s3Uri}exemplos/entrada/"\n'
+    )
+    second = (
+        "job_name: etl-<PROJECT_ID>\n"
+        'subnet: "{{ params.SUBNET_AZ1 }}"\n'
+        "uri: s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/exemplos/entrada/\n"
+    )
+    assert compare_texts(tmp_path, first, second) == []
+
+
+def test_a_cli_variable_without_translation_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Uma variável da CLI que a tradução não conhece recusa a comparação."""
+    with pytest.raises(RefusalError, match=re.escape("sem tradução: {stage.name}")):
+        compare_texts(tmp_path, "a: '{stage.name}'\n", "a: 1\n")
 
 
 def test_a_missing_file_is_refused(

@@ -236,7 +236,9 @@ def _add_render_parser(
         "render",
         help="imprime uma definição com os placeholders preenchidos",
     )
-    command.add_argument("file", type=Path, help="o arquivo com os placeholders")
+    command.add_argument(
+        "file", type=Path, help="o arquivo com os placeholders, ou na notação da CLI de CI/CD"
+    )
     command.add_argument(
         "--placeholders",
         action="store_true",

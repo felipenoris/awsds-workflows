@@ -1,5 +1,5 @@
-"""``awsds_workflows.render``: o preenchimento e o caminho inverso, o arquivo de valores e a
-leitura da conta sobre respostas fabricadas do ``aws``.
+"""``awsds_workflows.render``: o preenchimento e o caminho inverso, a tradução das variáveis da
+CLI de CI/CD, o arquivo de valores e a leitura da conta sobre respostas fabricadas do ``aws``.
 
 Nenhum teste chama a AWS: a leitura da conta roda sobre um dublê de ``render._run_aws`` que
 responde a cada comando com o JSON que o ``aws`` daria. As contas e os ids são os de exemplo da
@@ -9,6 +9,7 @@ documentação da AWS.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -64,6 +65,43 @@ def test_fill_refuses_a_value_that_references_a_placeholder_without_a_value() ->
     message = "nenhum valor para: REDSHIFT_WORKGROUP, SMD_REGISTRY_ACCOUNT$"
     with pytest.raises(RefusalError, match=message):
         render.fill_placeholders("workgroup: <REDSHIFT_WORKGROUP>", values)
+
+
+def test_fill_translates_the_cli_variables_before_filling() -> None:
+    """Cada variável da CLI de CI/CD vira a expressão com placeholders dela, preenchida a
+    seguir."""
+    text = "{proj.connection.default.s3_shared.s3Uri}exemplos/ {proj.id} {proj.iam_role_arn}"
+    values = {**VALUES, "DOMAIN_ID": "dzd_xyz789", "ACCOUNT_ID": "111122223333"}
+    assert render.fill_placeholders(text, values) == (
+        "s3://meu-bucket/dzd_xyz789/abc123/shared/exemplos/ abc123 "
+        "arn:aws:iam::111122223333:role/datazone_usr_role_abc123_env456"
+    )
+
+
+def test_translate_turns_the_table_and_a_stage_variable_into_placeholders() -> None:
+    """A tabela dá a expressão de cada variável, e ``{env.NOME}`` vira ``<NOME>``, com as aspas
+    do YAML em volta mantidas."""
+    text = 'ImageUri: "{env.JOB_IMAGE_URI}" em {domain.region}, domínio {domain.id}'
+    translated = render.translate_cli_variables(text)
+    assert translated == 'ImageUri: "<JOB_IMAGE_URI>" em <REGION>, domínio <DOMAIN_ID>'
+
+
+def test_translate_leaves_what_is_not_a_cli_variable() -> None:
+    """Uma variável de shell num comando e um template do Airflow não são variáveis da CLI."""
+    text = "echo ${PYTHONPATH:-} {{ macros.time.gmtime() }} {{ params.SUBNET_AZ1 }}"
+    assert render.translate_cli_variables(text) == text
+
+
+def test_translate_refuses_a_variable_outside_the_table() -> None:
+    """Uma variável fora da tabela, uma de stage sem nome de placeholder e ``{stage.name}`` são
+    recusadas, todas na mensagem, em ordem."""
+    text = "{stage.name} {env.minuscula} {proj.connection.default.athena.workgroupName} {proj.id}"
+    message = (
+        "variável da CLI sem tradução: {env.minuscula}, "
+        "{proj.connection.default.athena.workgroupName}, {stage.name}"
+    )
+    with pytest.raises(RefusalError, match=re.escape(message)):
+        render.translate_cli_variables(text)
 
 
 def test_restore_uses_the_resolved_values() -> None:
