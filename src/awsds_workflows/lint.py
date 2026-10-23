@@ -49,14 +49,22 @@ As regras, pelo nome que uma recusa traz:
 - ``glue``: o script de um ``GlueJobOperator`` (``script_location`` ou
   ``Command.ScriptLocation``) e cada arquivo de ``--extra-py-files``, ``--extra-jars`` e
   ``--extra-files`` estão sob um prefixo permitido, como a entrada de código; os scripts das pastas
-  copiadas passam pelos padrões da regra ``projeto``.
+  copiadas passam pelos padrões da regra ``projeto``; no modo promovido, a task não leva
+  ``create_job_kwargs``, ``script_location``, ``iam_role_arn``, ``update_config`` nem
+  ``job_desc``, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto
+  o job é criado pelo Terraform da aplicação, e a task só o inicia.
 - ``manifest``: nenhum item de ``content.storage`` com ``connectionName``, nenhum ``content.git``,
   ``content.catalog`` e ``content.notebooks`` desligados e nenhum painel de ``content.quicksight``
   exportado do serviço (``assetBundle`` ausente ou ``export``), porque com eles o ``bundle`` leva o
-  que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; cada ``{env.NOME}``
+  que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; nenhum ``include``
+  com glob, que o ``bundle`` não expande, e o arquivo fica fora dele; cada ``{env.NOME}``
   dos workflows declarado em ``environment_variables`` de todos os stages; cada ``workflowName``
   exposto por um YAML copiado (a chave do topo ou ``dag_id``); e o ``code`` de um workflow um
   ``.py``, ``.sh`` ou ``.zip`` sob um item de storage.
+
+A outra metade da regra ``glue`` lê o plano do Terraform que cria o job numa conta sem projeto:
+``lint_plan`` confere, no JSON de ``terraform show -json``, o script e os arquivos de cada
+``aws_glue_job`` sob os prefixos da versão, e nenhum módulo pelo nome do PyPI.
 
 Exemplo:
 
@@ -72,7 +80,11 @@ Exemplo:
     findings = lint.lint_definition(
         Path("/tmp/app-etl.yaml"),
         promoted=True,
-        prefixes=["s3://meu-bucket/workflows/app-etl/v1.0.0/"],
+        prefixes=["s3://meu-bucket/applications/app-etl/v1.0.0/"],
+    )
+    plan_report = lint.lint_plan(
+        Path("/tmp/plano.json"),
+        prefixes=["s3://meu-bucket/applications/app-etl/v1.0.0/glue/"],
     )
 """
 
@@ -80,6 +92,7 @@ from __future__ import annotations
 
 import fnmatch
 import io
+import json
 import re
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -91,7 +104,7 @@ import yaml
 from awsds_workflows import render
 from awsds_workflows.errors import RefusalError
 
-__all__ = ["Finding", "Report", "lint_application", "lint_definition"]
+__all__ = ["Finding", "PlanReport", "Report", "lint_application", "lint_definition", "lint_plan"]
 
 # A cota de uma definição, 50 KB na página de cotas do MWAA Serverless (lida em 2026-10-16).
 _DEFINITION_LIMIT_BYTES = 50_000
@@ -153,8 +166,24 @@ _CODE_LOCAL_PATH = "/opt/ml/processing/code"
 _CODE_INPUT_NAME = "code"
 # Os argumentos de um job do Glue que nomeiam arquivos, separados por vírgula.
 _GLUE_FILE_ARGUMENTS = ("--extra-py-files", "--extra-jars", "--extra-files")
+# As chaves com que um GlueJobOperator cria ou atualiza o job. Numa conta sem projeto, o job é
+# criado pelo Terraform da aplicação, e a task da cópia promovida só o inicia pelo job_name.
+_GLUE_CREATION_KEYS = (
+    "create_job_kwargs",
+    "script_location",
+    "iam_role_arn",
+    "update_config",
+    "job_desc",
+)
+# O job do Glue no plano do Terraform: o tipo do recurso, os mapeamentos com os argumentos do job
+# e o argumento cujos itens fora do S3 são nomes do PyPI, que o job baixaria pela internet.
+_GLUE_JOB_RESOURCE = "aws_glue_job"
+_GLUE_JOB_ARGUMENTS = ("default_arguments", "non_overridable_arguments")
+_GLUE_MODULES_ARGUMENT = "--additional-python-modules"
 # Os sufixos que o code de um workflow pode ter.
 _CODE_SUFFIXES = (".py", ".sh", ".zip")
+# Os caracteres de um glob, que o bundle da CLI 1.0.9 não expande num include.
+_GLOB_CHARACTERS = re.compile(r"[*?\[]")
 # Os sufixos dos scripts das pastas copiadas que passam pelos padrões de projeto.
 _SCRIPT_SUFFIXES = (".py", ".sh", ".sql")
 # A variável da CLI com que todo caminho de uma aplicação no bucket começa: a pasta shared/ do
@@ -213,6 +242,30 @@ class Report:
 
 
 @dataclass(frozen=True)
+class PlanReport:
+    """[public] O resultado do lint de um plano do Terraform: os jobs do Glue lidos e as recusas.
+
+    Exemplo:
+
+    .. code-block:: python
+
+        report = lint_plan(
+            Path("plano.json"),
+            prefixes=["s3://meu-bucket/applications/meu-app/v1.0.0/glue/"],
+        )
+        print(report.jobs)  # ['aws_glue_job.this[0]']
+    """
+
+    jobs: list[str]
+    """[public] O endereço de cada ``aws_glue_job`` que existe depois do ``apply``, como
+    ``aws_glue_job.this[0]`` ou ``module.app.aws_glue_job.etl``, na ordem do plano; vazia quando o
+    plano não tem job do Glue."""
+
+    findings: list[Finding]
+    """[public] As recusas, na ordem dos jobs; vazia quando o plano passa."""
+
+
+@dataclass(frozen=True)
 class _Definition:
     """[private] Uma definição lida: o arquivo, o texto conferido (traduzido na autoria), o nome do
     workflow e o mapeamento dele."""
@@ -241,7 +294,7 @@ def lint_definition(
         findings = lint_definition(
             Path("/tmp/meu-workflow.yaml"),
             promoted=True,
-            prefixes=["s3://meu-bucket/workflows/meu-workflow/v1.0.0/"],
+            prefixes=["s3://meu-bucket/applications/meu-workflow/v1.0.0/"],
             instance_types=["ml.m5.xlarge"],
             image_repository="minha-imagem",
         )
@@ -274,6 +327,8 @@ def lint_definition(
         findings.extend(_check_processing(definition, task_name, task, promoted, instance_types))
         findings.extend(_check_code_input(definition, task_name, task, allowed))
         findings.extend(_check_glue(definition, task_name, task, allowed))
+        if promoted:
+            findings.extend(_check_glue_creation(definition, task_name, task))
     findings.extend(_check_templates(definition))
     return findings
 
@@ -335,6 +390,62 @@ def lint_application(
         findings.extend(_check_script(script))
     findings.extend(_check_manifest(manifest_path, manifest, folder, definitions))
     return Report(files=[manifest_path, *definitions, *scripts], findings=findings)
+
+
+def lint_plan(
+    path: Path,
+    *,
+    prefixes: Sequence[str],
+) -> PlanReport:
+    """[public] Confere os jobs do Glue de um plano do Terraform, o JSON de ``terraform show
+    -json`` sobre o plano salvo, antes do ``apply``.
+
+    Numa conta sem projeto, o job do Glue de uma aplicação é criado pelo Terraform dela, e a task
+    da cópia promovida só o inicia; este lint confere o job no plano, a outra metade da regra
+    ``glue``. Ele lê ``resource_changes``, cada ``aws_glue_job`` que existe depois do ``apply``
+    (criado, atualizado ou mantido; um que o plano apaga fica de fora): o
+    ``command.script_location`` e, em ``default_arguments`` e ``non_overridable_arguments``, cada
+    item de ``--extra-py-files``, ``--extra-jars``, ``--extra-files`` e
+    ``--additional-python-modules``, separados por vírgula, sob um dos prefixos. Um item de
+    ``--additional-python-modules`` que não é ``s3://`` é um nome do PyPI, que o job baixaria pela
+    internet, e um ``script_location`` que o plano ainda não conhece, calculado no ``apply``, não
+    se confere: os dois são recusas ``glue``. Um arquivo que não é o JSON de um plano é uma recusa
+    ``forma``.
+
+    Exemplo:
+
+    .. code-block:: python
+
+        # terraform plan -out plano.tfplan && terraform show -json plano.tfplan > plano.json
+        report = lint_plan(
+            Path("plano.json"),
+            prefixes=["s3://meu-bucket/applications/meu-app/v1.0.0/glue/"],
+        )
+        for finding in report.findings:
+            print(finding)  # plano.json: glue: aws_glue_job.this[0]: o script ... está fora de ...
+
+    :param path: o JSON de ``terraform show -json`` sobre o plano salvo.
+    :param prefixes: os prefixos S3 sob os quais o script e os arquivos de cada job têm de estar,
+        como a pasta ``glue/`` da versão no bucket.
+    :return: os jobs do Glue lidos e as recusas.
+    :raises awsds_workflows.errors.RefusalError: quando o arquivo não existe.
+    """
+    if not path.is_file():
+        raise RefusalError(f"o arquivo {path} não existe")
+
+    plan, findings = _read_plan(path)
+    if plan is None:
+        return PlanReport(jobs=[], findings=findings)
+
+    jobs: list[str] = []
+    for change in plan.get("resource_changes") or []:
+        job = _glue_job_after_apply(change)
+        if job is None:
+            continue
+        address = str(change.get("address"))
+        jobs.append(address)
+        findings.extend(_check_glue_job(path, address, job, prefixes))
+    return PlanReport(jobs=jobs, findings=findings)
 
 
 def _read_definition(
@@ -706,6 +817,119 @@ def _check_glue(
     return findings
 
 
+def _check_glue_creation(
+    definition: _Definition,
+    task_name: str,
+    task: dict[str, Any],
+) -> list[Finding]:
+    """[private] As chaves com que um ``GlueJobOperator`` cria ou atualiza o job, que uma cópia
+    promovida não leva: lá o job é do Terraform da aplicação."""
+    if not _is_operator(task, "GlueJobOperator"):
+        return []
+    present = [key for key in _GLUE_CREATION_KEYS if key in task]
+    if not present:
+        return []
+    message = (
+        f"task {task_name}: {', '.join(present)} numa cópia promovida; o job é criado pelo "
+        "Terraform da aplicação na conta, e a task só o inicia pelo job_name"
+    )
+    return [Finding(definition.path, "glue", message)]
+
+
+def _read_plan(
+    path: Path,
+) -> tuple[dict[str, Any] | None, list[Finding]]:
+    """[private] O plano lido, ou ``None`` com a recusa ``forma`` quando o arquivo não é JSON ou
+    não tem ``planned_values``, como o JSON de um state."""
+    try:
+        plan = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return None, [Finding(path, "forma", f"não é JSON: {error}")]
+    if not isinstance(plan, dict) or "planned_values" not in plan:
+        message = (
+            "não é o JSON de um plano, a saída de terraform show -json sobre o plano salvo: "
+            "sem planned_values"
+        )
+        return None, [Finding(path, "forma", message)]
+    return plan, []
+
+
+def _glue_job_after_apply(
+    change: Any,
+) -> dict[str, Any] | None:
+    """[private] Os valores de um ``aws_glue_job`` depois do ``apply``, ou ``None`` quando a
+    mudança é de outro recurso ou apaga o job, o que o plano escreve com ``after`` nulo."""
+    if not isinstance(change, dict):
+        return None
+    if change.get("mode") != "managed" or change.get("type") != _GLUE_JOB_RESOURCE:
+        return None
+    after = _mapping_at(change, "change").get("after")
+    if not isinstance(after, dict):
+        return None
+    return after
+
+
+def _check_glue_job(
+    path: Path,
+    address: str,
+    job: dict[str, Any],
+    prefixes: Sequence[str],
+) -> list[Finding]:
+    """[private] O script e os arquivos de um ``aws_glue_job`` do plano sob um dos prefixos, e
+    nenhum módulo pelo nome do PyPI."""
+    findings: list[Finding] = []
+    allowed = ", ".join(prefixes)
+
+    script = _script_location(job)
+    if not isinstance(script, str):
+        message = f"{address}: command.script_location desconhecido no plano, calculado no apply"
+        findings.append(Finding(path, "glue", message))
+    elif _outside(script, prefixes):
+        message = f"{address}: o script {script} está fora de {allowed}"
+        findings.append(Finding(path, "glue", message))
+
+    for key, item in _job_argument_items(job):
+        if key == _GLUE_MODULES_ARGUMENT and not item.startswith("s3://"):
+            message = (
+                f"{address}: {key} {item} não é um s3://, então é um nome do PyPI, que o job "
+                "baixaria pela internet"
+            )
+            findings.append(Finding(path, "glue", message))
+        elif _outside(item, prefixes):
+            message = f"{address}: {key} {item} está fora de {allowed}"
+            findings.append(Finding(path, "glue", message))
+    return findings
+
+
+def _script_location(
+    job: dict[str, Any],
+) -> Any:
+    """[private] O ``command.script_location`` de um job do plano, onde o ``command`` é uma lista
+    de um bloco; ``None`` quando falta, como falta um valor que o plano ainda não conhece."""
+    commands = job.get("command")
+    if not isinstance(commands, list) or not commands or not isinstance(commands[0], dict):
+        return None
+    return commands[0].get("script_location")
+
+
+def _job_argument_items(
+    job: dict[str, Any],
+) -> list[tuple[str, str]]:
+    """[private] Cada item, separado por vírgula, dos argumentos de arquivo e de módulo de um job
+    do plano, em ``default_arguments`` e em ``non_overridable_arguments``, com o argumento."""
+    arguments: list[tuple[str, Any]] = []
+    for field in _GLUE_JOB_ARGUMENTS:
+        arguments.extend(_mapping_at(job, field).items())
+
+    items: list[tuple[str, str]] = []
+    for key, value in arguments:
+        if key not in (*_GLUE_FILE_ARGUMENTS, _GLUE_MODULES_ARGUMENT) or not isinstance(value, str):
+            continue
+        parts = [part.strip() for part in value.split(",")]
+        items.extend((key, part) for part in parts if part)
+    return items
+
+
 def _check_templates(
     definition: _Definition,
 ) -> list[Finding]:
@@ -833,11 +1057,13 @@ def _check_manifest(
     folder: Path,
     definitions: list[Path],
 ) -> list[Finding]:
-    """[private] As regras ``manifest``: o conteúdo só da tag, as variáveis de stage declaradas,
-    cada ``workflowName`` exposto por uma definição copiada e o ``code`` de cada workflow."""
+    """[private] As regras ``manifest``: o conteúdo só da tag, cada ``include`` sem glob, as
+    variáveis de stage declaradas, cada ``workflowName`` exposto por uma definição copiada e o
+    ``code`` de cada workflow."""
     findings: list[Finding] = []
     content = manifest["content"]
     findings.extend(_check_content_from_the_tag(path, content))
+    findings.extend(_check_includes(path, manifest))
     findings.extend(_check_stage_variables(path, manifest, definitions))
     findings.extend(_check_workflow_names(path, manifest, definitions))
     findings.extend(_check_codes(path, manifest))
@@ -870,6 +1096,26 @@ def _check_content_from_the_tag(
             message = (
                 f"content.quicksight {item.get('name')}: assetBundle ausente ou export, o painel "
                 "exportado do serviço no lugar de um arquivo da tag"
+            )
+            findings.append(Finding(path, "manifest", message))
+    return findings
+
+
+def _check_includes(
+    path: Path,
+    manifest: dict[str, Any],
+) -> list[Finding]:
+    """[private] Cada ``include`` de ``content.storage`` um arquivo ou uma pasta: o ``bundle`` da
+    CLI 1.0.9 não expande um glob, e o arquivo fica fora do bundle, enquanto o ``deploy`` o
+    copia."""
+    findings: list[Finding] = []
+    for item in _storage_items(manifest):
+        for pattern in item.get("include") or []:
+            if not _GLOB_CHARACTERS.search(str(pattern)):
+                continue
+            message = (
+                f"content.storage {item.get('name')}: include {pattern} é um glob, que o bundle "
+                "não expande, e o arquivo fica fora dele; nomeie o arquivo ou a pasta"
             )
             findings.append(Finding(path, "manifest", message))
     return findings

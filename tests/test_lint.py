@@ -7,6 +7,7 @@ que a tradução por conta tem de trocar.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -705,15 +706,277 @@ def test_a_glue_extra_file_outside_the_prefixes_fails_the_glue_rule(
     assert "exemplos/outro/util.py está fora de" in findings[0].message
 
 
+def rendered_glue() -> dict[str, Any]:
+    """A task do Glue como uma cópia promovida a leva: o nome do job, que o Terraform da
+    aplicação cria na conta, e os argumentos da execução."""
+    return {
+        "operator": "airflow.providers.amazon.aws.operators.glue.GlueJobOperator",
+        "job_name": "meu-workflow-glue",
+        "script_args": {"--SOURCE_PATH": "s3://meu-bucket/meu-workflow/v1/entrada/"},
+        "retries": 0,
+    }
+
+
+def test_a_promoted_glue_task_that_only_starts_the_job_passes(
+    tmp_path: Path,
+) -> None:
+    """Uma task do Glue que só nomeia o job e os argumentos da execução passa no modo
+    promovido."""
+    findings = lint_tasks(
+        tmp_path,
+        {"glue": rendered_glue()},
+        promoted=True,
+        prefixes=["s3://meu-bucket/meu-workflow/v1/"],
+    )
+    assert findings == []
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("create_job_kwargs", {"GlueVersion": "5.0"}),
+        ("script_location", "s3://meu-bucket/meu-workflow/v1/glue/etl.py"),
+        ("iam_role_arn", "arn:aws:iam::111122223333:role/meu-papel"),
+        ("update_config", True),
+        ("job_desc", "o job da aplicação"),
+    ],
+)
+def test_a_glue_task_that_creates_the_job_fails_a_promoted_copy(
+    tmp_path: Path,
+    key: str,
+    value: Any,
+) -> None:
+    """Numa cópia promovida, o job do Glue é do Terraform da aplicação: cada chave com que o
+    operador cria ou atualiza o job é uma recusa ``glue``; na autoria, onde o operador cria o
+    job no projeto, ela passa."""
+    task = rendered_glue()
+    task[key] = value
+    assert lint_tasks(tmp_path, {"glue": task}) == []
+    findings = lint_tasks(
+        tmp_path,
+        {"glue": task},
+        promoted=True,
+        prefixes=["s3://meu-bucket/meu-workflow/v1/"],
+    )
+    assert rules_of(findings) == ["glue"]
+    assert f"task glue: {key} numa cópia promovida" in findings[0].message
+
+
+# O prefixo da pasta glue/ de uma versão no bucket, sob o qual o job do plano lê os arquivos.
+GLUE_PREFIX = "s3://meu-bucket/applications/meu-app/v1.0.0/glue/"
+
+
+def glue_job_change(
+    address: str = "aws_glue_job.this[0]",
+    actions: tuple[str, ...] = ("create",),
+    **job: Any,
+) -> dict[str, Any]:
+    """Uma mudança de ``aws_glue_job`` como o ``terraform show -json`` do Terraform 1.15.8 com o
+    provedor AWS 6.60.0 a imprimiu (2026-10-23): o ``command`` é uma lista de um bloco, e os
+    mapeamentos de argumentos, ``null`` quando o job não os tem; ``job`` troca os valores do job
+    depois do ``apply``."""
+    after = {
+        "name": "meu-app",
+        "command": [
+            {"name": "glueetl", "python_version": "3", "script_location": f"{GLUE_PREFIX}etl.py"}
+        ],
+        "default_arguments": None,
+        "non_overridable_arguments": None,
+        **job,
+    }
+    return {
+        "address": address,
+        "mode": "managed",
+        "type": "aws_glue_job",
+        "name": address.rpartition(".")[2],
+        "change": {"actions": list(actions), "after": after},
+    }
+
+
+def plan_document(
+    *changes: dict[str, Any],
+) -> dict[str, Any]:
+    """O JSON de um plano com as mudanças; sem mudança, sem ``resource_changes``, como o
+    Terraform 1.15.8 imprime um plano sem recursos (2026-10-23)."""
+    document: dict[str, Any] = {
+        "format_version": "1.2",
+        "terraform_version": "1.15.8",
+        "planned_values": {"root_module": {}},
+    }
+    if changes:
+        document["resource_changes"] = list(changes)
+    return document
+
+
+def lint_plan_of(
+    tmp_path: Path,
+    document: Any,
+) -> lint.PlanReport:
+    """O ``lint_plan`` do documento gravado em ``plano.json``, com o prefixo da pasta glue/."""
+    path = tmp_path / "plano.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return lint.lint_plan(path, prefixes=[GLUE_PREFIX])
+
+
+def test_a_plan_whose_glue_job_lies_under_the_prefix_passes(
+    tmp_path: Path,
+) -> None:
+    """Um job com o script, os arquivos e uma roda sob o prefixo passa, e o relatório traz o
+    endereço do job; um recurso de outro tipo fica de fora."""
+    job = glue_job_change(
+        default_arguments={
+            "--extra-py-files": f"{GLUE_PREFIX}lib.py,{GLUE_PREFIX}util.py",
+            "--additional-python-modules": f"{GLUE_PREFIX}minha_lib-1.0-py3-none-any.whl",
+            "--SOURCE_PATH": "s3://meu-bucket/entrada/",
+        }
+    )
+    other = {
+        "address": "terraform_data.keep",
+        "mode": "managed",
+        "type": "terraform_data",
+        "change": {"actions": ["create"], "after": {"input": "s3://outro-bucket/x.py"}},
+    }
+    report = lint_plan_of(tmp_path, plan_document(job, other))
+    assert report.findings == []
+    assert report.jobs == ["aws_glue_job.this[0]"]
+
+
+def test_a_plan_without_resources_reads_no_job(
+    tmp_path: Path,
+) -> None:
+    """Um plano sem recursos, sem ``resource_changes``, passa sem job lido."""
+    report = lint_plan_of(tmp_path, plan_document())
+    assert report.findings == []
+    assert report.jobs == []
+
+
+def test_a_glue_script_outside_the_prefix_fails_the_plan(
+    tmp_path: Path,
+) -> None:
+    """O ``command.script_location`` do job está sob um dos prefixos."""
+    command = [{"name": "glueetl", "script_location": "s3://outro-bucket/etl.py"}]
+    report = lint_plan_of(tmp_path, plan_document(glue_job_change(command=command)))
+    assert rules_of(report.findings) == ["glue"]
+    assert report.findings[0].message == (
+        f"aws_glue_job.this[0]: o script s3://outro-bucket/etl.py está fora de {GLUE_PREFIX}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "key"),
+    [
+        ("default_arguments", "--extra-py-files"),
+        ("default_arguments", "--extra-jars"),
+        ("default_arguments", "--extra-files"),
+        ("default_arguments", "--additional-python-modules"),
+        ("non_overridable_arguments", "--extra-files"),
+    ],
+)
+def test_a_glue_file_outside_the_prefix_fails_the_plan(
+    tmp_path: Path,
+    field: str,
+    key: str,
+) -> None:
+    """Cada arquivo dos argumentos do job, separado por vírgula, nos dois mapeamentos, está sob
+    um dos prefixos."""
+    arguments = {key: f"{GLUE_PREFIX}bom.py, s3://outro-bucket/ruim.py"}
+    report = lint_plan_of(tmp_path, plan_document(glue_job_change(**{field: arguments})))
+    assert rules_of(report.findings) == ["glue"]
+    assert report.findings[0].message == (
+        f"aws_glue_job.this[0]: {key} s3://outro-bucket/ruim.py está fora de {GLUE_PREFIX}"
+    )
+
+
+def test_a_pypi_module_fails_the_plan(
+    tmp_path: Path,
+) -> None:
+    """Um item de ``--additional-python-modules`` que não é ``s3://`` é um nome do PyPI, que o
+    job baixaria pela internet."""
+    arguments = {"--additional-python-modules": "pandas==2.2.3"}
+    report = lint_plan_of(tmp_path, plan_document(glue_job_change(default_arguments=arguments)))
+    assert rules_of(report.findings) == ["glue"]
+    assert "--additional-python-modules pandas==2.2.3 não é um s3://" in report.findings[0].message
+
+
+def test_a_script_the_plan_does_not_know_yet_fails_the_plan(
+    tmp_path: Path,
+) -> None:
+    """Um ``script_location`` calculado no ``apply`` falta no ``command`` do plano, como o
+    Terraform 1.15.8 o imprime (2026-10-23), e não se confere."""
+    report = lint_plan_of(tmp_path, plan_document(glue_job_change(command=[{"name": "glueetl"}])))
+    assert rules_of(report.findings) == ["glue"]
+    assert "command.script_location desconhecido no plano" in report.findings[0].message
+
+
+def test_a_glue_job_in_a_module_left_unchanged_is_read(
+    tmp_path: Path,
+) -> None:
+    """Um job de um módulo, que o plano mantém (``no-op``), existe depois do ``apply`` e é
+    conferido."""
+    change = glue_job_change(
+        address="module.app.aws_glue_job.etl",
+        actions=("no-op",),
+        command=[{"name": "glueetl", "script_location": "s3://outro-bucket/etl.py"}],
+    )
+    report = lint_plan_of(tmp_path, plan_document(change))
+    assert report.jobs == ["module.app.aws_glue_job.etl"]
+    assert rules_of(report.findings) == ["glue"]
+
+
+def test_a_glue_job_the_plan_deletes_is_not_read(
+    tmp_path: Path,
+) -> None:
+    """Um job que o plano apaga, com ``after`` nulo, não existe depois do ``apply``."""
+    change = glue_job_change(actions=("delete",))
+    change["change"]["after"] = None
+    report = lint_plan_of(tmp_path, plan_document(change))
+    assert report.jobs == []
+    assert report.findings == []
+
+
+@pytest.mark.parametrize(
+    ("document", "reason"),
+    [
+        ("não é json", "não é JSON"),
+        (["uma", "lista"], "sem planned_values"),
+        ({"format_version": "1.0", "values": {"root_module": {}}}, "sem planned_values"),
+    ],
+)
+def test_a_file_that_is_not_a_plan_fails_the_form(
+    tmp_path: Path,
+    document: Any,
+    reason: str,
+) -> None:
+    """Um texto que não é JSON, ou um JSON sem ``planned_values``, como o de um state, falha em
+    ``forma``."""
+    path = tmp_path / "plano.json"
+    if isinstance(document, str):
+        path.write_text(document, encoding="utf-8")
+    else:
+        path.write_text(json.dumps(document), encoding="utf-8")
+    report = lint.lint_plan(path, prefixes=[GLUE_PREFIX])
+    assert rules_of(report.findings) == ["forma"]
+    assert reason in report.findings[0].message
+    assert report.jobs == []
+
+
+def test_a_missing_plan_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Um plano que não existe é uma recusa, e não um achado."""
+    with pytest.raises(RefusalError, match="não existe"):
+        lint.lint_plan(tmp_path / "nada.json", prefixes=[GLUE_PREFIX])
+
+
 def manifest_document(
     name: str = "meu-workflow",
     code: str | None = None,
 ) -> dict[str, Any]:
-    """O manifest de uma aplicação fabricada como as de ``examples/``: ``code/`` (quando há
-    ``code``), ``src/``, ``glue/`` e ``workflows/`` copiados sob ``exemplos/<nome>/`` nos dois
-    stages."""
+    """O manifest de uma aplicação fabricada como as de ``examples/``: ``code/tasks.zip``
+    (quando há ``code``), ``src/meu-workflow.tar.gz``, ``glue/`` e ``workflows/`` copiados sob
+    ``exemplos/<nome>/`` nos dois stages."""
     storage = [
-        {"name": "src", "include": ["src/*.tar.gz"]},
+        {"name": "src", "include": ["src/meu-workflow.tar.gz"]},
         {"name": "glue", "include": ["glue/"], "exclude": ["__pycache__/", "*.pyc"]},
         {"name": "workflows", "include": ["workflows/"]},
     ]
@@ -722,7 +985,7 @@ def manifest_document(
         "connectionName": "default.workflow_serverless",
     }
     if code is not None:
-        storage.insert(0, {"name": "code", "include": ["code/*.zip"]})
+        storage.insert(0, {"name": "code", "include": ["code/tasks.zip"]})
         workflow["code"] = code
     stages = {}
     for stage in ("dev", "test"):
@@ -894,6 +1157,22 @@ def test_content_read_from_outside_the_tag_fails_the_manifest_rule(
     report = lint.lint_application(folder)
     assert rules_of(report.findings) == ["manifest"]
     assert message in report.findings[0].message
+
+
+@pytest.mark.parametrize("pattern", ["src/*.tar.gz", "src/meu-workflow.tar.g?", "src/[ab].tar.gz"])
+def test_a_glob_include_fails_the_manifest_rule(
+    tmp_path: Path,
+    pattern: str,
+) -> None:
+    """Um ``include`` com glob fica fora do bundle: o ``bundle`` da CLI 1.0.9 lê um ``include``
+    como arquivo ou pasta, e um glob imprime ``Warning: Pattern not found`` e termina com 0
+    (2026-10-23)."""
+    manifest = manifest_document()
+    manifest["content"]["storage"][0]["include"] = [pattern]
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder)
+    assert rules_of(report.findings) == ["manifest"]
+    assert f"content.storage src: include {pattern} é um glob" in report.findings[0].message
 
 
 def test_an_undeclared_stage_variable_fails_the_manifest_rule(

@@ -4,7 +4,7 @@ content:
   storage:
     - name: code
       include:
-        - "code/*.zip"
+        - "code/demo-python-operator.zip"
     - name: workflows
       include:
         - "workflows/"

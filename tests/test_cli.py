@@ -32,6 +32,7 @@ def test_help_exits_with_zero(
         "values",
         "compare",
         "lint",
+        "lint-plan",
     )
     for command in commands:
         assert command in printed
@@ -619,3 +620,106 @@ def test_lint_promoted_without_a_prefix_is_refused(
     definition = write_definition(tmp_path / "meu-workflow.yaml", "      retries: 0\n")
     assert cli.main(["lint", str(definition), "--promoted"]) == 1
     assert "--promoted pede --prefix" in capsys.readouterr().err
+
+
+# O prefixo da pasta glue/ de uma versão, e um plano com um job do Glue cujo script está sob ele,
+# na forma do JSON do Terraform 1.15.8 (2026-10-23).
+GLUE_PREFIX = "s3://meu-bucket/applications/meu-app/v1.0.0/glue/"
+
+
+def write_plan(
+    path: Path,
+    script: str,
+) -> Path:
+    """Grava o JSON de um plano com um ``aws_glue_job`` que roda o script."""
+    change = {
+        "address": "aws_glue_job.this[0]",
+        "mode": "managed",
+        "type": "aws_glue_job",
+        "change": {
+            "actions": ["create"],
+            "after": {"command": [{"name": "glueetl", "script_location": script}]},
+        },
+    }
+    plan = {"format_version": "1.2", "planned_values": {}, "resource_changes": [change]}
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    return path
+
+
+def test_lint_plan_prints_ok_with_the_jobs_read(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``lint-plan`` de um plano que passa imprime ``ok`` com os jobs do Glue lidos e termina
+    com 0."""
+    plan = write_plan(tmp_path / "plano.json", f"{GLUE_PREFIX}etl.py")
+    assert cli.main(["lint-plan", str(plan), "--prefix", GLUE_PREFIX]) == 0
+    assert capsys.readouterr().out == "ok: 1 job(s) do Glue: aws_glue_job.this[0]\n"
+
+
+def test_lint_plan_of_a_plan_without_a_glue_job_says_so(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Um plano sem job do Glue passa, e o ``ok`` diz que nenhum job foi lido."""
+    plan = tmp_path / "plano.json"
+    plan.write_text(json.dumps({"format_version": "1.2", "planned_values": {}}), encoding="utf-8")
+    assert cli.main(["lint-plan", str(plan), "--prefix", GLUE_PREFIX]) == 0
+    assert capsys.readouterr().out == "ok: 0 job(s) do Glue: -\n"
+
+
+def test_lint_plan_prints_each_finding_and_exits_with_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``lint-plan`` de um plano que falha imprime cada recusa numa linha e termina com 1."""
+    plan = write_plan(tmp_path / "plano.json", "s3://outro-bucket/etl.py")
+    assert cli.main(["lint-plan", str(plan), "--prefix", GLUE_PREFIX]) == 1
+    assert capsys.readouterr().out == (
+        f"{plan}: glue: aws_glue_job.this[0]: o script s3://outro-bucket/etl.py está fora de "
+        f"{GLUE_PREFIX}\n"
+    )
+
+
+def test_lint_plan_passes_each_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cada ``--prefix`` chega a ``lint_plan``."""
+    received: dict[str, object] = {}
+
+    def fake_lint_plan(
+        path: Path,
+        **options: object,
+    ) -> lint.PlanReport:
+        received["path"] = path
+        received.update(options)
+        return lint.PlanReport(jobs=[], findings=[])
+
+    monkeypatch.setattr(lint, "lint_plan", fake_lint_plan)
+    plan = tmp_path / "plano.json"
+    command = ["lint-plan", str(plan), "--prefix", "s3://b/a/", "--prefix", "s3://b/c/"]
+    assert cli.main(command) == 0
+    assert received == {"path": plan, "prefixes": ["s3://b/a/", "s3://b/c/"]}
+
+
+def test_lint_plan_requires_a_prefix(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Sem ``--prefix``, o ``argparse`` termina com 2 e nomeia a opção."""
+    plan = write_plan(tmp_path / "plano.json", f"{GLUE_PREFIX}etl.py")
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["lint-plan", str(plan)])
+    assert exit_info.value.code == 2
+    assert "the following arguments are required: --prefix" in capsys.readouterr().err
+
+
+def test_lint_plan_of_a_missing_file_is_refused_with_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Um plano que falta termina ``lint-plan`` com 1 e o motivo na saída de erro."""
+    command = ["lint-plan", str(tmp_path / "nada.json"), "--prefix", GLUE_PREFIX]
+    assert cli.main(command) == 1
+    assert "nada.json não existe" in capsys.readouterr().err
