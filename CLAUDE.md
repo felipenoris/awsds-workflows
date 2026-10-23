@@ -619,10 +619,10 @@ the operator (`.claude/memory/cicd-cli.md`, "The Glue job in the lab"), in the m
 notes, the example's README and the steps page; the target's grant is unapplied, and the steps
 keep `job.json` for a project without it. The package's code did not change.
 
-A session on branch `claude/project-thread-48w2sd` (2026-10-23) read what AWS-DataScience's
-Stage 18 leaves to this package, with D41 item 2 kept (no portal in Staging or Production), and
-wrote what the user chose on its card at 21:15 UTC ("The Stage 10 rules after Stage 18" in
-`.claude/memory/decisions.md`): Stage 10's rule (6), the promoted mode refusing a
+A session on branch `claude/project-thread-48w2sd` (2026-10-23, PR #23) read what
+AWS-DataScience's Stage 18 leaves to this package, with D41 item 2 kept (no portal in Staging or
+Production), and wrote what the user chose on its card at 21:15 UTC ("The Stage 10 rules after
+Stage 18" in `.claude/memory/decisions.md`): Stage 10's rule (6), the promoted mode refusing a
 `GlueJobOperator` that creates its job, and rule (2c), the subcommand `lint-plan` over the JSON
 of a Terraform plan; the examples' `include` naming the file, since the CLI's `bundle` drops a
 glob, and the `manifest` rule refusing one; the docs with Stage 18's readings of the CLI (the

@@ -572,7 +572,7 @@ of the three rules Stage 10 specified for this package on 2026-10-22.
   quota is 0 in Staging and Production and the task becomes a second workflow after an increase
   (`OPEN_QUESTIONS.md`).
 
-The session's choices, not put to the user:
+The session's choices, listed in PR #23 and not put to the user otherwise:
 
 - the subcommand `lint-plan`, the function `lint_plan` and the type `PlanReport(jobs, findings)`,
   with `--prefix` required and repeatable, the prefix being an argument as in `lint --promoted`;
