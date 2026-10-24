@@ -541,6 +541,54 @@ and the project's network connection pass in authoring and fail in the promoted 
 definition's quota read as 50,000 bytes; and `lint_application` reading the files as the CLI
 1.0.9 does, each `include` a folder or a `glob`, each `exclude` by folder, path or basename.
 
+## The Stage 10 rules after Stage 18
+
+AWS-DataScience's Stage 18 closed on 2026-10-22 with D41 item 2 kept, the user's verdict: no
+SageMaker Unified Studio domain, project or portal in Staging or Production, where Terraform
+creates the workflow from a copy rendered per account. The copy is made by AWS-DataScience's
+`scripts/render-workflow.py`, which reads the account's Terraform states (Stage 10 decision 20 (e),
+the user's of 2026-10-22), and not by a command of this package; it drops the keys with which a
+`GlueJobOperator` creates its job (`GLUE_JOB_KEYS`), the job being the application slice's
+(D41 item 9). AWS-DataScience's release job runs `lint --promoted` on each copy, from this
+package at `3c1708e`, with `--prefix s3://<bucket>/applications/<app>/<tag>/`,
+`--image-repository` and the seven `--instance-type` of the ceiling (Stage 10 step 2.3, wired
+2026-10-22).
+
+The user asked on 2026-10-23 at 16:28 UTC what this package needs after Stage 18; the survey is in
+the Claude project's library (`discussoes/manutencao-awsds-workflows-estagio-18.md`). On its card,
+at 21:15 UTC, the user chose "Manutenção + regras (6) e (2c)": one PR with the maintenance and two
+of the three rules Stage 10 specified for this package on 2026-10-22.
+
+- **Rule (6)**: the promoted mode refuses a `GlueJobOperator` with `create_job_kwargs`,
+  `script_location`, `iam_role_arn`, `update_config` or `job_desc`, under the rule `glue`.
+- **Rule (2c)**: a command over the application slice's saved plan (`terraform show -json`) that
+  refuses an `aws_glue_job` whose `command.script_location`, or an `s3://` of `--extra-py-files`,
+  `--extra-files`, `--extra-jars` or `--additional-python-modules`, lies outside the release's
+  `glue/` prefix, and a module named by its PyPI name, which no subnet of the job reaches.
+- **The maintenance**: the examples' `include` name the file, since the CLI 1.0.9's `bundle` does
+  not expand a glob; Stage 18's readings of the CLI in the docs and in `cicd-cli.md`; the lab
+  image's Python, 3.12 since `default-v0.7.0`, in `docs/index.md`.
+- **Rule 5.1 waits**: the rule over a `SageMakerTrainingOperator`'s `config`, since the training
+  quota is 0 in Staging and Production and the task becomes a second workflow after an increase
+  (`OPEN_QUESTIONS.md`).
+
+The session's choices, listed in PR #23 and not put to the user otherwise:
+
+- the subcommand `lint-plan`, the function `lint_plan` and the type `PlanReport(jobs, findings)`,
+  with `--prefix` required and repeatable, the prefix being an argument as in `lint --promoted`;
+- the plan's refusals under the rule `glue`, and a file that is not a plan's JSON (no
+  `planned_values`, as a state's JSON) under `forma`;
+- the jobs read from `resource_changes`: each managed `aws_glue_job` whose `change.after` is a
+  mapping, created, updated or unchanged (`no-op`), the deleted left out;
+- `default_arguments` and `non_overridable_arguments` both read;
+- a `script_location` the plan does not know, computed at the apply, refused, since it cannot be
+  checked;
+- the `ok` line naming the jobs read (`ok: 1 job(s) do Glue: aws_glue_job.this[0]`, and
+  `ok: 0 job(s) do Glue: -` for a plan without one), after AWS-DataScience's Lesson 71, an `ok`
+  that checked nothing reading as a pass;
+- the glob refusal under the rule `manifest`, the characters `*`, `?` and `[`; `lint_application`
+  still reads the files a glob names, as the `deploy` copies them.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

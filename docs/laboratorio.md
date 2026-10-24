@@ -6,9 +6,9 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
 
 | Ambiente | O que é | O que rodou lá |
 |---|---|---|
-| o laboratório | uma conta de testes em `us-west-2`, com uma imagem customizada, `awsds-sandbox-dev-env` | os passos do guia, nas datas de cada seção abaixo, e o `houseprice-etl` pela CLI de CI/CD, de um laptop, em 2026-10-15 e 2026-10-16 |
+| o laboratório | uma conta de testes em `us-west-2`, com uma imagem customizada, `awsds-sandbox-dev-env`, e as outras contas da mesma organização | os passos do guia, nas datas de cada seção abaixo, o `houseprice-etl` pela CLI de CI/CD, de um laptop, em 2026-10-15 e 2026-10-16, e outras aplicações pela CLI num projeto de outra conta, em 2026-10-19 |
 | o ambiente alvo | o SageMaker Unified Studio em que os workflows vão rodar | os exemplos, em 2026-10-12 e 2026-10-13, e leituras feitas de um espaço desde 2026-09-21 |
-| a máquina que empacota | o Linux com internet em que o pacote roda | o `.tar.gz` do `prepare-offline`, extraído e rodado noutra pasta, em 2026-10-13 |
+| a máquina que empacota | o Linux com internet em que o pacote roda | o `.tar.gz` do `prepare-offline`, extraído e rodado noutra pasta, em 2026-10-13; o `bundle` da CLI de CI/CD e os planos do Terraform do `lint-plan`, em 2026-10-23 |
 
 ## O que ainda não foi medido
 
@@ -31,12 +31,12 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
   ([demo-python-operator](#demo-python-operator));
 - os cinco exemplos além do `houseprice-etl` pela CLI de CI/CD, e com eles o `.zip` de uma task
   Python ou Bash passado pela CLI e uma variável de stage lida no `config` de um job e nos
-  `op_kwargs` de uma task Python
+  `op_kwargs` de uma task Python; e o `destroy` de um exemplo
   ([A aplicação pela CLI de CI/CD](#a-aplicacao-pela-cli-de-cicd));
 - uma execução do `houseprice-etl` sem `UpdateJob`, com o `Command` inteiro na definição, e o
   caminho do portal com o workflow traduzido pelo `render` ([houseprice-etl](#houseprice-etl));
-- o `lint` no modo promovido numa esteira, e o tempo de provisionamento de um job dentro do teto da
-  task ([Regras de autoria](#regras-de-autoria)).
+- o `lint` no modo promovido e o `lint-plan` numa esteira, e o tempo de provisionamento de um job
+  dentro do teto da task ([Regras de autoria](#regras-de-autoria)).
 
 ## Instalação
 
@@ -58,6 +58,8 @@ No guia: [O Python que o `uv` usa](../awsds_workflows.html#o-python-que-o-uv-usa
   - com ele, gravaram a pasta e o `.zip`.
 - **Espaço simulado, 2026-10-12.** Com os downloads ligados, o `uv` baixou o CPython 3.13.15, e o
   `package-job` gravou os mesmos arquivos, diferentes só em metadados da instalação.
+- **Imagem do laboratório, 2026-10-15.** O ambiente do job passou a 3.12
+  ([A imagem do job](#a-imagem-do-job)); as leituras acima são do 3.13.
 - **Ainda não medido**: num espaço de verdade, o pacote ainda não rodou.
 
 ## As peças
@@ -88,6 +90,10 @@ No guia: [A imagem do job](../awsds_workflows.html#a-imagem-do-job).
 - **Ambiente alvo, 2026-10-13.** O espaço roda a SageMaker Distribution 4.5, a versão que o portal
   mostra; o patch dela não foi lido.
 - **ECR público, 2026-10-12.** A tag mais nova da 4.5 é a `4.5.2-cpu`.
+- **Imagem do laboratório, 2026-10-15.** O ambiente da casa, `/opt/awsds/venv`, é CPython 3.12
+  desde a versão `default-v0.7.0` da imagem, a versão menor do Python da distribuição; até a
+  `default-v0.6.0`, era 3.13, o das leituras acima. A versão registrada no laboratório desde
+  2026-10-16 é a `default-v0.8.0`. Lido na receita da imagem, não num espaço.
 - **Ainda não medido na SageMaker Distribution 4.5**: o URI da imagem para um job no ambiente alvo
   e o usuário do contêiner de um job. A distribuição, de cuja 4.5.2 a imagem do laboratório deriva,
   deve ter o mesmo usuário num job, e o primeiro job no ambiente alvo é a medida.
@@ -140,9 +146,29 @@ No guia: [Regras de autoria](../awsds_workflows.html#regras-de-autoria).
   `retry_delay` até 300 s e `execution_timeout` até 3.600 s, da página dos parâmetros que o
   serviço valida; a cota de 50 KB por definição, da página de cotas; e os operadores do provedor
   Amazon mais o `PythonOperator` e o `BashOperator`, da página dos operadores.
-- **Ainda não medido**: o `lint` no modo promovido numa esteira, sobre uma cópia renderizada por
-  conta; e o tempo de provisionamento e de encerramento de um job de processamento dentro dos
-  3.600 s da task, que decide a margem dos 2.820 s de `MaxRuntimeInSeconds`.
+- **Laboratório, 2026-10-22.** O modo promovido rodou de um laptop, fora de uma esteira, sobre a
+  cópia renderizada por conta de uma aplicação com um job do Glue e um job de processamento:
+  `ok: 1 arquivo(s)`; com a imagem num repositório que não o de `--image-repository`, recusou
+  pela regra `imagem`, com código 1.
+- **Máquina que empacota, 2026-10-23.** A mesma aplicação, renderizada com valores fabricados
+  pelo script que faz a cópia por conta, passou no modo promovido com a recusa das chaves de
+  criação do job do Glue, `ok: 1 arquivo(s)`; com `create_job_kwargs` e `script_location` de
+  volta na task, foi recusada pela regra `glue`, com código 1.
+- **Máquina que empacota, 2026-10-23.** Com o Terraform 1.15.8 e o provedor `hashicorp/aws`
+  6.60.0, sem credencial, o JSON de `terraform show -json` sobre o plano salvo tem
+  `format_version` `1.2`; cada `aws_glue_job` está em `resource_changes`, com o endereço, como
+  `aws_glue_job.this[0]` ou `module.child.aws_glue_job.late`, e o `command` é uma lista de um
+  bloco; um `script_location` calculado no `apply` falta em `change.after` e está em
+  `change.after_unknown`; um recurso que o plano apaga tem `after` nulo, e um sem mudança está
+  lá com a ação `no-op`, os dois lidos num `terraform_data`; um plano sem recurso não tem
+  `resource_changes`. O `lint-plan` leu um plano com o job do Terraform de uma aplicação, o
+  script sob a pasta `glue/` da versão: `ok: 1 job(s) do Glue: aws_glue_job.this[0]`; num plano
+  com um módulo do PyPI, dois arquivos fora do prefixo e um script calculado no `apply`,
+  imprimiu as quatro recusas e terminou com 1.
+- **Ainda não medido**: o `lint` no modo promovido e o `lint-plan` numa esteira, sobre a cópia
+  renderizada e o plano de uma conta; e o tempo de provisionamento e de encerramento de um job
+  de processamento dentro dos 3.600 s da task, que decide a margem dos 2.820 s de
+  `MaxRuntimeInSeconds`.
 
 ## Uma task de processamento
 
@@ -375,8 +401,9 @@ Nos passos: [A preparação](examples.html#a-preparacao).
 
 ### A aplicação pela CLI de CI/CD
 
-Nos passos: [A aplicação pela CLI de CI/CD](examples.html#a-aplicacao-pela-cli-de-cicd). Tudo
-medido com o `houseprice-etl`, entre dois projetos de uma conta, pela CLI 1.0.9 de um laptop.
+Nos passos: [A aplicação pela CLI de CI/CD](examples.html#a-aplicacao-pela-cli-de-cicd). Medido
+com o `houseprice-etl`, entre dois projetos de uma conta, pela CLI 1.0.9 de um laptop, salvo
+onde o item diz outra aplicação.
 
 - **Laboratório, 2026-10-15.** O `deploy --targets dev --skip-validation --no-events` copiou os
   dois arquivos para `shared/exemplos/houseprice-etl/` do projeto de dev e criou o workflow,
@@ -405,9 +432,33 @@ medido com o `houseprice-etl`, entre dois projetos de uma conta, pela CLI 1.0.9 
 - **Laboratório, 2026-10-16.** O `monitor` mostrou uma execução terminada como `INITIALIZING`,
   com `Start Time: N/A`, e o `logs`, com o ARN do workflow, respondeu `No log events found` com
   40 eventos no stream da execução: o `get-workflow-run` e o `get-log-events` são as leituras.
+- **Laboratório, 2026-10-19**, num projeto de outra conta, com outra aplicação. Um bundle
+  guardado, passado com `--bundle-archive-path` a um `deploy` rodado num checkout sem o `.zip`
+  do `code`, não foi lido: o `deploy` copiou os arquivos da pasta do manifest e parou com
+  `No operator code found in S3`, exit 1. Extraído numa pasta vazia, com o manifest ao lado, o
+  mesmo `deploy` sem `--bundle-archive-path` copiou os sete arquivos e criou o workflow.
+- **Laboratório, 2026-10-19**, no mesmo projeto. Uma segunda aplicação, com as pastas noutro
+  prefixo, não mudou nenhum arquivo nem o workflow da primeira. Uma terceira, com o nome de
+  workflow e o `dag_id` da primeira, imprimiu `Reading workflow from S3` com a chave do YAML da
+  primeira, `shared/<primeira>/workflows/<workflow>.yaml`, gravou a versão resolvida por cima
+  dele e criou o workflow com a definição da primeira; o `.zip` dela, de outro nome, foi o
+  próprio. A busca varre a pasta `shared/` inteira porque a CLI lê o destino de cada item por um
+  atributo que o manifest não tem, `target_directory` no lugar de `targetDirectory`, e o
+  primeiro arquivo listado vence.
+- **Laboratório, 2026-10-19**, no mesmo projeto. O `destroy --targets` sem `--force` imprimiu
+  o plano e perguntou; o plano de uma aplicação com um `GlueJobOperator` listou o job do Glue
+  que a definição nomeia. Com `--force`, o `destroy` da segunda apagou o workflow e os objetos
+  dos dois prefixos do manifest, `deleted=3`, e deixou o `.zip` em `operatorFiles/` e o grupo
+  de logs. Cada `deploy` grava uma cópia nova do `.zip` em `operatorFiles/`, e nenhuma é
+  apagada.
+- **Máquina que empacota, 2026-10-23.** O `bundle` com o `include` `code/*.zip` imprimiu
+  `Warning: Pattern not found: code/*.zip` e `Bundled 0 files for 'code'`, saiu com 0, e o
+  bundle levou só o workflow; com o `include` `code/demo-python-operator.zip`, levou o `.zip`.
+  O `deploy` expande o glob, pelo código da CLI.
 - **Ainda não medido**: os outros cinco exemplos pela CLI; com eles, o `.zip` de uma task Python
   ou Bash passado pela CLI como `Code`, e uma variável de stage lida no `config` de um job de
-  processamento e nos `op_kwargs` de uma task Python, que o código do Airflow renderiza.
+  processamento e nos `op_kwargs` de uma task Python, que o código do Airflow renderiza; e o
+  `destroy` de um exemplo.
 
 ### probe-worker
 

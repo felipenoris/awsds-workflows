@@ -523,7 +523,9 @@ def test_the_storage_items_are_folders_of_the_example_copied_under_its_prefix(
 ) -> None:
     """Cada item de ``content.storage`` é uma pasta do exemplo com o nome do item, sem
     ``connectionName``, e cada stage o copia para ``exemplos/<exemplo>/<pasta>`` da conexão
-    ``default.s3_shared`` do projeto."""
+    ``default.s3_shared`` do projeto. Cada ``include`` nomeia um arquivo ou uma pasta, sem glob:
+    o ``bundle`` da CLI 1.0.9 deixou de fora o ``code/*.zip``, com ``Warning: Pattern not found``,
+    e levou o ``code/demo-python-operator.zip`` (2026-10-23)."""
     folder = manifest_path.parent
     manifest, _workflow_text = manifest_and_workflow_of(manifest_path)
     items = manifest["content"]["storage"]
@@ -532,6 +534,7 @@ def test_the_storage_items_are_folders_of_the_example_copied_under_its_prefix(
         for pattern in item["include"]:
             assert Path(pattern).parts[0] == item["name"], pattern
             assert (folder / item["name"]).is_dir(), pattern
+            assert not re.search(r"[*?\[]", pattern), pattern
 
     for stage_name, stage in manifest["stages"].items():
         deployment = stage["deployment_configuration"]["storage"]

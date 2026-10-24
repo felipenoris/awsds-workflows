@@ -3,7 +3,8 @@
 Read before code on the manifests of `examples/`, on the CLI's notation in `render` or `compare`, or
 a `deploy` of an example: what the CLI `aws-smus-cicd-cli` 1.0.9 does, read in its code on
 2026-10-14 and measured in the lab on 2026-10-15 and 2026-10-16 with `houseprice-etl`, between two
-Sandbox projects of AWS-DataScience's account, from the user's laptop. The readings the
+Sandbox projects of AWS-DataScience's account, from the user's laptop, and on 2026-10-19 with
+other applications in AWS-DataScience's Stage 18 project in Staging. The readings the
 documentation reports are on the page `awsds_workflows.lab_notes` (`docs/laboratorio.md`, "A
 aplicação pela CLI de CI/CD" and "houseprice-etl"), and the example's `README.md` holds every run;
 this file keeps what they leave out and the facts in one place.
@@ -11,7 +12,8 @@ this file keeps what they leave out and the facts in one place.
 ## The commands and the variables
 
 - **The commands**: `version`, `describe`, `bundle`, `deploy`, `monitor`, `create`, `logs`, `run`,
-  `test`, `destroy`, `integrate`; there is no `delete`, and `destroy` is unexercised.
+  `test`, `destroy`, `integrate`; there is no `delete`, and `destroy` ran in Stage 18's project,
+  not on an example ("The CLI in Stage 18's deployment project").
   `aws-smus-cicd-cli --version` prints `aws-smus-cicd-cli 1.0.9`, and `describe --manifest
   manifest.yaml --connect` lists the stages and each project's connections.
 - **The manifest's `${VAR}`** is resolved by the CLI's `helpers/utils.py` with the regex
@@ -34,6 +36,14 @@ this file keeps what they leave out and the facts in one place.
   `houseprice-etl`: the script and the workflow as in git, the variables unresolved, no manifest
   inside), with no AWS identity; **`deploy --bundle-archive-path`** still copies the storage folders
   from disk beside the manifest, since the items name no `connectionName`.
+- **An `include` with a glob is not expanded by `bundle`**: with `code/*.zip`, the bundle of
+  `demo-python-operator` printed `Warning: Pattern not found: code/*.zip` and `Bundled 0 files for
+  'code'`, exited 0 and held only `workflows/demo-python-operator.yaml`; with
+  `code/demo-python-operator.zip` it held the `.zip` too (the build host, 2026-10-23, no AWS
+  identity, `DOMAIN_ID=dzd-exemplo`, since the manifest's validation asks for
+  `^dzd-[a-z0-9]+$`). `deploy` expands the glob (`commands/deploy.py`, read by AWS-DataScience's
+  Stage 8 on 2026-10-16), which is why the examples never failed. The examples name the file
+  since 2026-10-23, and the `lint`'s `manifest` rule refuses a glob.
 - **`deploy`** copies the storage folders to the stage's `targetDirectory` and creates the workflow
   through `bootstrap.workflow.create`, `READY` and manual only, with the project's role, network and
   key, like one made in the portal; the definition saved in S3 is the resolved one. Its validation
@@ -93,3 +103,50 @@ this file keeps what they leave out and the facts in one place.
   carries the stage's values, and the job came out with the connection names filled. The lab filled
   the two subnets by hand in the stage variables; that they are the `privateSubnets`
   `space_values.py` prints is inferred.
+
+## The CLI in Stage 18's deployment project
+
+AWS-DataScience's Stage 18 measured a deployment-only project, `deploy-staging`, in its Staging
+account, and removed it; D41 item 2 stands, no portal in Staging or Production (the user,
+2026-10-22). Read on 2026-10-23 in its `docs/log/log-stage-18-staging-deployment-project.md`, the
+code paths under the sdist's `src/smus_cicd/` (`aws_smus_cicd_cli-1.0.9.tar.gz`, sha256
+`173e91af8733f80d65bf06baf7800d33e4569a608a3982f95b8d2bd24292eff6`).
+
+- **A stored bundle deploys only extracted beside a manifest** (2026-10-19, 4.2): `deploy --manifest
+  manifest.yaml --targets staging --bundle-archive-path <bundle> --skip-validation --no-events`,
+  run in a checkout without the `.zip` the pipeline builds, printed `Deploying '<item>' from local
+  filesystem` for each storage item, wrote the checkout's files and none of the bundle's, and
+  stopped with `No operator code found in S3 for: app-etl (code: code/app-etl.zip)`, exit 1. The
+  bundle extracted into an empty folder with the manifest beside it, and the same command there
+  without `--bundle-archive-path`: exit 0, `Total files deployed: 7`, the workflow created.
+- **Two applications in one project** (2026-10-19, 5.1): the second, under its own prefix, added
+  three objects under its prefix and `operatorFiles/`, and left the first's files and workflow
+  (version, definition, code and modification time) unchanged. A storage item lands at
+  `<s3Uri>/<targetDirectory>/`, with no application prefix; the workflow carries the tags
+  `Pipeline` (the application), `Target` (the project), `STAGE`, `CreatedBy`,
+  `AmazonDataZoneDomain` and `AmazonDataZoneProject`.
+- **The lookups scan the whole `shared/` root** (2026-10-19, 5.2): an application with the
+  first's workflow name and `dag_id` (`dagid-copy`, storage under `dagid-copy/python/`) printed
+  `Reading workflow from S3: s3://<bucket>/<domain>/<project>/shared/app-etl/workflows/app-etl.yaml`
+  and `Resolved workflow uploaded to` the same key, a new version byte-identical to the one before,
+  then created its workflow with the first's definition; its own `.zip`, of another basename, was
+  read. `_derive_workflow_search_prefixes` (`commands/deploy.py`) tests an attribute
+  `target_directory` that `StorageConfig` spells `targetDirectory`, so both lookups fall back to
+  the root, every YAML registering its top-level keys and nested `dag_id`s, the first file listed
+  winning; the code is matched by basename the same way.
+- **`destroy`** (2026-10-19, 5.3): without `--force` it prints its plan and asks; `dagid-copy`'s
+  plan listed `glue_job: app-etl-<project id>`, the job a `GlueJobOperator` of the definition
+  names, read from the definition the service holds. With `--force`, `orchestration-demo`'s
+  printed `Catalog deletion is disabled (disable: true) — skipping` and `staging: deleted=3
+  not_found=0 skipped=2 error=0`: the workflow and its two prefixes' objects; it left its
+  `operatorFiles/` copy and its log group, with no retention. By the code: the prefix
+  `<root>/<targetDirectory>` is deleted with no trailing slash, so `exemplos/demo` would take
+  `exemplos/demo-x/` too (inferred); the catalog only when a stage declares
+  `deployment_configuration.catalog` without `disable: true`; the project only with
+  `project.create: true`; no IAM role. `--targets` is required (`commands/destroy.py:70-75`, read
+  2026-10-23).
+- **`operatorFiles/`**: each `deploy` writes a task's code to a new
+  `operatorFiles/<workflow>-<epoch ms>.zip` and none is pruned, by `deploy` or `destroy`; the code's
+  comment names an account-wide code-storage quota of 75 GB.
+- **The workflow's name**: `deploy` maps each character outside `[A-Za-z0-9_]` to `_`, while `run`
+  and `destroy` map only `-`, so a name with another character would be missed by both.

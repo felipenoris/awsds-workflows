@@ -4,7 +4,7 @@ content:
   storage:
     - name: src
       include:
-        - "src/*.tar.gz"
+        - "src/awsds-demo-job.tar.gz"
     - name: workflows
       include:
         - "workflows/"

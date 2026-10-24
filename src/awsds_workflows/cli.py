@@ -23,6 +23,10 @@ depois para o ambiente do SageMaker, que não tem internet.
   (``awsds_workflows.lint``): sem opção, na notação da CLI, como os arquivos do repositório; com
   ``--promoted``, uma cópia renderizada por conta, que pede ``--prefix``, o prefixo da versão no
   bucket. ``--instance-type`` e ``--image-repository`` restringem o job de processamento.
+- ``lint-plan`` confere os jobs do Glue do plano do Terraform que os cria numa conta sem projeto,
+  o JSON de ``terraform show -json`` sobre o plano salvo, antes do ``apply``: o script e os
+  arquivos de cada job sob um ``--prefix``, e nenhum módulo pelo nome do PyPI
+  (``awsds_workflows.lint``).
 
 Os valores de ``render`` e ``values`` vêm de ``--values-file``, repetido para vários arquivos, de
 ``--profile`` (a leitura da conta, que pede ``--subnet-name``) ou dos dois: cada arquivo, na ordem
@@ -31,7 +35,8 @@ anteriores. Quando a leitura da conta não dá ``PROJECT_KEY_ID``, porque o pape
 a etiqueta ``KmsKeyId``, e nenhum arquivo também, o comando avisa na saída de erro e segue. Uma
 recusa imprime o motivo na saída de erro e termina com 1; um erro de uso termina com 2.
 O ``compare`` termina com 0 com ou sem diferenças; o ``lint`` imprime cada recusa numa linha e
-termina com 1, ou imprime ``ok`` com o número de arquivos lidos e termina com 0.
+termina com 1, ou imprime ``ok`` com o número de arquivos lidos e termina com 0, e o ``lint-plan``
+faz o mesmo com os jobs do Glue lidos no lugar dos arquivos.
 
 Exemplo:
 
@@ -52,7 +57,9 @@ Exemplo:
     awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
     awsds-workflows lint examples/demo-devenv-job
     awsds-workflows lint /tmp/meu-workflow.yaml --promoted \\
-        --prefix s3://meu-bucket/workflows/meu-workflow/v1.0.0/ --instance-type ml.m5.xlarge
+        --prefix s3://meu-bucket/applications/meu-workflow/v1.0.0/ --instance-type ml.m5.xlarge
+    awsds-workflows lint-plan /tmp/plano.json \\
+        --prefix s3://meu-bucket/applications/meu-workflow/v1.0.0/glue/
 """
 
 from __future__ import annotations
@@ -118,6 +125,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_values_parser(commands)
     _add_compare_parser(commands)
     _add_lint_parser(commands)
+    _add_lint_plan_parser(commands)
     return parser
 
 
@@ -329,6 +337,31 @@ def _add_lint_parser(
         help="o repositório ECR que um ImageUri literal tem de nomear",
     )
     command.set_defaults(handler=_lint)
+
+
+def _add_lint_plan_parser(
+    commands: argparse._SubParsersAction,
+) -> None:
+    """[private] O subcomando ``lint-plan``."""
+    command = commands.add_parser(
+        "lint-plan",
+        help="confere os jobs do Glue de um plano do Terraform, o JSON de terraform show -json, "
+        "antes do apply",
+    )
+    command.add_argument(
+        "plan",
+        type=Path,
+        help="o JSON de terraform show -json sobre o plano salvo",
+    )
+    command.add_argument(
+        "--prefix",
+        action="append",
+        required=True,
+        metavar="S3_PREFIX",
+        help="um prefixo S3 sob o qual o script e os arquivos de cada job têm de estar, como a "
+        "pasta glue/ da versão no bucket; repetível",
+    )
+    command.set_defaults(handler=_lint_plan)
 
 
 def _add_value_source_arguments(
@@ -554,4 +587,19 @@ def _lint(
     if findings:
         return 1
     print(f"ok: {len(files)} arquivo(s)")
+    return 0
+
+
+def _lint_plan(
+    arguments: argparse.Namespace,
+) -> int:
+    """[private] Imprime cada recusa numa linha e termina com 1, ou ``ok`` com os jobs do Glue
+    lidos e 0; um plano sem job do Glue passa com ``-`` no lugar dos jobs."""
+    report = lint.lint_plan(arguments.plan, prefixes=arguments.prefix)
+    for finding in report.findings:
+        print(finding)
+    if report.findings:
+        return 1
+    jobs = ", ".join(report.jobs) or "-"
+    print(f"ok: {len(report.jobs)} job(s) do Glue: {jobs}")
     return 0

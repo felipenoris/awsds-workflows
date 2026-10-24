@@ -203,6 +203,14 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
    > `deploy`** com `Failed to resolve variables`: os exemplos declaram as variáveis de stage nos
    > dois stages, e o shell precisa de todas antes do `deploy` e do `run`.
 
+   > [!WARNING]
+   > **O `deploy` procura o workflow na pasta `shared/` inteira do projeto**, e não só em
+   > `exemplos/<exemplo>/`: o primeiro YAML listado que expõe o nome do workflow, pela chave do
+   > topo ou pelo `dag_id`, vence, e o `.zip` do `code` é procurado pelo nome do arquivo do mesmo
+   > jeito. Com outro YAML do mesmo nome numa pasta listada antes, como uma cópia antiga do exemplo,
+   > o `deploy` cria o workflow com aquele arquivo e grava a versão resolvida por cima dele:
+   > mantenha uma cópia só de cada exemplo no projeto.
+
 5. **Execute no stage `dev`**:
 
    ```shell
@@ -251,12 +259,19 @@ PyPI, para instalá-la, nem o MWAA Serverless, que não tem endpoint lá (inferi
        --bundle-archive-path artifacts/<exemplo>.zip --skip-validation --no-events
    ```
 
-   O `bundle` grava `artifacts/<exemplo>.zip` com as pastas do manifest lidas do disco, sem o
-   manifest; `artifacts/` fica fora do git. O `deploy` do `test` copia as pastas da pasta do
-   manifest, com ou sem o bundle, cria o workflow no projeto de teste, com o papel e a rede dele,
-   e o executa uma vez, pela ação `workflow.run` com `trailLogs: true`, que espera o fim da
-   execução sem transmitir o log. O que o exemplo pede antes, a amostra em `inbox/`, a permissão,
-   o `GRANT` ou o job, o projeto de teste pede também. Sem um segundo projeto, pule este passo.
+   O `bundle` grava `artifacts/<exemplo>.zip` com os arquivos e as pastas que cada `include` do
+   manifest nomeia, lidos do disco, sem o manifest; `artifacts/` fica fora do git. O `deploy` do
+   `test` copia as pastas da pasta do manifest, com ou sem o bundle, cria o workflow no projeto de
+   teste, com o papel e a rede dele, e o executa uma vez, pela ação `workflow.run` com
+   `trailLogs: true`, que espera o fim da execução sem transmitir o log. Um bundle guardado se
+   implanta extraído numa pasta vazia, com o manifest ao lado, pelo mesmo `deploy` sem
+   `--bundle-archive-path`. O que o exemplo pede antes, a amostra em `inbox/`, a permissão, o
+   `GRANT` ou o job, o projeto de teste pede também. Sem um segundo projeto, pule este passo.
+
+   > [!WARNING]
+   > **O `bundle` não expande um glob num `include`**: um `code/*.zip` fica fora do bundle, com
+   > `Warning: Pattern not found` e código 0, enquanto o `deploy` o expande e copia o arquivo. Os
+   > manifests nomeiam cada arquivo, e o `lint` recusa um glob pela regra `manifest`.
 
    > [!WARNING]
    > **`wait: true` sem `trailLogs` derruba a CLI 1.0.9** logo depois de iniciar a execução, com
@@ -881,6 +896,28 @@ As falhas estão na tabela do `README.md` do exemplo.
 4. **Na máquina que empacota**, o que os passos gravaram nas pastas dos exemplos fica fora do
    git: os `.zip` em `code/`, o `.tar.gz` em `src/` e os bundles em `artifacts/`.
 
+O `destroy` da CLI faz, num stage, os passos 1 e 3 de um exemplo que ela implantou, e parte do 2.
+Na pasta do exemplo:
+
+```shell
+aws-smus-cicd-cli destroy --manifest manifest.yaml --targets dev
+```
+
+Ele imprime o plano e pergunta antes de apagar, a menos que leve `--force`. Apaga o workflow, os
+objetos sob cada `targetDirectory` do manifest, como `exemplos/<exemplo>/workflows`, e, no
+`houseprice-etl`, o job do Glue que o `GlueJobOperator` do workflow nomeia,
+`houseprice-etl-<PROJECT_ID>`, criado pelo operador ou pelo `job.json`. A amostra em `inbox/` e o
+que as execuções gravaram ficam fora das pastas do manifest, para o passo 2; o catálogo, que os
+manifests não declaram, e o projeto ficam.
+
+> [!WARNING]
+> **O `destroy` apaga por prefixo, sem a barra final**: pelo código da CLI 1.0.9,
+> `exemplos/<exemplo>/code` leva também uma pasta `exemplos/<exemplo>/code-antigo/`, se houver.
+
 O grupo de logs de cada workflow e os `.zip` em `dev/operatorFiles/`, do portal, e em
-`shared/operatorFiles/`, da CLI, ficam ([Limpeza](../awsds_workflows.html#limpeza)). O `destroy`
-da CLI, que apaga o que o manifest implantou, não foi exercitado nos exemplos.
+`shared/operatorFiles/`, da CLI, ficam, com ou sem o `destroy`
+([Limpeza](../awsds_workflows.html#limpeza)).
+
+> [!NOTE]
+> **Estado**: o `destroy` rodou no laboratório, num projeto com outra aplicação; nos exemplos,
+> ainda não ([as notas](lab_notes.html#a-aplicacao-pela-cli-de-cicd)).

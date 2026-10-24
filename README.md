@@ -7,8 +7,8 @@ Ferramentas para montar workflows num projeto do SageMaker Unified Studio, os wo
 Amazon MWAA Serverless executa: o pacote empacota o código de uma task Python ou Bash e o de um job
 de processamento do SageMaker, preenche o arquivo de definição do workflow com os valores do
 projeto e confere uma aplicação da CLI de CI/CD contra as regras do serviço e da esteira
-(`awsds-workflows lint`). O procedimento completo, escrito para quem vai montar o primeiro
-workflow, está na
+(`awsds-workflows lint`), com o job do Glue no plano do Terraform (`awsds-workflows lint-plan`).
+O procedimento completo, escrito para quem vai montar o primeiro workflow, está na
 documentação do pacote, <https://felipenoris.github.io/awsds-workflows/>, gerada de `docs/index.md`
 e das docstrings.
 

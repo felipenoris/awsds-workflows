@@ -26,6 +26,7 @@ SageMaker.
 | `values` | os valores do projeto, lidos da conta | o `render` |
 | `compare` | o que difere no conteúdo de duas definições, como a versionada e a que o portal salvou | quem revisa uma mudança feita no portal |
 | `lint` | as recusas de uma aplicação da CLI de CI/CD, ou de uma definição, contra as regras do serviço e da esteira | quem escreve a aplicação, antes do `deploy`, e a esteira, antes de promover |
+| `lint-plan` | as recusas do job do Glue no plano do Terraform que o cria numa conta sem projeto | a esteira, antes do `apply` |
 
 As páginas desta documentação:
 
@@ -50,7 +51,7 @@ As páginas desta documentação:
 | [A imagem do job](#a-imagem-do-job) | todos | a imagem padrão do SageMaker ou uma customizada, o que muda, e o arquivo de ambiente |
 | [A permissão do projeto](#a-permissao-do-projeto) | infraestrutura | a política que o papel do projeto precisa antes do primeiro job |
 | [A rede](#a-rede) | infraestrutura | os endpoints que o worker e o job usam |
-| [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os erros do save, os templates, o sensor e o `lint` que confere uma aplicação |
+| [Regras de autoria](#regras-de-autoria) | cientista de dados | o formato do YAML, o editor, a importação, os erros do save, os templates, o sensor, o `lint` que confere uma aplicação e o `lint-plan` que confere o plano do Terraform |
 | [Uma task de processamento](#uma-task-de-processamento) | cientista de dados | um job na imagem escolhida, a pasta de código com `package-job` e o `.tar.gz` da pasta do projeto com `prepare-offline` |
 | [O código de uma task Python ou Bash](#o-codigo-de-uma-task-python-ou-bash) | cientista de dados | o `.zip` com `package-task`, e uma task Python |
 | [Uma task Bash](#uma-task-bash) | cientista de dados | o `BashOperator`: o comando, o ambiente do worker e o código que ele chama |
@@ -219,21 +220,21 @@ para dentro da cópia do projeto, com os downloads ligados nessa chamada
 > [!WARNING]
 > **Num espaço, o `uv` pode não achar o Python do job.** Num espaço do laboratório, a imagem
 > desliga os downloads (`UV_PYTHON_DOWNLOADS=never`), e o `uv` acha só o Python da distribuição,
-> `/opt/conda/bin/python` 3.12. O interpretador do job, `/opt/awsds/venv/bin/python` 3.13, fica
-> fora dos caminhos em que o `uv` procura, e um projeto que pede o 3.13 é recusado com
-> `No interpreter found for Python 3.13`.
+> `/opt/conda/bin/python` 3.12. O interpretador do job, `/opt/awsds/venv/bin/python`, também 3.12,
+> fica fora dos caminhos em que o `uv` procura: um projeto que pede o 3.12 usa o da distribuição,
+> e um que pede outra versão é recusado, como em `No interpreter found for Python 3.13`.
 
 A saída é a variável `UV_PYTHON` do próprio `uv`, que nomeia o interpretador; o pacote a repassa a
 cada chamada do `uv`:
 
 ```shell
 UV_PYTHON=/opt/awsds/venv/bin/python awsds-workflows package-job ~/src/meu-projeto \
-    /tmp/meu-projeto-0.2.0 --environment ambiente.txt --python 3.13
+    /tmp/meu-projeto-0.2.0 --environment ambiente.txt --python 3.12
 ```
 
 > [!NOTE]
-> **Estado**: medido num espaço simulado; num espaço de verdade, o pacote ainda não rodou
-> ([as notas](awsds_workflows/lab_notes.html#o-python-que-o-uv-usa)).
+> **Estado**: medido num espaço simulado, quando o ambiente do job era 3.13; num espaço de verdade,
+> o pacote ainda não rodou ([as notas](awsds_workflows/lab_notes.html#o-python-que-o-uv-usa)).
 
 ## Os exemplos
 
@@ -327,7 +328,7 @@ A tabela diz de onde vem cada valor em cada caso.
 | exemplo | a SageMaker Distribution 4.5, a imagem inicial do ambiente alvo | a imagem do laboratório, `awsds-sandbox-dev-env` |
 | `JOB_IMAGE_URI`, a imagem na definição | o URI da distribuição na região do projeto, escrito no arquivo de valores | lido da imagem registrada no SageMaker (`values --image-name`) ou escrito no arquivo de valores |
 | `JOB_PYTHON`, o interpretador que o job chama | `/opt/conda/bin/python` | o do ambiente da imagem; na do laboratório, `/opt/awsds/venv/bin/python` |
-| `--python`, a versão desse interpretador | lida com `/opt/conda/bin/python --version` num espaço que roda a imagem | na do laboratório, 3.13 |
+| `--python`, a versão desse interpretador | lida com `/opt/conda/bin/python --version` num espaço que roda a imagem | na do laboratório, 3.12 |
 | o arquivo de ambiente, a lista do que a imagem já tem | `uv pip list --format freeze --python /opt/conda/bin/python` num espaço que roda a imagem | o mesmo comando com o interpretador da imagem, ou o `uv export` do projeto que constrói a imagem |
 
 > [!NOTE]
@@ -588,13 +589,14 @@ O `lint` tem dois modos:
   e a conexão de rede do projeto também, porque os projetos de dev e de teste as pedem;
 - **promovido**, `--promoted`: uma cópia renderizada por conta, a que uma esteira leva a outra
   conta, onde não pode sobrar variável da CLI, placeholder nem valor do projeto de autoria, a
-  imagem é nomeada por digest e o job de processamento leva a chave do volume. Ele pede
-  `--prefix`, o prefixo da versão no bucket, sob o qual a entrada de código do job e o script do
-  Glue têm de estar:
+  imagem é nomeada por digest, o job de processamento leva a chave do volume e um
+  `GlueJobOperator` só inicia o job, que a esteira cria pelo Terraform
+  ([O plano do Terraform](#o-plano-do-terraform)). Ele pede `--prefix`, o prefixo da versão no
+  bucket, sob o qual a entrada de código do job e o script do Glue têm de estar:
 
   ```shell
   awsds-workflows lint /tmp/meu-workflow.yaml --promoted \
-      --prefix s3://meu-bucket/workflows/meu-workflow/v1.0.0/ \
+      --prefix s3://meu-bucket/applications/meu-workflow/v1.0.0/ \
       --instance-type ml.m5.xlarge --image-repository minha-imagem
   ```
 
@@ -615,12 +617,53 @@ As regras, pelo nome que a recusa traz:
 | `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId` |
 | `templates` | um `{{ }}` cujo primeiro nome o serviço não renderiza, ou um método sobre o que uma macro devolveu ([Os templates](#os-templates)) |
 | `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas que o manifest copia em todos os stages, ou dos `--prefix` |
-| `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas |
-| `manifest` | um item de `content.storage` com `connectionName`, um `content.git`, o catálogo ou os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
+| `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas; no modo promovido, um `GlueJobOperator` com `create_job_kwargs`, `script_location`, `iam_role_arn`, `update_config` ou `job_desc`, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto o job é do Terraform e a task só o inicia pelo `job_name`; no `lint-plan`, o job do plano ([O plano do Terraform](#o-plano-do-terraform)) |
+| `manifest` | um item de `content.storage` com `connectionName`, um `content.git`, o catálogo ou os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; um `include` com glob, como `code/*.zip`, que o `bundle` não expande, e o arquivo fica fora do bundle, enquanto o `deploy` o copia; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
+
+#### O plano do Terraform
+
+Numa conta sem projeto, a esteira cria o job do Glue de uma aplicação pelo Terraform, e a task da
+cópia promovida só o inicia. O `lint-plan` confere o job no plano, antes do `apply`, sem chamar a
+AWS:
+
+1. **Salve o plano**, na pasta do Terraform que cria o job:
+
+   ```shell
+   terraform plan -out plano.tfplan
+   ```
+
+2. **Leia-o em JSON**:
+
+   ```shell
+   terraform show -json plano.tfplan > plano.json
+   ```
+
+3. **Confira**, com a pasta `glue/` da versão no bucket:
+
+   ```shell
+   awsds-workflows lint-plan plano.json \
+       --prefix s3://meu-bucket/applications/meu-workflow/v1.0.0/glue/
+   ```
+
+Ele lê cada `aws_glue_job` que existe depois do `apply`, criado, atualizado ou mantido; um que o
+plano apaga fica de fora. A regra `glue` recusa o `command.script_location` e cada item de
+`--extra-py-files`, `--extra-jars`, `--extra-files` e `--additional-python-modules`, em
+`default_arguments` e `non_overridable_arguments`, fora dos `--prefix`, que se repete; um item de
+`--additional-python-modules` que não é `s3://`, um nome do PyPI, que o job baixaria pela internet;
+e um `script_location` que o plano ainda não conhece, calculado no `apply`. Sem recusa, ele imprime
+os jobs lidos e termina com 0:
+
+```text
+ok: 1 job(s) do Glue: aws_glue_job.this[0]
+```
+
+Um plano sem job do Glue imprime `ok: 0 job(s) do Glue: -`, e um arquivo que não é o JSON de um
+plano, como o de um state, é uma recusa `forma`.
 
 > [!NOTE]
-> **Estado**: os seis exemplos passam no modo de autoria, no teste do repositório; nenhuma esteira
-> rodou o modo promovido ainda, e a margem do job é uma escolha
+> **Estado**: os seis exemplos passam no modo de autoria, no teste do repositório; o modo promovido
+> e o `lint-plan` rodaram fora da AWS, sobre a cópia de uma aplicação do laboratório e sobre planos
+> de teste; nenhuma esteira rodou os dois ainda, e a margem do job é uma escolha
 > ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
 
 ## Uma task de processamento
@@ -1597,5 +1640,8 @@ depois de o sensor terminar e com o job já sendo criado. Leia o progresso nas t
 - **Um job de processamento não pode ser apagado**: ele continua listado.
 - **Os `.zip` de código** em `dev/operatorFiles/` ficam com todas as versões, porque o bucket é
   versionado.
+- **Os `.zip` que a CLI de CI/CD copia** para `shared/operatorFiles/` são um objeto novo a cada
+  `deploy`, `<workflow>-<n>.zip`, e nem o `deploy` nem o `destroy` apagam um
+  ([Limpeza](awsds_workflows/examples.html#limpeza), na página dos exemplos).
 - **As pastas de código** em `shared/jobs/` ficam, uma por versão; apague uma só quando nenhuma
   definição a nomeia.

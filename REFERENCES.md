@@ -142,6 +142,9 @@ pacote repete.
   `content.storage` e o cria com um `GlueJobOperator`:
   <https://pypi.org/project/aws-smus-cicd-cli/> e
   <https://github.com/aws/CICD-for-SageMakerUnifiedStudio>
+- A API JSON do PyPI da CLI de CI/CD, lida em 2026-10-23, que ainda dava a 1.0.9 como a versão
+  mais nova, e o sdist que ela aponta, lido no mesmo dia para o `bundle`, o `deploy` e o
+  `destroy`: <https://pypi.org/pypi/aws-smus-cicd-cli/json>
 - Os jobs de processamento de dados e a página *Data processing jobs*, com um job do Visual ETL ou
   de código (lido em 2026-10-14):
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/smus-creating-jobs.html>
@@ -209,6 +212,11 @@ pacote repete.
   <https://releases.hashicorp.com/terraform-provider-aws/5.100.0/>,
   <https://releases.hashicorp.com/terraform-provider-time/0.14.2/> e
   <https://releases.hashicorp.com/terraform-provider-time/0.14.0/>
+- O Terraform 1.15.8 e o provider `hashicorp/aws` 6.60.0, as versões do Terraform de uma
+  aplicação do laboratório, baixados com as somas SHA-256 em 2026-10-23 para ler o JSON de
+  `terraform show -json` que o `lint-plan` lê; o `registry.terraform.io` recusou o download pelo
+  proxy da sessão: <https://releases.hashicorp.com/terraform/1.15.8/> e
+  <https://releases.hashicorp.com/terraform-provider-aws/6.60.0/>
 - O botocore 1.43.111, num ambiente temporário em 2026-10-12, que chama a API do SageMaker em
   `https://api.sagemaker.sa-east-1.amazonaws.com`: <https://pypi.org/project/botocore/1.43.111/>
 - O `pdoc`: <https://pdoc.dev/>

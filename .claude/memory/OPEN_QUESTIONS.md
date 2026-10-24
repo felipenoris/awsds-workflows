@@ -12,9 +12,10 @@ nomeia esse lugar.
   `--profile`, o `--omit`, o `job-constraints`, as mensagens em português, a CI só no Ubuntu e o
   `docs/index.md` como runbook; as da pasta de exemplos, de 2026-10-13 e 2026-10-14
   (`decisions.md`, "The examples folder"), as dos exemplos como aplicações, de 2026-10-16
-  (`decisions.md`, "The examples as applications"), e as três do `lint` não levadas ao usuário,
-  que confirmou as cinco do PR #21 em 2026-10-16 (`decisions.md`, "The lint of an application").
-  Fecha com a resposta do usuário no PR.
+  (`decisions.md`, "The examples as applications"), as três do `lint` não levadas ao usuário,
+  que confirmou as cinco do PR #21 em 2026-10-16 (`decisions.md`, "The lint of an application"),
+  e as do `lint-plan` e da regra (6), de 2026-10-23 (`decisions.md`, "The Stage 10 rules after
+  Stage 18"). Fecha com a resposta do usuário no PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -48,7 +49,9 @@ nomeia esse lugar.
 - **Nenhuma pasta do `package-job` rodou num job, e o pacote não rodou num space.** No laboratório,
   uma pasta gravada num space pelo script do AWS-DataScience, com os mesmos passos do `uv`, rodou
   num job em 2026-10-11, e o `package-job` gravou a mesma pasta num space simulado, com o
-  `UV_PYTHON` apontando o 3.13 da imagem (`packaging.md`, "The interpreter `uv` needs"). Não
+  `UV_PYTHON` apontando o 3.13 da imagem (`packaging.md`, "The interpreter `uv` needs"). Desde a
+  versão `default-v0.7.0` da imagem, de 2026-10-15, o ambiente do job é 3.12, a versão menor da
+  distribuição, e a recusa vale para um projeto que pede outra versão (`environments.md`). Não
   medidos num space de verdade: o `uv tool install` do pacote no Python da distribuição, a recusa
   sem o `UV_PYTHON` e a pasta com ele. Fecha com o `package-job` rodado num space do laboratório e
   a pasta dele num job.
@@ -78,8 +81,9 @@ nomeia esse lugar.
   `awsds_workflows.examples`, e com eles o `.zip` de uma task Python ou Bash passado pela CLI como
   `code`, uma variável de stage lida no `config` de um job de processamento e nos `op_kwargs` de uma
   task Python, que o Airflow renderiza, e o `demo-devenv-job` com o `src/` e o
-  `{env.JOB_IMAGE_URI}`; e cada um importado no portal a partir do `render` do workflow da CLI.
-  Fecha com essas execuções.
+  `{env.JOB_IMAGE_URI}`; cada um importado no portal a partir do `render` do workflow da CLI; e o
+  `destroy` de um exemplo, que rodou no laboratório sobre outras aplicações em 2026-10-19
+  (`cicd-cli.md`, "The CLI in Stage 18's deployment project"). Fecha com essas execuções.
 - **O `.tar.gz` da pasta preparada num job.** O `demo-devenv-job` passou a esse formato pela
   palavra do usuário de 2026-10-13 (04:55 UTC; `decisions.md`, "The examples folder"), e o
   `prepare-offline` o grava desde o pedido das 05:15 UTC; provado na máquina que empacota
@@ -104,16 +108,27 @@ nomeia esse lugar.
   pedido de mudança, sem aplicar, e os passos mantêm o `job.json` para um projeto sem o grant.
   Inferido, não medido: uma execução pelo portal de uma definição que referencia um parâmetro que
   ela não declara falha no render como pela CLI. Fecha com as outras execuções.
-- **O `lint` no modo promovido e a tradução por conta.** O `lint` entrou no pacote (`lint.py`, o
-  subcomando `lint`; `decisions.md`, "The lint of an application") com os dois modos, e o modo
-  promovido não rodou numa esteira sobre uma cópia renderizada por conta: a tradução de um
-  workflow da CLI para outra conta (decisão 6 da etapa 10 do AWS-DataScience: um arquivo que dá a
-  cada variável da CLI o literal da conta, e o corte do `update_config` e do `create_job_kwargs` do
-  job do Glue) entra quando a etapa 10 renderizar para Staging e Produção, e o `lint --promoted`
-  é a conferência dessa cópia. Não medido também: o tempo de provisionamento e de encerramento de
-  um job de processamento dentro dos 3.600 s da task, que decide a margem dos 2.820 s de
-  `MaxRuntimeInSeconds` (`docs/laboratorio.md`, "Regras de autoria"). Fecha com a etapa 10 e com
-  um job cronometrado.
+- **O `lint` promovido e o `lint-plan` numa esteira.** A cópia de um workflow da CLI para outra
+  conta é do `scripts/render-workflow.py` do AWS-DataScience (decisão 20 (e) da etapa 10, do
+  usuário em 2026-10-22), que corta as chaves com que o operador do Glue cria o job; o job de
+  release de lá roda o `lint --promoted` em cada cópia, no commit `3c1708e`, lido de um laptop em
+  2026-10-22 sobre o bundle `v0.2.1`: `ok: 1 arquivo(s)`, e uma imagem de outro repositório
+  recusada. As regras (6) e (2c) da etapa 10 entraram em 2026-10-23 (`decisions.md`, "The Stage
+  10 rules after Stage 18"; `docs/laboratorio.md`, "Regras de autoria"): a cópia renderizada
+  com valores fabricados passa na regra (6), e o `lint-plan` leu planos de teste do Terraform
+  1.15.8. Não medidos: os dois numa esteira, depois que o AWS-DataScience subir o pin do pacote e
+  chamar o `lint-plan` sobre o plano do slice da aplicação no job de release; e o tempo de
+  provisionamento e de encerramento de um job de processamento dentro dos 3.600 s da task, que
+  decide a margem dos 2.820 s de `MaxRuntimeInSeconds`. Fecha com a primeira execução das pernas
+  de promoção e com um job cronometrado.
+- **A regra do job de treinamento espera.** A etapa 10 do AWS-DataScience especificou em
+  2026-10-22 uma regra para o `config` de um `SageMakerTrainingOperator` (passo 5.1): `VpcConfig`,
+  isolamento de rede, criptografia entre contêineres, as duas chaves KMS, o tipo de instância, a
+  saída sob `models/<app>/`, os canais no bucket de saídas, `MaxRuntimeInSeconds` e
+  `action_if_job_exists: fail`. O usuário a deixou fora do PR de 2026-10-23 (`decisions.md`, "The
+  Stage 10 rules after Stage 18"): a cota de treinamento é 0 em Staging e Produção, a task vira
+  um segundo workflow depois do aumento, e a imagem de um algoritmo nativo, uma tag no registro
+  da AWS sem digest, é uma escolha em aberto do passo. Fecha com o aumento da cota e essa escolha.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

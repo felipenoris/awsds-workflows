@@ -35,8 +35,12 @@ step of the runbook was measured in October 2026 (its stage log
 
 - **The custom image** is the house image `awsds-sandbox-dev-env`, built on SageMaker Distribution
   4.5.2 (`4.5.2-cpu`, pinned by digest), 6.97 GB; the house environment is `/opt/awsds/venv`, CPython
-  3.13, and the distribution's own is `/opt/conda/bin/python`, CPython 3.12. Its container user is
-  `sagemaker-user` (uid 1000), and `sudo` works inside a processing job (2026-10-11).
+  3.13 up to the image's `default-v0.6.0`, the version of every reading of 2026-10-11 and
+  2026-10-12 here, and CPython 3.12 since `default-v0.7.0` (built 2026-10-15; Sandbox's version 9,
+  `default-v0.8.0`, registered 2026-10-16), read on 2026-10-23 in AWS-DataScience's
+  `gitlab/awsds/dev-env/README.md`, not in a space; the distribution's own is
+  `/opt/conda/bin/python`, CPython 3.12. Its container user is `sagemaker-user` (uid 1000), and
+  `sudo` works inside a processing job (2026-10-11).
 - **The space reaches PyPI** through an explicit proxy with an allow-list; nothing is exported in
   the shell since the house image's `default-v0.2.0`.
 - **The processing task works end to end** (run `f9L7CKQzmUQWQTR`, 2026-10-11): about 15 minutes and
@@ -120,7 +124,7 @@ step of the runbook was measured in October 2026 (its stage log
 - **`uv` in a lab space** (the user's run, 2026-10-11): `which python` answered
   `/opt/conda/bin/python` and `which uv` `/opt/conda/bin/uv`, the distribution's uv, 0.12.17 by
   AWS-DataScience's records of the house image (the space's version was not printed). The base
-  image sets `UV_PYTHON_DOWNLOADS=never`, and the house CPython 3.13 lives under
+  image sets `UV_PYTHON_DOWNLOADS=never`, and the house CPython, 3.13 then, lives under
   `/opt/awsds/python`, installed by a `uv python install` whose `UV_PYTHON_INSTALL_DIR` only the
   build step sets, so uv finds the distribution's Python only (AWS-DataScience's
   `images/README.md`); the image exports `AWSDS_PYTHON_ENV=/opt/awsds/venv`.
