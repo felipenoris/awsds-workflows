@@ -22,7 +22,8 @@ depois para o ambiente do SageMaker, que não tem internet.
   definição de workflow sozinha, contra as regras do serviço e da esteira
   (``awsds_workflows.lint``): sem opção, na notação da CLI, como os arquivos do repositório; com
   ``--promoted``, uma cópia renderizada por conta, que pede ``--prefix``, o prefixo da versão no
-  bucket. ``--instance-type`` e ``--image-repository`` restringem o job de processamento.
+  bucket. ``--instance-type`` e ``--image-repository`` restringem os jobs de processamento e de
+  treinamento, e ``--algorithm-repository`` admite também um repositório de algoritmo da AWS.
 - ``lint-plan`` confere os jobs do Glue do plano do Terraform que os cria numa conta sem projeto,
   o JSON de ``terraform show -json`` sobre o plano salvo, antes do ``apply``: o script e os
   arquivos de cada job sob um ``--prefix``, e nenhum módulo pelo nome do PyPI
@@ -334,7 +335,15 @@ def _add_lint_parser(
     command.add_argument(
         "--image-repository",
         metavar="REPOSITORY",
-        help="o repositório ECR que um ImageUri literal tem de nomear",
+        help="o repositório ECR que um ImageUri ou TrainingImage literal tem de nomear",
+    )
+    command.add_argument(
+        "--algorithm-repository",
+        action="append",
+        default=[],
+        metavar="REPOSITORY",
+        help="um repositório de algoritmo da AWS que a imagem também pode nomear com "
+        "--image-repository, como sagemaker-xgboost; repetível",
     )
     command.set_defaults(handler=_lint)
 
@@ -567,6 +576,7 @@ def _lint(
             arguments.path,
             instance_types=arguments.instance_type,
             image_repository=arguments.image_repository,
+            algorithm_repositories=arguments.algorithm_repository,
         )
         files = report.files
         findings = report.findings
@@ -580,6 +590,7 @@ def _lint(
             prefixes=arguments.prefix,
             instance_types=arguments.instance_type,
             image_repository=arguments.image_repository,
+            algorithm_repositories=arguments.algorithm_repository,
         )
 
     for finding in findings:

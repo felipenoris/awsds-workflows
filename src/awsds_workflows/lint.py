@@ -32,14 +32,24 @@ As regras, pelo nome que uma recusa traz:
   até 300 s; ``execution_timeout`` e o ``timeout`` de um sensor até 3.600 s, o teto de uma task;
   o arquivo até 50.000 bytes (a cota de uma definição). As grafias ``retry_delay_sec`` e
   ``execution_timeout_secs`` do dag-factory contam.
-- ``imagem``: um ``ImageUri`` literal é um URI do ECR com digest,
-  ``<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<64 hex>``, e do repositório
-  pedido, quando há um; um placeholder passa na autoria.
+- ``imagem``: um ``ImageUri`` ou ``TrainingImage`` literal é um URI do ECR com digest,
+  ``<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<64 hex>``, do repositório
+  pedido, quando há um, ou de um dos repositórios de algoritmo dados, como o
+  ``sagemaker-xgboost`` da AWS; um placeholder passa na autoria.
 - ``job``: o ``config`` de um ``SageMakerProcessingOperator`` tem ``NetworkConfig.VpcConfig`` com
   ``Subnets`` e ``SecurityGroupIds``, ``EnableNetworkIsolation`` e
   ``EnableInterContainerTrafficEncryption`` verdadeiros, ``StoppingCondition.MaxRuntimeInSeconds``
   até 2.820 s (os 3.600 s da task menos uns 13 minutos de provisionamento e encerramento), um
   ``InstanceType`` da lista pedida, quando há uma, e, no modo promovido, ``VolumeKmsKeyId``.
+- ``treino``: o ``config`` de um ``SageMakerTrainingOperator`` tem ``VpcConfig`` com ``Subnets``
+  e ``SecurityGroupIds``, ``EnableNetworkIsolation`` e ``EnableInterContainerTrafficEncryption``
+  verdadeiros, ``StoppingCondition.MaxRuntimeInSeconds`` até 2.820 s, um
+  ``ResourceConfig.InstanceType`` da lista pedida, quando há uma, e
+  ``OutputDataConfig.S3OutputPath``, com o ``S3Uri`` de cada canal de ``InputDataConfig`` no
+  bucket dele; a task leva ``action_if_job_exists: fail``, porque com o padrão do operador uma
+  nova tentativa com o mesmo nome inicia um segundo job; no modo promovido, também
+  ``ResourceConfig.VolumeKmsKeyId``, ``OutputDataConfig.KmsKeyId`` e a saída sob ``models/``
+  do bucket.
 - ``templates``: o primeiro nome de cada ``{{ }}`` é um dos que o serviço renderiza (``macros``,
   ``ti``, ``task_instance``, ``params``, ``ds``, ``ds_nodash``, ``ts``, ``ts_nodash``), e nenhum
   método é chamado sobre o que uma macro devolveu (laboratório, 2026-10-11).
@@ -157,6 +167,10 @@ _PROMOTED_PATTERNS = [
     (re.compile(r"\bdatazone-[a-z0-9]+-dev\b"), "um prefixo datazone-<projeto>-dev"),
 ]
 
+# As chaves que nomeiam a imagem de um job: a de processamento e a de treinamento.
+_IMAGE_KEYS = ("ImageUri", "TrainingImage")
+# O prefixo do bucket de outputs onde um treinamento promovido grava o modelo.
+_MODEL_OUTPUT_PREFIX = "models/"
 # Um URI de imagem do ECR com digest; o grupo é o repositório.
 _IMAGE_URI = re.compile(
     r"\d{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/([^@:\s]+)@sha256:[0-9a-f]{64}"
@@ -210,8 +224,8 @@ class Finding:
 
     rule: str
     """[public] O nome da regra, um dos da lista do módulo: ``forma``, ``projeto``, ``datas``,
-    ``operador``, ``limites``, ``imagem``, ``job``, ``templates``, ``codigo``, ``glue`` ou
-    ``manifest``."""
+    ``operador``, ``limites``, ``imagem``, ``job``, ``treino``, ``templates``, ``codigo``,
+    ``glue`` ou ``manifest``."""
 
     message: str
     """[public] O motivo, numa linha, com a task ou a linha em que a regra falhou."""
@@ -283,6 +297,7 @@ def lint_definition(
     prefixes: Sequence[str] = (),
     instance_types: Sequence[str] = (),
     image_repository: str | None = None,
+    algorithm_repositories: Sequence[str] = (),
 ) -> list[Finding]:
     """[public] Confere uma definição de workflow contra as regras do módulo.
 
@@ -306,10 +321,13 @@ def lint_definition(
     :param prefixes: os prefixos S3 sob os quais a entrada de código do job e o script do Glue
         têm de estar, na mesma notação do arquivo; vazio, o padrão, não confere as regras
         ``codigo`` e ``glue``.
-    :param instance_types: os tipos de instância que um job de processamento pode pedir; vazio,
-        o padrão, aceita qualquer um.
-    :param image_repository: o repositório ECR que um ``ImageUri`` literal tem de nomear;
-        ``None``, o padrão, aceita qualquer repositório.
+    :param instance_types: os tipos de instância que um job de processamento ou de treinamento
+        pode pedir; vazio, o padrão, aceita qualquer um.
+    :param image_repository: o repositório ECR que um ``ImageUri`` ou ``TrainingImage`` literal
+        tem de nomear; ``None``, o padrão, aceita qualquer repositório.
+    :param algorithm_repositories: os repositórios de algoritmo da AWS que uma imagem também pode
+        nomear quando há ``image_repository``, como ``sagemaker-xgboost``; vazio, o padrão, não
+        admite nenhum.
     :return: as recusas, na ordem das regras do módulo; vazia quando a definição passa.
     :raises awsds_workflows.errors.RefusalError: quando o arquivo não existe.
     """
@@ -323,8 +341,13 @@ def lint_definition(
     for task_name, task in definition.dag["tasks"].items():
         findings.extend(_check_operator(definition, task_name, task))
         findings.extend(_check_limits(definition, task_name, task))
-        findings.extend(_check_images(definition, task_name, task, promoted, image_repository))
+        findings.extend(
+            _check_images(
+                definition, task_name, task, promoted, image_repository, algorithm_repositories
+            )
+        )
         findings.extend(_check_processing(definition, task_name, task, promoted, instance_types))
+        findings.extend(_check_training(definition, task_name, task, promoted, instance_types))
         findings.extend(_check_code_input(definition, task_name, task, allowed))
         findings.extend(_check_glue(definition, task_name, task, allowed))
         if promoted:
@@ -338,6 +361,7 @@ def lint_application(
     *,
     instance_types: Sequence[str] = (),
     image_repository: str | None = None,
+    algorithm_repositories: Sequence[str] = (),
 ) -> Report:
     """[public] Confere uma aplicação da CLI de CI/CD, a pasta com o ``manifest.yaml``, no modo de
     autoria.
@@ -355,10 +379,12 @@ def lint_application(
             print(finding)
 
     :param folder: a pasta da aplicação, onde o ``manifest.yaml`` está.
-    :param instance_types: os tipos de instância que um job de processamento pode pedir; vazio,
-        o padrão, aceita qualquer um.
-    :param image_repository: o repositório ECR que um ``ImageUri`` literal tem de nomear;
-        ``None``, o padrão, aceita qualquer repositório.
+    :param instance_types: os tipos de instância que um job de processamento ou de treinamento
+        pode pedir; vazio, o padrão, aceita qualquer um.
+    :param image_repository: o repositório ECR que um ``ImageUri`` ou ``TrainingImage`` literal
+        tem de nomear; ``None``, o padrão, aceita qualquer repositório.
+    :param algorithm_repositories: os repositórios de algoritmo da AWS que uma imagem também pode
+        nomear quando há ``image_repository``; vazio, o padrão, não admite nenhum.
     :return: os arquivos lidos e as recusas.
     :raises awsds_workflows.errors.RefusalError: quando a pasta ou o ``manifest.yaml`` não existe.
     """
@@ -384,6 +410,7 @@ def lint_application(
                 prefixes=prefixes,
                 instance_types=instance_types,
                 image_repository=image_repository,
+                algorithm_repositories=algorithm_repositories,
             )
         )
     for script in scripts:
@@ -676,28 +703,31 @@ def _check_images(
     task: dict[str, Any],
     promoted: bool,
     image_repository: str | None,
+    algorithm_repositories: Sequence[str] = (),
 ) -> list[Finding]:
-    """[private] Cada ``ImageUri`` da task: um placeholder passa na autoria; um literal é um URI do
-    ECR com digest, do repositório pedido."""
+    """[private] Cada ``ImageUri`` e ``TrainingImage`` da task: um placeholder passa na autoria;
+    um literal é um URI do ECR com digest, do repositório pedido ou de um de algoritmo dado."""
     findings: list[Finding] = []
-    for image in _values_of_key(task, "ImageUri"):
-        if not isinstance(image, str):
-            continue
-        if not promoted and render.PLACEHOLDER.search(image):
-            continue
-        match = _IMAGE_URI.fullmatch(image)
-        if match is None:
-            message = (
-                f"task {task_name}: ImageUri {image} não é um URI do ECR com digest, "
-                "<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>"
-            )
-            findings.append(Finding(definition.path, "imagem", message))
-        elif image_repository is not None and match.group(1) != image_repository:
-            message = (
-                f"task {task_name}: ImageUri do repositório {match.group(1)}, e não de "
-                f"{image_repository}"
-            )
-            findings.append(Finding(definition.path, "imagem", message))
+    allowed = [image_repository, *algorithm_repositories] if image_repository is not None else []
+    for key in _IMAGE_KEYS:
+        for image in _values_of_key(task, key):
+            if not isinstance(image, str):
+                continue
+            if not promoted and render.PLACEHOLDER.search(image):
+                continue
+            match = _IMAGE_URI.fullmatch(image)
+            if match is None:
+                message = (
+                    f"task {task_name}: {key} {image} não é um URI do ECR com digest, "
+                    "<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>"
+                )
+                findings.append(Finding(definition.path, "imagem", message))
+            elif allowed and match.group(1) not in allowed:
+                message = (
+                    f"task {task_name}: {key} do repositório {match.group(1)}, e não de "
+                    f"{' nem de '.join(allowed)}"
+                )
+                findings.append(Finding(definition.path, "imagem", message))
     return findings
 
 
@@ -755,6 +785,107 @@ def _check_processing(
         message = f"task {task_name}: ProcessingResources.ClusterConfig.VolumeKmsKeyId ausente"
         findings.append(Finding(path, "job", message))
     return findings
+
+
+def _check_training(
+    definition: _Definition,
+    task_name: str,
+    task: dict[str, Any],
+    promoted: bool,
+    instance_types: Sequence[str],
+) -> list[Finding]:
+    """[private] O ``config`` de um ``SageMakerTrainingOperator``: a rede, o isolamento, a cifra,
+    o teto de tempo, o tipo de instância, a saída e os canais no bucket dela, a nova tentativa que
+    falha e, no modo promovido, as duas chaves e a saída sob ``models/``."""
+    if not _is_operator(task, "SageMakerTrainingOperator"):
+        return []
+    path = definition.path
+    config = task.get("config")
+    if not isinstance(config, dict):
+        message = f"task {task_name}: sem config, a chamada CreateTrainingJob"
+        return [Finding(path, "treino", message)]
+
+    findings: list[Finding] = []
+    if task.get("action_if_job_exists") != "fail":
+        message = (
+            f"task {task_name}: action_if_job_exists tem de ser fail; com o padrão, uma nova "
+            "tentativa com o mesmo nome inicia um segundo job"
+        )
+        findings.append(Finding(path, "treino", message))
+
+    vpc = _mapping_at(config, "VpcConfig")
+    for key in ("Subnets", "SecurityGroupIds"):
+        if not _is_nonempty_list(vpc.get(key)):
+            message = f"task {task_name}: VpcConfig.{key} ausente ou vazio"
+            findings.append(Finding(path, "treino", message))
+    for key in ("EnableNetworkIsolation", "EnableInterContainerTrafficEncryption"):
+        if config.get(key) is not True:
+            message = f"task {task_name}: {key} tem de ser true"
+            findings.append(Finding(path, "treino", message))
+
+    runtime = _mapping_at(config, "StoppingCondition").get("MaxRuntimeInSeconds")
+    if runtime is None:
+        message = (
+            f"task {task_name}: StoppingCondition.MaxRuntimeInSeconds ausente; "
+            f"até {_JOB_RUNTIME_LIMIT_SECONDS} s"
+        )
+        findings.append(Finding(path, "treino", message))
+    elif _is_number(runtime) and runtime > _JOB_RUNTIME_LIMIT_SECONDS:
+        message = (
+            f"task {task_name}: StoppingCondition.MaxRuntimeInSeconds {runtime} acima dos "
+            f"{_JOB_RUNTIME_LIMIT_SECONDS} s que cabem nos 3600 s da task"
+        )
+        findings.append(Finding(path, "treino", message))
+
+    resources = _mapping_at(config, "ResourceConfig")
+    instance_type = resources.get("InstanceType")
+    if instance_types and instance_type not in instance_types:
+        message = (
+            f"task {task_name}: ResourceConfig.InstanceType {instance_type} fora de "
+            f"{', '.join(instance_types)}"
+        )
+        findings.append(Finding(path, "treino", message))
+
+    output = _mapping_at(config, "OutputDataConfig")
+    output_path = output.get("S3OutputPath")
+    if not isinstance(output_path, str) or not output_path:
+        message = f"task {task_name}: OutputDataConfig.S3OutputPath ausente"
+        findings.append(Finding(path, "treino", message))
+    else:
+        bucket = _bucket_of(output_path)
+        for channel in config.get("InputDataConfig") or []:
+            source = _mapping_at(_mapping_at(channel, "DataSource"), "S3DataSource")
+            uri = source.get("S3Uri")
+            if isinstance(uri, str) and _bucket_of(uri) != bucket:
+                name = channel.get("ChannelName") if isinstance(channel, dict) else None
+                message = (
+                    f"task {task_name}: o canal {name} lê {uri}, fora do bucket da saída, {bucket}"
+                )
+                findings.append(Finding(path, "treino", message))
+        key = output_path.removeprefix(f"s3://{bucket}").lstrip("/")
+        if promoted and not key.startswith(_MODEL_OUTPUT_PREFIX):
+            message = (
+                f"task {task_name}: OutputDataConfig.S3OutputPath {output_path} fora de "
+                f"{_MODEL_OUTPUT_PREFIX} do bucket"
+            )
+            findings.append(Finding(path, "treino", message))
+
+    if promoted:
+        if not resources.get("VolumeKmsKeyId"):
+            message = f"task {task_name}: ResourceConfig.VolumeKmsKeyId ausente"
+            findings.append(Finding(path, "treino", message))
+        if not output.get("KmsKeyId"):
+            message = f"task {task_name}: OutputDataConfig.KmsKeyId ausente"
+            findings.append(Finding(path, "treino", message))
+    return findings
+
+
+def _bucket_of(
+    uri: str,
+) -> str:
+    """[private] O bucket de um ``s3://bucket/chave``, ou o texto até a primeira barra quando o
+    URI ainda leva um placeholder."""
+    return uri.removeprefix("s3://").split("/", 1)[0]
 
 
 def _check_code_input(

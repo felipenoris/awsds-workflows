@@ -554,8 +554,8 @@ def test_lint_passes_the_options_of_a_definition(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``--promoted``, cada ``--prefix``, cada ``--instance-type`` e ``--image-repository``
-    chegam a ``lint_definition``."""
+    """``--promoted``, cada ``--prefix``, cada ``--instance-type``, ``--image-repository`` e cada
+    ``--algorithm-repository`` chegam a ``lint_definition``."""
     received: dict[str, object] = {}
 
     def fake_lint_definition(
@@ -580,6 +580,8 @@ def test_lint_passes_the_options_of_a_definition(
         "ml.m5.xlarge",
         "--image-repository",
         "minha-imagem",
+        "--algorithm-repository",
+        "sagemaker-xgboost",
     ]
     assert cli.main(command) == 0
     assert received == {
@@ -588,6 +590,7 @@ def test_lint_passes_the_options_of_a_definition(
         "prefixes": ["s3://meu-bucket/a/", "s3://meu-bucket/b/"],
         "instance_types": ["ml.m5.xlarge"],
         "image_repository": "minha-imagem",
+        "algorithm_repositories": ["sagemaker-xgboost"],
     }
     assert capsys.readouterr().out == "ok: 1 arquivo(s)\n"
 
