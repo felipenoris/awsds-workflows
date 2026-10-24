@@ -600,8 +600,9 @@ O `lint` tem dois modos:
       --instance-type ml.m5.xlarge --image-repository minha-imagem
   ```
 
-`--instance-type`, repetível, e `--image-repository` restringem o job de processamento nos dois
-modos; numa aplicação, os prefixos são as pastas que o manifest copia em todos os stages, e
+`--instance-type`, repetível, e `--image-repository` restringem os jobs de processamento e de
+treinamento nos dois modos, e `--algorithm-repository`, repetível, admite também um repositório de
+algoritmo da AWS, como `sagemaker-xgboost`, ao lado do de `--image-repository`; numa aplicação, os prefixos são as pastas que o manifest copia em todos os stages, e
 `--prefix` é recusado.
 
 As regras, pelo nome que a recusa traz:
@@ -613,8 +614,9 @@ As regras, pelo nome que a recusa traz:
 | `datas` | `start_date`, no DAG ou em `default_args`, porque o serviço exige uma data futura e a esteira a escreve; `schedule` e `schedule_interval`, porque um workflow é iniciado pelo `run` ou por uma máquina de estados |
 | `operador` | um `operator` que não é uma classe de `airflow.providers.amazon.aws.` nem o `PythonOperator` ou o `BashOperator` de `airflow.providers.standard.operators.`, os que o serviço roda; e `SageMakerNotebookOperator`, pelo nome, porque uma task de notebook roda um job de treinamento cuja rede e chave a definição não controla |
 | `limites` | `retries` ausente, porque o serviço assume 1, ou fora de 0 a 3; `retry_delay` acima de 300 s; `execution_timeout` e o `timeout` de um sensor acima de 3.600 s; o arquivo acima de 50.000 bytes, a cota de uma definição; as grafias `retry_delay_sec` e `execution_timeout_secs` do dag-factory contam |
-| `imagem` | um `ImageUri` literal que não é `<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>`, ou de outro repositório que o de `--image-repository`; na autoria, um placeholder passa |
+| `imagem` | um `ImageUri` ou `TrainingImage` literal que não é `<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>`, ou de outro repositório que o de `--image-repository` e os de `--algorithm-repository`; na autoria, um placeholder passa |
 | `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId` |
+| `treino` | o `config` de um `SageMakerTrainingOperator` sem `VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, com um `ResourceConfig.InstanceType` fora de `--instance-type`, sem `OutputDataConfig.S3OutputPath` ou com um canal de `InputDataConfig` noutro bucket que o dela; a task sem `action_if_job_exists: fail`, porque com o padrão do operador uma nova tentativa com o mesmo nome inicia um segundo job; e, no modo promovido, sem `ResourceConfig.VolumeKmsKeyId`, sem `OutputDataConfig.KmsKeyId` ou com a saída fora de `models/` do bucket |
 | `templates` | um `{{ }}` cujo primeiro nome o serviço não renderiza, ou um método sobre o que uma macro devolveu ([Os templates](#os-templates)) |
 | `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas que o manifest copia em todos os stages, ou dos `--prefix` |
 | `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas; no modo promovido, um `GlueJobOperator` com `create_job_kwargs`, `script_location`, `iam_role_arn`, `update_config` ou `job_desc`, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto o job é do Terraform e a task só o inicia pelo `job_name`; no `lint-plan`, o job do plano ([O plano do Terraform](#o-plano-do-terraform)) |

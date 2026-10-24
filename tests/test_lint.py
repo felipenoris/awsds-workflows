@@ -1250,3 +1250,228 @@ def test_the_promoted_lint_of_a_rendered_example_names_what_the_translation_chan
         "<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>",
         "ProcessingResources.ClusterConfig.VolumeKmsKeyId ausente",
     ]
+
+
+def training_task() -> dict[str, Any]:
+    """Uma task de treinamento como a de ``app-etl-train``, que passa na autoria."""
+    return {
+        "operator": "airflow.providers.amazon.aws.operators.sagemaker.SageMakerTrainingOperator",
+        "action_if_job_exists": "fail",
+        "retries": 0,
+        "config": {
+            "TrainingJobName": "meu-treino-{{ ts_nodash }}",
+            "RoleArn": "{proj.iam_role_arn}",
+            "AlgorithmSpecification": {
+                "TrainingImage": "{env.TRAINING_IMAGE_URI}",
+                "TrainingInputMode": "File",
+            },
+            "InputDataConfig": [
+                {
+                    "ChannelName": "train",
+                    "ContentType": "text/csv",
+                    "DataSource": {
+                        "S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": f"{PREFIX}work/train/"}
+                    },
+                }
+            ],
+            "OutputDataConfig": {"S3OutputPath": f"{PREFIX}models/"},
+            "ResourceConfig": {
+                "InstanceType": "ml.m5.large",
+                "InstanceCount": 1,
+                "VolumeSizeInGB": 10,
+            },
+            "VpcConfig": {
+                "Subnets": ["{env.SUBNET_AZ1}", "{env.SUBNET_AZ2}"],
+                "SecurityGroupIds": ["{env.PROJECT_SG}"],
+            },
+            "EnableNetworkIsolation": True,
+            "EnableInterContainerTrafficEncryption": True,
+            "StoppingCondition": {"MaxRuntimeInSeconds": 1800},
+        },
+    }
+
+
+# A imagem de um algoritmo da AWS, por digest, da conta de exemplo da AWS.
+ALGORITHM_URI = f"111122223333.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost@{DIGEST}"
+
+
+def rendered_training() -> dict[str, Any]:
+    """A task de treinamento como uma cópia promovida a leva: valores literais, a imagem do
+    algoritmo por digest, as duas chaves e a saída sob ``models/``."""
+    task = training_task()
+    config = task["config"]
+    config["RoleArn"] = "arn:aws:iam::111122223333:role/meu-papel"
+    config["AlgorithmSpecification"]["TrainingImage"] = ALGORITHM_URI
+    config["InputDataConfig"][0]["DataSource"]["S3DataSource"]["S3Uri"] = (
+        "s3://meu-bucket/meu-workflow/work/train/"
+    )
+    config["OutputDataConfig"] = {
+        "S3OutputPath": "s3://meu-bucket/models/meu-workflow/",
+        "KmsKeyId": "alias/minha-chave",
+    }
+    config["ResourceConfig"]["VolumeKmsKeyId"] = "alias/minha-chave"
+    config["VpcConfig"] = {
+        "Subnets": ["subnet-0123456789abcdef0"],
+        "SecurityGroupIds": ["sg-0123456789abcdef0"],
+    }
+    return task
+
+
+def test_a_training_task_passes_in_authoring(
+    tmp_path: Path,
+) -> None:
+    """Uma task de treinamento como a dos exemplos passa sem recusa, com a lista de tipos."""
+    assert lint_tasks(tmp_path, {"train": training_task()}, instance_types=["ml.m5.large"]) == []
+
+
+def test_a_promoted_training_task_passes_with_its_algorithm_repository(
+    tmp_path: Path,
+) -> None:
+    """A cópia promovida passa com o repositório do algoritmo admitido ao lado do da aplicação."""
+    findings = lint_tasks(
+        tmp_path,
+        {"train": rendered_training()},
+        promoted=True,
+        prefixes=["s3://meu-bucket/meu-workflow/v1/"],
+        instance_types=["ml.m5.large"],
+        image_repository="minha-imagem",
+        algorithm_repositories=["sagemaker-xgboost"],
+    )
+    assert findings == []
+
+
+def test_a_training_image_outside_the_repositories_fails_the_image_rule(
+    tmp_path: Path,
+) -> None:
+    """Sem o repositório do algoritmo admitido, a imagem de treinamento é recusada pelo nome."""
+    findings = lint_tasks(
+        tmp_path,
+        {"train": rendered_training()},
+        promoted=True,
+        prefixes=["s3://meu-bucket/meu-workflow/v1/"],
+        image_repository="minha-imagem",
+    )
+    assert rules_of(findings) == ["imagem"]
+    assert "TrainingImage do repositório sagemaker-xgboost, e não de minha-imagem" in (
+        findings[0].message
+    )
+
+
+def test_a_training_image_without_a_digest_fails_the_image_rule(
+    tmp_path: Path,
+) -> None:
+    """Uma ``TrainingImage`` literal por tag, como o SDK a devolve, é recusada."""
+    task = training_task()
+    image = "111122223333.dkr.ecr.us-west-2.amazonaws.com/sagemaker-xgboost:3.0-5"
+    task["config"]["AlgorithmSpecification"]["TrainingImage"] = image
+    findings = lint_tasks(tmp_path, {"train": task})
+    assert rules_of(findings) == ["imagem"]
+    assert f"TrainingImage {image} não é um URI do ECR com digest" in findings[0].message
+
+
+def test_a_training_task_without_fail_on_an_existing_job_fails_the_training_rule(
+    tmp_path: Path,
+) -> None:
+    """A task leva ``action_if_job_exists: fail``."""
+    task = training_task()
+    del task["action_if_job_exists"]
+    findings = lint_tasks(tmp_path, {"train": task})
+    assert rules_of(findings) == ["treino"]
+    assert "action_if_job_exists tem de ser fail" in findings[0].message
+
+
+def test_a_training_task_without_config_fails_the_training_rule(
+    tmp_path: Path,
+) -> None:
+    """Uma task de treinamento tem ``config``, a chamada ``CreateTrainingJob``."""
+    task = training_task()
+    del task["config"]
+    findings = lint_tasks(tmp_path, {"train": task})
+    assert rules_of(findings) == ["treino"]
+    assert "sem config" in findings[0].message
+
+
+@pytest.mark.parametrize("key", ["Subnets", "SecurityGroupIds"])
+def test_a_training_task_without_the_vpc_fails_the_training_rule(
+    tmp_path: Path,
+    key: str,
+) -> None:
+    """``VpcConfig`` tem ``Subnets`` e ``SecurityGroupIds`` com algo dentro."""
+    task = training_task()
+    task["config"]["VpcConfig"][key] = []
+    findings = lint_tasks(tmp_path, {"train": task})
+    assert rules_of(findings) == ["treino"]
+    assert f"VpcConfig.{key} ausente ou vazio" in findings[0].message
+
+
+@pytest.mark.parametrize("key", ["EnableNetworkIsolation", "EnableInterContainerTrafficEncryption"])
+def test_a_training_task_without_isolation_or_encryption_fails_the_training_rule(
+    tmp_path: Path,
+    key: str,
+) -> None:
+    """O isolamento de rede e a cifra entre contêineres são ``true``, no topo do ``config``."""
+    task = training_task()
+    task["config"][key] = False
+    findings = lint_tasks(tmp_path, {"train": task})
+    assert rules_of(findings) == ["treino"]
+    assert f"{key} tem de ser true" in findings[0].message
+
+
+def test_a_training_task_above_the_task_ceiling_fails_the_training_rule(
+    tmp_path: Path,
+) -> None:
+    """``MaxRuntimeInSeconds`` até 2.820 s, como num job de processamento."""
+    task = training_task()
+    task["config"]["StoppingCondition"]["MaxRuntimeInSeconds"] = 2821
+    findings = lint_tasks(tmp_path, {"train": task})
+    assert rules_of(findings) == ["treino"]
+    assert "2821 acima dos 2820 s" in findings[0].message
+
+
+def test_a_training_instance_outside_the_list_fails_the_training_rule(
+    tmp_path: Path,
+) -> None:
+    """Com ``instance_types``, o ``ResourceConfig.InstanceType`` é um deles."""
+    task = training_task()
+    task["config"]["ResourceConfig"]["InstanceType"] = "ml.m5.2xlarge"
+    findings = lint_tasks(tmp_path, {"train": task}, instance_types=["ml.m5.large"])
+    assert rules_of(findings) == ["treino"]
+    assert "InstanceType ml.m5.2xlarge fora de ml.m5.large" in findings[0].message
+
+
+def test_a_channel_in_another_bucket_fails_the_training_rule(
+    tmp_path: Path,
+) -> None:
+    """Cada canal lê do bucket da saída, e não de outro, como um da lake."""
+    task = rendered_training()
+    channel = task["config"]["InputDataConfig"][0]
+    channel["DataSource"]["S3DataSource"]["S3Uri"] = "s3://um-bucket-da-lake/curated/"
+    findings = lint_tasks(tmp_path, {"train": task}, promoted=True, prefixes=["s3://meu-bucket/"])
+    assert rules_of(findings) == ["treino"]
+    assert "o canal train lê s3://um-bucket-da-lake/curated/, fora do bucket da saída" in (
+        findings[0].message
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        (lambda c: c["ResourceConfig"].pop("VolumeKmsKeyId"), "VolumeKmsKeyId ausente"),
+        (lambda c: c["OutputDataConfig"].pop("KmsKeyId"), "OutputDataConfig.KmsKeyId ausente"),
+        (
+            lambda c: c["OutputDataConfig"].update(S3OutputPath="s3://meu-bucket/work/modelo/"),
+            "fora de models/ do bucket",
+        ),
+    ],
+)
+def test_a_promoted_training_task_without_its_keys_or_its_prefix_fails_the_training_rule(
+    tmp_path: Path,
+    change: Any,
+    expected: str,
+) -> None:
+    """No modo promovido, as duas chaves estão escritas e o modelo vai para ``models/``."""
+    task = rendered_training()
+    change(task["config"])
+    findings = lint_tasks(tmp_path, {"train": task}, promoted=True, prefixes=["s3://meu-bucket/"])
+    assert rules_of(findings) == ["treino"]
+    assert expected in findings[0].message
