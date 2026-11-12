@@ -150,3 +150,36 @@ code paths under the sdist's `src/smus_cicd/` (`aws_smus_cicd_cli-1.0.9.tar.gz`,
   comment names an account-wide code-storage quota of 75 GB.
 - **The workflow's name**: `deploy` maps each character outside `[A-Za-z0-9_]` to `_`, while `run`
   and `destroy` map only `-`, so a name with another character would be missed by both.
+
+## The catalog item
+
+Read in the CLI 1.0.9's installed code from AWS-DataScience's Stage 19, on the user's laptop, and
+not run: no `bundle` with the catalog enabled and no `deploy` that imports one has run
+(`OPEN_QUESTIONS.md`).
+
+- **The export** (`helpers/catalog_export.py`, read 2026-11-10): with `content.catalog.enabled`,
+  `bundle` writes `catalog/catalog_export.json` with every catalog resource the stage's project
+  owns, with no filter from the manifest: `Search` with `owningProjectIdentifier` over `ASSET`,
+  `DATA_PRODUCT`, `GLOSSARY` and `GLOSSARY_TERM`, `GetAsset` or `GetDataProduct` per item, and
+  `SearchTypes` with `managed` false, a type kept when its `owningProjectId` is the project's.
+  The stage is the first one `--targets` names, or the one whose `stage` is `DEV`.
+- **The import** (`commands/deploy.py`, `helpers/catalog_import.py`, read 2026-11-11 and
+  2026-11-12): `deploy` reads `catalog/catalog_export.json` from the archive
+  `--bundle-archive-path` names and creates or updates each resource in the target project. It
+  returns success with no archive, with no such member or with the stage's catalog disabled,
+  and failure only when every item it attempted failed. `skipPublish` defaults to false: the
+  import then publishes each asset and data product whose listing was `ACTIVE` in the source
+  project; with `skipPublish: true` it publishes nothing.
+- **`assets.access`** (`commands/deploy.py`, `helpers/datazone.py`, read 2026-11-12): each
+  entry, an asset by id or by search with a `permission` and a `requestReason`, becomes a
+  `CreateSubscriptionRequest` for the target project unless a request or a subscription
+  exists, and `deploy` waits for its approval and reads its grants.
+- **The manifest's schema** (`application/application-manifest-schema.yaml`, read 2026-11-12)
+  states both: with `enabled` every catalog resource the project owns is exported during
+  `bundle`, and with `skipPublish` false resources are published only if they were published
+  in the source project. `connectionName` under `content.catalog` is kept in the manifest's
+  model and read by no command.
+- **The lint's `manifest` rule** admits the item with `skipPublish: true` and no
+  `assets.access` (`decisions.md`, "The catalog in the manifest rule"). It does not read the
+  export: what a project owns beyond the application's product is checked on the bundle, by
+  the application's release.

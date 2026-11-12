@@ -589,6 +589,30 @@ The session's choices, listed in PR #23 and not put to the user otherwise:
 - the glob refusal under the rule `manifest`, the characters `*`, `?` and `[`; `lint_application`
   still reads the files a glob names, as the `deploy` copies them.
 
+## The catalog in the manifest rule
+
+AWS-DataScience's Stage 19 promotes a data product on SageMaker Unified Studio's own path, the
+CI/CD CLI deploying the application into a project of each target account. By the user's
+decisions there, of 2026-11-11: the bundle carries the catalog of a `dev` project that holds the
+application's product alone (decision 18 (d)); the workflow's publishing task is the one
+publisher, and the CLI's import publishes nothing (decision 14); Production alone lists the
+product (decision 20 (b)). The application's manifest therefore enables `content.catalog` with
+`skipPublish: true`, which the `manifest` rule refused at `d856982`.
+
+The session of 2026-11-12, from the AWS-DataScience repository, wrote the rule's new form and
+put it to the user as a pull request, opened on the user's word of that day ("Sim, abrir"). The
+session's choices, which the merge confirms:
+
+- **The enabled catalog passes only with `skipPublish` literally `true`.** Without it the CLI's
+  import publishes in the target what was listed in the source project.
+- **`assets.access` is refused.** Each entry is a subscription request the `deploy` makes for
+  the target project, an access no file of the tag grants.
+- **The rule does not read what the catalog holds.** The export is the catalog of the stage's
+  project, whole. An application checks it on the bundle, as AWS-DataScience's template does
+  against a file that names the product (`scripts/check-catalog-export.py`, `product.json`).
+- **`connectionName` under `content.catalog` passes unread.** The CLI 1.0.9 keeps it in the
+  manifest's model and no command reads it (grep of its code, 2026-11-12).
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

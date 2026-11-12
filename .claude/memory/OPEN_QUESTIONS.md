@@ -121,6 +121,13 @@ nomeia esse lugar.
   provisionamento e de encerramento de um job de processamento dentro dos 3.600 s da task, que
   decide a margem dos 2.820 s de `MaxRuntimeInSeconds`. Fecha com a primeira execução das pernas
   de promoção e com um job cronometrado.
+- **O catálogo ligado num `bundle` e num `deploy`.** A regra `manifest` admite
+  `content.catalog` ligado com `skipPublish: true` e sem `assets.access` desde 2026-11-12
+  (`decisions.md`, "The catalog in the manifest rule"), pelo que o código da CLI 1.0.9 diz
+  (`cicd-cli.md`, "The catalog item"). Não medidos: um `bundle` com o catálogo ligado, o
+  `catalog/catalog_export.json` que ele grava e o `deploy` que o importa noutro projeto sem
+  publicar. Fecha com a etapa 4.10 do estágio 19 do AWS-DataScience, a primeira promoção da
+  aplicação pela CLI nas duas contas de destino.
 - **A regra do job de treinamento espera.** A etapa 10 do AWS-DataScience especificou em
   2026-10-22 uma regra para o `config` de um `SageMakerTrainingOperator` (passo 5.1): `VpcConfig`,
   isolamento de rede, criptografia entre contêineres, as duas chaves KMS, o tipo de instância, a

@@ -630,6 +630,13 @@ whole `shared/` scan, `destroy`, a stored bundle; `.claude/memory/cicd-cli.md`) 
 image's Python 3.12. AWS-DataScience's `app-etl`, rendered offline by its `render-workflow.py`,
 passes the new promoted mode; Stage 10's training rule (5.1) waits on the training quota.
 
+A session from the AWS-DataScience repository (2026-11-12, branch
+`claude/lint-catalogo-skip-publish`) changed the `manifest` rule for that repository's Stage 19,
+whose application promotes a data product with the CLI: `content.catalog` enabled passes with
+`skipPublish: true` and no `assets.access`, and is refused otherwise ("The catalog in the
+manifest rule" in `.claude/memory/decisions.md`). What the CLI 1.0.9 does with the item was read
+in its code and has not run (`.claude/memory/cicd-cli.md`, "The catalog item").
+
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session", "The examples folder", "The examples as applications" and
 the three of "The lint of an application" not put to the user, and those of "The Stage 10 rules
@@ -641,4 +648,5 @@ or `.sh`, and one with `env` and no `append_env`; a Python task that prints its 
 `prepare-offline`; the five examples that ran in the target run by the CLI from the repository's
 copies, and the `houseprice-etl` run without `UpdateJob`; the `lint --promoted` and the
 `lint-plan` on AWS-DataScience's pipeline, once it bumps the package's pin; Stage 10's training
-rule, after the training quota. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.
+rule, after the training quota; a `bundle` with the catalog enabled and the `deploy` that imports
+it. Each one is an item in `.claude/memory/OPEN_QUESTIONS.md`.
