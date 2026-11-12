@@ -36,7 +36,9 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
 - uma execução do `houseprice-etl` sem `UpdateJob`, com o `Command` inteiro na definição, e o
   caminho do portal com o workflow traduzido pelo `render` ([houseprice-etl](#houseprice-etl));
 - o `lint` no modo promovido e o `lint-plan` numa esteira, e o tempo de provisionamento de um job
-  dentro do teto da task ([Regras de autoria](#regras-de-autoria)).
+  dentro do teto da task ([Regras de autoria](#regras-de-autoria));
+- um `bundle` com o catálogo ligado e o `deploy` que o importa noutro projeto
+  ([Regras de autoria](#regras-de-autoria)).
 
 ## Instalação
 
@@ -165,10 +167,20 @@ No guia: [Regras de autoria](../awsds_workflows.html#regras-de-autoria).
   script sob a pasta `glue/` da versão: `ok: 1 job(s) do Glue: aws_glue_job.this[0]`; num plano
   com um módulo do PyPI, dois arquivos fora do prefixo e um script calculado no `apply`,
   imprimiu as quatro recusas e terminou com 1.
+- **Máquina que empacota, 2026-11-10 a 2026-11-12.** Lido no código da CLI de CI/CD 1.0.9
+  instalada, sem execução: com `content.catalog.enabled`, o `bundle` exporta para
+  `catalog/catalog_export.json` cada recurso que o projeto do stage possui, pela busca com
+  `owningProjectIdentifier` sobre assets, produtos de dados, glossários e termos e pelos tipos
+  não gerenciados cujo dono é o projeto, sem filtro do manifest; o `deploy` importa o arquivo
+  no projeto de destino e, sem `skipPublish`, publica cada asset e produto de dados que estava
+  com a listagem ativa na origem; cada item de `assets.access` vira um pedido de assinatura,
+  `CreateSubscriptionRequest`, em nome do projeto de destino, cuja aprovação o `deploy` espera.
+  O esquema do manifest, no mesmo pacote, diz o mesmo de `enabled` e de `skipPublish`.
 - **Ainda não medido**: o `lint` no modo promovido e o `lint-plan` numa esteira, sobre a cópia
-  renderizada e o plano de uma conta; e o tempo de provisionamento e de encerramento de um job
+  renderizada e o plano de uma conta; o tempo de provisionamento e de encerramento de um job
   de processamento dentro dos 3.600 s da task, que decide a margem dos 2.820 s de
-  `MaxRuntimeInSeconds`.
+  `MaxRuntimeInSeconds`; e um `bundle` com o catálogo ligado, o arquivo que ele grava e o
+  `deploy` que o importa noutro projeto sem publicar.
 
 ## Uma task de processamento
 

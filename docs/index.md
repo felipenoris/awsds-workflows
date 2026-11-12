@@ -620,7 +620,19 @@ As regras, pelo nome que a recusa traz:
 | `templates` | um `{{ }}` cujo primeiro nome o serviço não renderiza, ou um método sobre o que uma macro devolveu ([Os templates](#os-templates)) |
 | `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas que o manifest copia em todos os stages, ou dos `--prefix` |
 | `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas; no modo promovido, um `GlueJobOperator` com `create_job_kwargs`, `script_location`, `iam_role_arn`, `update_config` ou `job_desc`, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto o job é do Terraform e a task só o inicia pelo `job_name`; no `lint-plan`, o job do plano ([O plano do Terraform](#o-plano-do-terraform)) |
-| `manifest` | um item de `content.storage` com `connectionName`, um `content.git`, o catálogo ou os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; um `include` com glob, como `code/*.zip`, que o `bundle` não expande, e o arquivo fica fora do bundle, enquanto o `deploy` o copia; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
+| `manifest` | um item de `content.storage` com `connectionName`, um `content.git`, os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; o catálogo ligado (`content.catalog.enabled`) sem `skipPublish: true`, porque o `deploy` publicaria no destino o que estava publicado no projeto de origem, ou com `assets.access`, porque o `deploy` pediria acesso a um asset de outro projeto em nome do projeto de destino; um `include` com glob, como `code/*.zip`, que o `bundle` não expande, e o arquivo fica fora do bundle, enquanto o `deploy` o copia; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
+
+> [!WARNING]
+> **Com o catálogo ligado, o bundle leva o catálogo do projeto, além dos arquivos da tag.** O
+> `bundle` exporta para `catalog/catalog_export.json` cada recurso de catálogo que o projeto do
+> stage possui (assets, produtos de dados, glossários, termos, tipos de formulário e tipos de
+> asset), sem filtro do manifest, e o `deploy` importa esse arquivo no projeto de destino. O
+> `lint` lê o manifest, e não o catálogo do projeto: confira o arquivo do bundle antes do
+> `deploy`.
+
+> [!NOTE]
+> **Estado**: o catálogo ligado foi lido no código da CLI de CI/CD 1.0.9 e ainda não rodou num
+> `bundle` nem num `deploy` ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
 
 #### O plano do Terraform
 

@@ -1135,10 +1135,43 @@ def test_a_storage_item_with_a_connection_fails_the_manifest_rule(
 
 
 @pytest.mark.parametrize(
+    "catalog",
+    [
+        {"enabled": True, "skipPublish": True},
+        {"enabled": True, "skipPublish": True, "connectionName": "project.default_lakehouse"},
+        {"enabled": True, "skipPublish": True, "assets": {}},
+        {"enabled": False},
+    ],
+)
+def test_a_catalog_that_publishes_nothing_and_asks_for_no_access_passes(
+    tmp_path: Path,
+    catalog: dict[str, Any],
+) -> None:
+    """O catálogo ligado com ``skipPublish`` e sem ``assets.access`` passa: o catálogo do projeto
+    de origem viaja ao lado dos arquivos da tag, e a task do workflow é quem lista."""
+    manifest = manifest_document()
+    manifest["content"]["catalog"] = catalog
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder)
+    assert report.findings == []
+
+
+@pytest.mark.parametrize(
     ("content", "message"),
     [
         ({"git": {"repository": "x"}}, "content.git"),
-        ({"catalog": {"enabled": True}}, "content.catalog.enabled"),
+        ({"catalog": {"enabled": True}}, "content.catalog.skipPublish"),
+        ({"catalog": {"enabled": True, "skipPublish": False}}, "content.catalog.skipPublish"),
+        (
+            {
+                "catalog": {
+                    "enabled": True,
+                    "skipPublish": True,
+                    "assets": {"access": [{"selector": {"assetId": "a"}}]},
+                }
+            },
+            "content.catalog.assets.access",
+        ),
         ({"notebooks": {"enabled": True}}, "content.notebooks.enabled"),
         ({"quicksight": [{"name": "painel"}]}, "content.quicksight painel: assetBundle ausente"),
         ({"quicksight": [{"name": "p", "assetBundle": "export"}]}, "content.quicksight p"),
@@ -1149,8 +1182,8 @@ def test_content_read_from_outside_the_tag_fails_the_manifest_rule(
     content: dict[str, Any],
     message: str,
 ) -> None:
-    """``git``, o catálogo e os notebooks ligados e um painel exportado do serviço levam ao
-    bundle o que não está na tag."""
+    """``git``, os notebooks ligados e um painel exportado do serviço levam ao bundle o que não
+    está na tag; o catálogo ligado publica ou pede acesso fora do que a aplicação declara."""
     manifest = manifest_document()
     manifest["content"].update(content)
     folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
