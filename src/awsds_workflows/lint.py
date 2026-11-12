@@ -64,11 +64,14 @@ As regras, pelo nome que uma recusa traz:
   ``job_desc``, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto
   o job é criado pelo Terraform da aplicação, e a task só o inicia.
 - ``manifest``: nenhum item de ``content.storage`` com ``connectionName``, nenhum ``content.git``,
-  ``content.catalog`` e ``content.notebooks`` desligados e nenhum painel de ``content.quicksight``
-  exportado do serviço (``assetBundle`` ausente ou ``export``), porque com eles o ``bundle`` leva o
-  que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; nenhum ``include``
-  com glob, que o ``bundle`` não expande, e o arquivo fica fora dele; cada ``{env.NOME}``
-  dos workflows declarado em ``environment_variables`` de todos os stages; cada ``workflowName``
+  ``content.notebooks`` desligado e nenhum painel de ``content.quicksight`` exportado do serviço
+  (``assetBundle`` ausente ou ``export``), porque com eles o ``bundle`` leva o que um projeto, um
+  repositório ou uma conta tem no lugar dos arquivos da tag; ``content.catalog`` ligado só com
+  ``skipPublish`` verdadeiro e sem ``assets.access``, porque o ``bundle`` exporta o catálogo que
+  o projeto do stage possui e, sem isso, o ``deploy`` publicaria no destino o que estava
+  publicado na origem ou pediria acesso a um asset de outro projeto; nenhum ``include`` com
+  glob, que o ``bundle`` não expande, e o arquivo fica fora dele; cada ``{env.NOME}`` dos
+  workflows declarado em ``environment_variables`` de todos os stages; cada ``workflowName``
   exposto por um YAML copiado (a chave do topo ou ``dag_id``); e o ``code`` de um workflow um
   ``.py``, ``.sh`` ou ``.zip`` sob um item de storage.
 
@@ -1206,7 +1209,8 @@ def _check_content_from_the_tag(
     content: dict[str, Any],
 ) -> list[Finding]:
     """[private] O ``content`` que o ``bundle`` leria de fora da tag: um storage com conexão, um
-    ``git``, o catálogo ou os notebooks ligados, um painel exportado do serviço."""
+    ``git``, os notebooks ligados, um painel exportado do serviço; e o catálogo ligado que
+    publica ou pede acesso (``_check_catalog``)."""
     findings: list[Finding] = []
     for item in content.get("storage") or []:
         if isinstance(item, dict) and item.get("connectionName"):
@@ -1218,10 +1222,10 @@ def _check_content_from_the_tag(
     if content.get("git"):
         message = "content.git: o bundle clonaria um repositório no lugar dos arquivos da tag"
         findings.append(Finding(path, "manifest", message))
-    for key in ("catalog", "notebooks"):
-        if _mapping_at(content, key).get("enabled") is True:
-            message = f"content.{key}.enabled: o bundle levaria o que o projeto tem, e não a tag"
-            findings.append(Finding(path, "manifest", message))
+    findings.extend(_check_catalog(path, _mapping_at(content, "catalog")))
+    if _mapping_at(content, "notebooks").get("enabled") is True:
+        message = "content.notebooks.enabled: o bundle levaria o que o projeto tem, e não a tag"
+        findings.append(Finding(path, "manifest", message))
     for item in content.get("quicksight") or []:
         if isinstance(item, dict) and item.get("assetBundle", "export") == "export":
             message = (
@@ -1229,6 +1233,32 @@ def _check_content_from_the_tag(
                 "exportado do serviço no lugar de um arquivo da tag"
             )
             findings.append(Finding(path, "manifest", message))
+    return findings
+
+
+def _check_catalog(
+    path: Path,
+    catalog: dict[str, Any],
+) -> list[Finding]:
+    """[private] O catálogo ligado: o ``bundle`` exporta o catálogo que o projeto do stage possui,
+    ao lado dos arquivos da tag, e o ``deploy`` o importa. Passa quando a importação não publica
+    (``skipPublish`` verdadeiro), porque quem lista é uma task do workflow, e quando o manifest
+    não pede acesso a asset de outro projeto (``assets.access`` ausente)."""
+    findings: list[Finding] = []
+    if catalog.get("enabled") is not True:
+        return findings
+    if catalog.get("skipPublish") is not True:
+        message = (
+            "content.catalog.skipPublish: sem true, o deploy publica no destino o que estava "
+            "publicado no projeto de origem; com true, quem publica é uma task do workflow"
+        )
+        findings.append(Finding(path, "manifest", message))
+    if _mapping_at(catalog, "assets").get("access"):
+        message = (
+            "content.catalog.assets.access: o deploy pediria acesso a um asset de outro projeto "
+            "em nome do projeto de destino"
+        )
+        findings.append(Finding(path, "manifest", message))
     return findings
 
 
