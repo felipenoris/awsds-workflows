@@ -142,11 +142,12 @@ nomeia esse lugar.
   revisão de 2026-11-17 confirmou que passam pelo `lint`: a `Image` do `PrimaryContainer` de um
   `CreateModel` por tag ou de qualquer repositório, mesmo com `--image-repository`, porque a regra
   `imagem` lê só `ImageUri` e `TrainingImage`; o `config` de um `SageMakerTransformOperator` com
-  `Model` e sem `Transform`, com que o operador 9.32.0 falha num `KeyError` antes de criar o
-  modelo; e `action_if_model_exists` no padrão do operador, `timestamp`, com que uma nova
-  tentativa cria outro modelo. Nenhuma aplicação do AWS-DataScience escreve um desses pedidos: o
-  `app-ml` cria o modelo numa task Python (`decisions.md`, "The `job` rule and a processing job
-  without network isolation"). Fecha com uma aplicação que escreva um deles, e a regra com o teste.
+  `Model` e sem `Transform`, com que o operador 9.32.0, com `check_if_model_exists` verdadeiro, o
+  padrão, falha num `KeyError` antes de criar o modelo; e `action_if_model_exists` no padrão do
+  operador, `timestamp`, com que uma nova tentativa cria outro modelo. Nenhuma aplicação do
+  AWS-DataScience escreve um desses pedidos: o `app-ml` cria o modelo numa task Python
+  (`decisions.md`, "The `job` rule and a processing job without network isolation"). Fecha com uma
+  aplicação que escreva um deles, e a regra com o teste.
 - **Um job de processamento sem isolamento num workflow.** A regra `job` aceita o job sem
   `EnableNetworkIsolation` desde 2026-11-17, quando o limite do laboratório deixou de exigi-lo
   (`decisions.md`, "The `job` rule and a processing job without network isolation";
