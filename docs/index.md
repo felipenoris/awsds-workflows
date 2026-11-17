@@ -573,10 +573,10 @@ sem chamar a AWS. Rode-o antes do `deploy`:
 awsds-workflows lint examples/demo-devenv-job
 ```
 
-Ele lê o manifest, cada YAML das pastas que `content.storage` copia, as definições, e os scripts
-`.py`, `.sh` e `.sql` dessas pastas; imprime cada recusa numa linha, `arquivo: regra: motivo`, e
-termina com 1; sem recusa, imprime `ok` com o número de arquivos lidos e termina com 0. Uma
-definição sozinha passa pelas regras que não dependem do manifest:
+Ele lê o manifest, cada YAML das pastas da tag que `content.storage` copia, as definições, e os
+scripts `.py`, `.sh` e `.sql` dessas pastas; imprime cada recusa numa linha,
+`arquivo: regra: motivo`, e termina com 1; sem recusa, imprime `ok` com o número de arquivos lidos
+e termina com 0. Uma definição sozinha passa pelas regras que não dependem do manifest:
 
 ```shell
 awsds-workflows lint workflows/meu-workflow.yaml
@@ -600,10 +600,13 @@ O `lint` tem dois modos:
       --instance-type ml.m5.xlarge --image-repository minha-imagem
   ```
 
-`--instance-type`, repetível, e `--image-repository` restringem os jobs de processamento e de
-treinamento nos dois modos, e `--algorithm-repository`, repetível, admite também um repositório de
-algoritmo da AWS, como `sagemaker-xgboost`, ao lado do de `--image-repository`; numa aplicação, os prefixos são as pastas que o manifest copia em todos os stages, e
-`--prefix` é recusado.
+`--instance-type`, repetível, restringe os jobs de processamento, de treinamento e de
+transformação nos dois modos, `--image-repository` os de processamento e de treinamento, e
+`--algorithm-repository`, repetível, admite também um repositório de algoritmo da AWS, como
+`sagemaker-xgboost`, ao lado do de `--image-repository`; numa aplicação, os prefixos são as pastas
+da tag que o manifest copia em todos os stages, e `--prefix` é recusado. `--model-item`, só numa
+aplicação, nomeia o item de `content.storage` que leva o modelo, o único que pode nomear uma
+conexão ([O item do modelo](#o-item-do-modelo)).
 
 As regras, pelo nome que a recusa traz:
 
@@ -612,15 +615,17 @@ As regras, pelo nome que a recusa traz:
 | `forma` | um YAML que não lê, ou sem uma chave só no topo, o nome do workflow, com `tasks`, um mapeamento de tasks, cada uma com `operator` |
 | `projeto` | uma variável da CLI fora da tabela; um valor que só existe no projeto de autoria: `datazone_usr_role_`, um id de domínio `dzd_`, `smus-projects`, `dev/operatorFiles/`, uma variável `DataZone*` ou `ProjectS3Path`, um alias de chave `-project`, as chaves `domain_id` e `project_id`; no modo promovido, também uma variável da CLI ou um placeholder por preencher, a etiqueta `AmazonDataZoneProject`, uma conexão `datazone-glue-network-connection-` e um prefixo `datazone-<projeto>-dev` |
 | `datas` | `start_date`, no DAG ou em `default_args`, porque o serviço exige uma data futura e a esteira a escreve; `schedule` e `schedule_interval`, porque um workflow é iniciado pelo `run` ou por uma máquina de estados |
-| `operador` | um `operator` que não é uma classe de `airflow.providers.amazon.aws.` nem o `PythonOperator` ou o `BashOperator` de `airflow.providers.standard.operators.`, os que o serviço roda; e `SageMakerNotebookOperator`, pelo nome, porque uma task de notebook roda um job de treinamento cuja rede e chave a definição não controla |
+| `operador` | um `operator` que não é uma classe de `airflow.providers.amazon.aws.` nem o `PythonOperator` ou o `BashOperator` de `airflow.providers.standard.operators.`, os que o serviço roda; e, pelo nome, com o motivo na recusa, os da tabela de [Os operadores recusados pelo nome](#os-operadores-recusados-pelo-nome) |
 | `limites` | `retries` ausente, porque o serviço assume 1, ou fora de 0 a 3; `retry_delay` acima de 300 s; `execution_timeout` e o `timeout` de um sensor acima de 3.600 s; o arquivo acima de 50.000 bytes, a cota de uma definição; as grafias `retry_delay_sec` e `execution_timeout_secs` do dag-factory contam |
 | `imagem` | um `ImageUri` ou `TrainingImage` literal que não é `<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>`, ou de outro repositório que o de `--image-repository` e os de `--algorithm-repository`; na autoria, um placeholder passa |
 | `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId` |
 | `treino` | o `config` de um `SageMakerTrainingOperator` sem `VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, com um `ResourceConfig.InstanceType` fora de `--instance-type`, sem `OutputDataConfig.S3OutputPath` ou com um canal de `InputDataConfig` noutro bucket que o dela; a task sem `action_if_job_exists: fail`, porque com o padrão do operador uma nova tentativa com o mesmo nome inicia um segundo job; e, no modo promovido, sem `ResourceConfig.VolumeKmsKeyId`, sem `OutputDataConfig.KmsKeyId` ou com a saída fora de `models/` do bucket |
+| `transformacao` | o pedido do job de um `SageMakerTransformOperator`, o `Transform` do `config` ou, sem ele, o `config` inteiro, como o operador o lê, com um `TransformResources.InstanceType` fora de `--instance-type`, sem `TransformResources.VolumeKmsKeyId` ou sem `TransformOutput.KmsKeyId`, nos dois modos; a task sem `action_if_job_exists: fail`, como na regra `treino`; o `Model` do `config`, quando há um, passa pela regra `modelo` |
+| `modelo` | o pedido `CreateModel` que a definição escreve, o `config` de um `SageMakerModelOperator` ou o `Model` do `config` de um `SageMakerTransformOperator`, sem `VpcConfig` com `Subnets` e `SecurityGroupIds` ou sem `EnableNetworkIsolation` verdadeiro |
 | `templates` | um `{{ }}` cujo primeiro nome o serviço não renderiza, ou um método sobre o que uma macro devolveu ([Os templates](#os-templates)) |
-| `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas que o manifest copia em todos os stages, ou dos `--prefix` |
+| `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas da tag que o manifest copia em todos os stages, ou dos `--prefix` |
 | `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas; no modo promovido, um `GlueJobOperator` com `create_job_kwargs`, `script_location`, `iam_role_arn`, `update_config` ou `job_desc`, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto o job é do Terraform e a task só o inicia pelo `job_name`; no `lint-plan`, o job do plano ([O plano do Terraform](#o-plano-do-terraform)) |
-| `manifest` | um item de `content.storage` com `connectionName`, um `content.git`, os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; o catálogo ligado (`content.catalog.enabled`) sem `skipPublish: true`, porque o `deploy` publicaria no destino o que estava publicado no projeto de origem, ou com `assets.access`, porque o `deploy` pediria acesso a um asset de outro projeto em nome do projeto de destino; um `include` com glob, como `code/*.zip`, que o `bundle` não expande, e o arquivo fica fora do bundle, enquanto o `deploy` o copia; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
+| `manifest` | um item de `content.storage` com `connectionName`, salvo o do modelo que `--model-item` nomeia ([O item do modelo](#o-item-do-modelo)), um `content.git`, os notebooks ligados e um painel de `content.quicksight` exportado do serviço, porque com eles o `bundle` leva o que um projeto, um repositório ou uma conta tem no lugar dos arquivos da tag; o catálogo ligado (`content.catalog.enabled`) sem `skipPublish: true`, porque o `deploy` publicaria no destino o que estava publicado no projeto de origem, ou com `assets.access`, porque o `deploy` pediria acesso a um asset de outro projeto em nome do projeto de destino; um `include` com glob, como `code/*.zip`, que o `bundle` não expande, e o arquivo fica fora do bundle, enquanto o `deploy` o copia; uma `{env.NOME}` dos workflows fora do `environment_variables` de um stage, que derruba o `deploy`; um `workflowName` que nenhum YAML copiado expõe, pela chave do topo ou pelo `dag_id`; e um `code` que não é `.py`, `.sh` ou `.zip` sob um `include` |
 
 > [!WARNING]
 > **Com o catálogo ligado, o bundle leva o catálogo do projeto, além dos arquivos da tag.** O
@@ -632,6 +637,79 @@ As regras, pelo nome que a recusa traz:
 
 > [!NOTE]
 > **Estado**: o catálogo ligado foi lido no código da CLI de CI/CD 1.0.9 e ainda não rodou num
+> `bundle` nem num `deploy` ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
+
+#### Os operadores recusados pelo nome
+
+A regra `operador` recusa estas classes do provedor Amazon pelo nome, com o motivo, lido no código
+do provedor:
+
+| Operador | O motivo, na recusa |
+|---|---|
+| `SageMakerNotebookOperator` | uma task de notebook roda um job de treinamento cuja rede e chave a definição não controla; use `PythonOperator`, `BashOperator` ou `SageMakerProcessingOperator` |
+| `SageMakerRegisterModelVersionOperator` | cria o grupo em que registra (`CreateModelPackageGroup`) antes da versão, e sem a permissão de criar grupos falha mesmo num grupo que já existe; registre a versão com `boto3` numa task Python |
+| `SageMakerEndpointOperator` | cria o modelo e a configuração que o `config` traz sem conferir os nomes e, num endpoint que já existe, chama `UpdateEndpoint` sem as etiquetas; o `lint` não lê o pedido dele |
+| `SageMakerEndpointConfigOperator` | cria a configuração de um endpoint (`CreateEndpointConfig`), que só um endpoint usa, e o `lint` não lê o pedido dele |
+| `BedrockInvokeModelOperator` | grava no log da task o prompt e a resposta do modelo, e o `InvokeModel` que envia não nomeia guardrail; chame o modelo com `boto3` numa task Python, com o guardrail no pedido |
+| `BedrockRaGOperator` | grava no log da task o prompt, a resposta e as citações, e chama o `RetrieveAndGenerate`, cujas chamadas `InvokeModel` nem todas levam o guardrail, e que a página da AWS diz para não permitir a um papel que exige um guardrail; recupere e chame o modelo com `boto3` numa task Python |
+| `BedrockRetrieveOperator` | grava no log da task a consulta e os trechos recuperados da base de conhecimento; recupere com `boto3` numa task Python |
+
+Os outros operadores do Bedrock passam, entre eles os que criam um guardrail, uma base de
+conhecimento ou uma fonte de dados. O log de uma task fica no grupo de logs do workflow, para quem
+pode lê-lo. A recusa vale em toda definição que o `lint` lê: numa aplicação, nas das pastas que o
+manifest copia; uma sonda fora delas, que o `bundle` não leva, é lida só quando passada sozinha.
+
+> [!NOTE]
+> **Estado**: os motivos foram lidos no código do provedor, nas versões 9.32.0 e 9.38.0, e na
+> página da AWS sobre guardrails; nenhum desses operadores rodou num worker
+> ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
+
+#### O item do modelo
+
+Uma aplicação que treina num projeto e serve o modelo noutro pode levar o modelo no bundle: um
+item de `content.storage` que nomeia a conexão do projeto, `default.s3_shared`, e o prefixo onde o
+treino publicou o modelo. O `bundle` lê esse item do projeto do stage que ele mira, e não da pasta
+ao lado do manifest, e a regra `manifest` o recusa como qualquer item com conexão, a menos que
+`--model-item` o nomeie:
+
+```yaml
+content:
+  storage:
+    - name: model
+      connectionName: default.s3_shared
+      include:
+        - "meu-app/models/latest"
+```
+
+```shell
+awsds-workflows lint . --model-item model --instance-type ml.m5.large
+```
+
+Com `--model-item model`, o item passa quando nomeia `default.s3_shared`, a pasta `shared/` do
+projeto, e tem um `include` que nomeia o prefixo: sem `include`, ou com um vazio, o `bundle`
+copia a pasta inteira da conexão. Outro item com conexão segue recusado, e um nome que nenhum
+item tem, ou que dois têm, é uma recusa. O item do modelo não é uma pasta da tag: não cobre o
+`code` de um workflow, o `lint` não lê definições nem scripts sob ele, e a pasta em que um stage o
+grava não é um prefixo da regra `codigo`, porque o que está lá veio de um projeto.
+
+> [!WARNING]
+> **Uma leitura que falha não falha o `bundle`.** O `bundle` da CLI de CI/CD 1.0.9 resolve a
+> conexão no projeto do stage e copia cada `include` com `aws s3 sync`, com as credenciais de quem
+> roda o comando; um `include` cujo último segmento tem ponto é copiado como um arquivo. Antes da
+> cópia, ele lista a pasta inteira da conexão e imprime cada chave. Uma conexão que ele não acha,
+> uma conexão sem `s3Uri`, uma listagem ou uma cópia recusada imprime uma linha, e o comando
+> segue: o bundle sai sem o modelo, com os outros itens, e o código de saída é 0, porque ele
+> termina com 1 só quando não tem arquivo nenhum. O `lint` lê o manifest, e não o bundle: confira
+> o modelo no arquivo do bundle antes do `deploy`.
+
+Com um item que nomeia uma conexão, todo `deploy` pede um bundle, o do stage de desenvolvimento
+também: sem um, ele para com `No bundle file found in ./artifacts directory`. O `deploy` grava os
+itens que o `deployment_configuration` do stage lista, o do modelo a partir da pasta do bundle com
+o nome do item; um stage que deixa o item fora da lista não recebe o modelo, e um bundle sem a
+pasta imprime `No files found for 'model' in bundle`, e o `deploy` segue.
+
+> [!NOTE]
+> **Estado**: o item do modelo foi lido no código da CLI de CI/CD 1.0.9 e ainda não rodou num
 > `bundle` nem num `deploy` ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
 
 #### O plano do Terraform

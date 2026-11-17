@@ -145,6 +145,15 @@ pacote repete.
 - A API JSON do PyPI da CLI de CI/CD, lida em 2026-10-23, que ainda dava a 1.0.9 como a versão
   mais nova, e o sdist que ela aponta, lido no mesmo dia para o `bundle`, o `deploy` e o
   `destroy`: <https://pypi.org/pypi/aws-smus-cicd-cli/json>
+- O item de `content.storage` que nomeia uma conexão, na tag `v1.0.9` do repositório da CLI de
+  CI/CD, lido em 2026-11-17: o `bundle` resolve a conexão no projeto do stage, lista a pasta
+  inteira dela e copia cada `include` com `aws s3 sync` ou `aws s3 cp`, e uma falha imprime e
+  segue; o `deploy` pede um bundle quando um item nomeia uma conexão e grava o item a partir da
+  pasta do bundle com o nome dele:
+  <https://github.com/aws/CICD-for-SageMakerUnifiedStudio/blob/v1.0.9/src/smus_cicd/commands/bundle.py>,
+  <https://github.com/aws/CICD-for-SageMakerUnifiedStudio/blob/v1.0.9/src/smus_cicd/helpers/deployment.py>,
+  <https://github.com/aws/CICD-for-SageMakerUnifiedStudio/blob/v1.0.9/src/smus_cicd/commands/deploy.py> e
+  <https://github.com/aws/CICD-for-SageMakerUnifiedStudio/blob/v1.0.9/src/smus_cicd/helpers/bundle_storage.py>
 - Os jobs de processamento de dados e a página *Data processing jobs*, com um job do Visual ETL ou
   de código (lido em 2026-10-14):
   <https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/smus-creating-jobs.html>
@@ -177,6 +186,15 @@ pacote repete.
   <https://raw.githubusercontent.com/awslabs/aws-glue-libs/master/awsglue/utils.py> e
   <https://raw.githubusercontent.com/awslabs/aws-glue-libs/master/awsglue/job.py>
 
+## Amazon Bedrock
+
+- A exigência de um guardrail nas chamadas de inferência pela chave de condição
+  `bedrock:GuardrailIdentifier`, em `InvokeModel`, `InvokeModelWithResponseStream`, `Converse` e
+  `ConverseStream`, com a limitação de um papel que também chama `RetrieveAndGenerate`,
+  `InvokeAgent` ou `InvokeInlineAgent`, cujas chamadas `InvokeModel` nem todas levam o guardrail
+  (lida em 2026-11-17), o motivo da recusa do `BedrockRaGOperator`:
+  <https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-permissions-id.html>
+
 ## Apache Airflow
 
 - O `BashOperator` e o `SubprocessHook` do `apache-airflow-providers-standard`, lidos no código dos
@@ -201,6 +219,16 @@ pacote repete.
   lidos no código do wheel e rodados contra o `moto` em 2026-10-14: o `update_config`, o
   `create_job_kwargs`, o `iam_role_arn`, a consulta do estado a cada 6 s e as linhas do log:
   <https://pypi.org/project/apache-airflow-providers-amazon/9.32.0/>
+- Os operadores do SageMaker e do Bedrock do `apache-airflow-providers-amazon`, nas tags
+  `providers-amazon/9.32.0` e `providers-amazon/9.38.0`, lidos no código em 2026-11-17 para as
+  regras `transformacao` e `modelo` e as recusas pelo nome da regra `operador`: o pedido do
+  `SageMakerTransformOperator` no `Transform` ou no `config` inteiro, o `CreateModelPackageGroup`
+  do `SageMakerRegisterModelVersionOperator`, o `UpdateEndpoint` sem as etiquetas do
+  `SageMakerEndpointOperator` e o que os três operadores do Bedrock gravam no log da task:
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/operators/sagemaker.py>,
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/operators/bedrock.py>,
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/hooks/sagemaker.py>
+  e os mesmos caminhos na tag `providers-amazon/9.38.0`
 
 ## Ferramentas Python
 

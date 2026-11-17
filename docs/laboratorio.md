@@ -38,7 +38,9 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
 - o `lint` no modo promovido e o `lint-plan` numa esteira, e o tempo de provisionamento de um job
   dentro do teto da task ([Regras de autoria](#regras-de-autoria));
 - um `bundle` com o catálogo ligado e o `deploy` que o importa noutro projeto
-  ([Regras de autoria](#regras-de-autoria)).
+  ([Regras de autoria](#regras-de-autoria));
+- um `bundle` e um `deploy` com o item do modelo, e as tasks de transformação, de modelo e dos
+  operadores recusados pelo nome num worker ([Regras de autoria](#regras-de-autoria)).
 
 ## Instalação
 
@@ -176,11 +178,51 @@ No guia: [Regras de autoria](../awsds_workflows.html#regras-de-autoria).
   com a listagem ativa na origem; cada item de `assets.access` vira um pedido de assinatura,
   `CreateSubscriptionRequest`, em nome do projeto de destino, cuja aprovação o `deploy` espera.
   O esquema do manifest, no mesmo pacote, diz o mesmo de `enabled` e de `skipPublish`.
+- **Código do provedor Amazon, lido em 2026-11-17**, nas tags `providers-amazon/9.32.0` e
+  `providers-amazon/9.38.0`, sem execução. O `SageMakerTransformOperator` lê o pedido do job no
+  `Transform` do `config` ou, sem ele, no `config` inteiro; `action_if_job_exists` aceita
+  `timestamp`, o padrão, e `fail`; com um `Model` no `config`, ele chama `DescribeModel` e
+  `CreateModel` antes do job, e o pedido do job tem de estar em `Transform`: sem ele, com
+  `check_if_model_exists` verdadeiro, o padrão, a task falha num `KeyError` antes do job. O
+  `config` do `SageMakerModelOperator` é o pedido `CreateModel`. O
+  `SageMakerEndpointOperator` cria o modelo e a configuração que o `config` traz, sem conferir
+  os nomes, chama `CreateEndpoint` e, quando a mensagem do erro começa com
+  `Cannot create already existing endpoint`, chama `UpdateEndpoint` sem as etiquetas. O
+  `SageMakerEndpointConfigOperator` chama `CreateEndpointConfig`. O
+  `SageMakerRegisterModelVersionOperator` chama `CreateModelPackageGroup` antes de
+  `CreateModelPackage`, e só uma `ValidationException` que começa com
+  `Model Package Group already exists` conta como grupo existente; outro erro, como uma recusa,
+  encerra a task. O `BedrockInvokeModelOperator` chama `InvokeModel` com o corpo, o `modelId` e,
+  quando dados, `contentType` e `accept`, não tem parâmetro de guardrail e grava no log
+  `Bedrock %s prompt: %s` e `Bedrock model response: %s`; o `BedrockRaGOperator` chama
+  `RetrieveAndGenerate` e grava o prompt, a resposta e as citações; o `BedrockRetrieveOperator`
+  chama `Retrieve` e grava a consulta e os trechos recuperados. Entre as duas tags, essas classes
+  só mudam nos argumentos do trigger, no transform e no endpoint, e no momento em que o
+  `BedrockRaGOperator` passa o `source_type` a maiúsculas.
+- **Página do Bedrock, 2026-11-17.** A página que exige um guardrail nas chamadas de inferência
+  usa a chave de condição `bedrock:GuardrailIdentifier` em `InvokeModel`,
+  `InvokeModelWithResponseStream`, `Converse` e `ConverseStream`, e diz, nas limitações, para não
+  dar ao mesmo papel permissão de chamar `RetrieveAndGenerate`, `InvokeAgent` e
+  `InvokeInlineAgent`, porque essas APIs fazem várias chamadas `InvokeModel`, e algumas sem o
+  guardrail.
+- **Código da CLI de CI/CD, lido em 2026-11-17**, na tag `v1.0.9` do repositório, sem execução.
+  Um item de `content.storage` com `connectionName` é lido no `bundle` do projeto do stage: uma
+  conexão que ele não acha, ou sem `s3Uri`, imprime um aviso e o item fica fora; antes da cópia,
+  ele lista a pasta inteira da conexão e imprime cada chave, e uma listagem recusada imprime
+  `Error accessing S3` e segue. Um `include` igual a `*`, ou nenhum `include`, copia a pasta
+  inteira da conexão com `aws s3 sync`; um cujo último segmento tem ponto é copiado com
+  `aws s3 cp`, como um arquivo; outro, com `aws s3 sync` do prefixo. Uma cópia que falha imprime
+  o erro e segue, e o `bundle` termina com 1 só quando não tem arquivo nenhum. Com um item desses,
+  o `deploy` pede um bundle em todo stage, ou para com
+  `No bundle file found in ./artifacts directory`, e grava o item a partir da pasta do bundle com
+  o nome dele; sem a pasta, imprime `No files found for '<item>' in bundle` e segue.
 - **Ainda não medido**: o `lint` no modo promovido e o `lint-plan` numa esteira, sobre a cópia
   renderizada e o plano de uma conta; o tempo de provisionamento e de encerramento de um job
   de processamento dentro dos 3.600 s da task, que decide a margem dos 2.820 s de
-  `MaxRuntimeInSeconds`; e um `bundle` com o catálogo ligado, o arquivo que ele grava e o
-  `deploy` que o importa noutro projeto sem publicar.
+  `MaxRuntimeInSeconds`; um `bundle` com o catálogo ligado, o arquivo que ele grava e o
+  `deploy` que o importa noutro projeto sem publicar; um `bundle` e um `deploy` com o item do
+  modelo, e o código de saída de um `bundle` cuja cópia do modelo é recusada; e as tasks de
+  transformação e de modelo, e os operadores recusados pelo nome, num worker.
 
 ## Uma task de processamento
 

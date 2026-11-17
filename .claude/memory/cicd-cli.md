@@ -183,3 +183,32 @@ not run: no `bundle` with the catalog enabled and no `deploy` that imports one h
   `assets.access` (`decisions.md`, "The catalog in the manifest rule"). It does not read the
   export: what a project owns beyond the application's product is checked on the bundle, by
   the application's release.
+
+## A storage item that names a connection
+
+Read on 2026-11-17 at the repository's tag `v1.0.9` (`src/smus_cicd/commands/bundle.py`,
+`helpers/deployment.py`, `commands/deploy.py`, `helpers/bundle_storage.py`) for AWS-DataScience's
+Stage 17, whose `app-ml` carries its model in such an item, and not run (`OPEN_QUESTIONS.md`).
+
+- **`bundle` reads the item from the stage's project.** It resolves the item's `connectionName`
+  among the project's connections; one it does not find, or one without `s3Uri`, prints a warning
+  and the item is skipped. It then lists the connection's whole location and prints every key
+  (`list_s3_contents`); a refused listing prints `Error accessing S3` and goes on.
+- **The copy follows the `include`** (`download_s3_files`), with the caller's credentials, into
+  the bundle's folder of the item's name. An entry equal to `*`, no `include` or an empty list
+  syncs the connection's whole location; an entry whose last segment holds a dot is one file,
+  `aws s3 cp`; any other is `aws s3 sync` of `s3://<bucket>/<prefix><entry>/`, the trailing slash
+  stripped first. Each sync excludes `*.pyc`, `__pycache__/*` and `.ipynb_checkpoints/*`. A failed
+  copy prints its error and goes on, and `bundle` exits 1 only when the bundle holds no file
+  (`No files found`).
+- **`deploy` needs a bundle for every stage** once an item names a connection
+  (`manifest_requires_bundle`, which also counts `content.git`): without one it stops with
+  `No bundle file found in ./artifacts directory`. It writes the items the stage's
+  `deployment_configuration` lists, an item without a connection from the manifest's folder and
+  one with a connection from the bundle's folder of its name; a bundle without that folder prints
+  `No files found for '<item>' in bundle` and the deploy goes on.
+- **The lint's `manifest` rule** admits one such item, the one `--model-item` names, on
+  `default.s3_shared` with an `include` naming a prefix (`decisions.md`, "The Stage 17 rules").
+  The item is not a folder of the tag: it covers no workflow's `code`, and the folder a stage
+  writes it to is no code prefix. What the bundle holds is checked on the bundle, by the
+  application's release.

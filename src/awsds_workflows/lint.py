@@ -2,7 +2,8 @@
 Serverless e o ``manifest.yaml`` obedecem, conferidas antes do ``deploy``, sem AWS.
 
 Uma pasta é uma aplicação: o ``manifest.yaml`` e cada YAML sob uma pasta que os itens de
-``content.storage`` copiam é uma definição, como a CLI de CI/CD as encontra (código da 1.0.9).
+``content.storage`` sem conexão copiam, as pastas da tag, é uma definição, como a CLI de CI/CD as
+encontra (código da 1.0.9).
 Um arquivo é uma definição sozinha, sem as regras que dependem do manifest. O lint tem dois modos:
 
 - **autoria**, o padrão: lê os arquivos do repositório, na notação da CLI (``{proj.*}``,
@@ -27,7 +28,11 @@ As regras, pelo nome que uma recusa traz:
   cada workflow promovido, e um exemplo roda por ``run``).
 - ``operador``: o ``operator`` é uma classe do provedor Amazon
   (``airflow.providers.amazon.aws.``) ou o ``PythonOperator`` ou ``BashOperator`` de
-  ``airflow.providers.standard.operators.``; ``SageMakerNotebookOperator`` é recusado pelo nome.
+  ``airflow.providers.standard.operators.``; são recusados pelo nome, com o motivo na recusa,
+  ``SageMakerNotebookOperator``, ``SageMakerRegisterModelVersionOperator``,
+  ``SageMakerEndpointOperator`` e ``SageMakerEndpointConfigOperator``, e os do Bedrock que gravam
+  no log da task o que enviam e o que recebem: ``BedrockInvokeModelOperator``,
+  ``BedrockRaGOperator`` e ``BedrockRetrieveOperator``.
 - ``limites``: ``retries`` escrito em cada task, entre 0 e 3 (o serviço assume 1); ``retry_delay``
   até 300 s; ``execution_timeout`` e o ``timeout`` de um sensor até 3.600 s, o teto de uma task;
   o arquivo até 50.000 bytes (a cota de uma definição). As grafias ``retry_delay_sec`` e
@@ -50,12 +55,22 @@ As regras, pelo nome que uma recusa traz:
   nova tentativa com o mesmo nome inicia um segundo job; no modo promovido, também
   ``ResourceConfig.VolumeKmsKeyId``, ``OutputDataConfig.KmsKeyId`` e a saída sob ``models/``
   do bucket.
+- ``transformacao``: o pedido do job de um ``SageMakerTransformOperator``, o ``Transform`` do
+  ``config`` ou, sem ele, o ``config`` inteiro, como o operador o lê, tem um
+  ``TransformResources.InstanceType`` da lista pedida, quando há uma,
+  ``TransformResources.VolumeKmsKeyId`` e ``TransformOutput.KmsKeyId``, nos dois modos; a task
+  leva ``action_if_job_exists: fail``.
+- ``modelo``: o pedido ``CreateModel`` que a definição escreve, o ``config`` de um
+  ``SageMakerModelOperator`` ou o ``Model`` do ``config`` de um ``SageMakerTransformOperator``,
+  quando há um, tem ``VpcConfig`` com ``Subnets`` e ``SecurityGroupIds`` e
+  ``EnableNetworkIsolation`` verdadeiro.
 - ``templates``: o primeiro nome de cada ``{{ }}`` é um dos que o serviço renderiza (``macros``,
   ``ti``, ``task_instance``, ``params``, ``ds``, ``ds_nodash``, ``ts``, ``ts_nodash``), e nenhum
   método é chamado sobre o que uma macro devolveu (laboratório, 2026-10-11).
 - ``codigo``: a entrada de código do job, a de ``LocalPath`` ``/opt/ml/processing/code`` ou
-  ``InputName`` ``code``, está sob um prefixo permitido: numa aplicação, uma pasta que o manifest
-  copia em todos os stages; numa definição sozinha, os ``prefixes`` dados, ou nada é conferido.
+  ``InputName`` ``code``, está sob um prefixo permitido: numa aplicação, uma pasta da tag que o
+  manifest copia em todos os stages; numa definição sozinha, os ``prefixes`` dados, ou nada é
+  conferido.
 - ``glue``: o script de um ``GlueJobOperator`` (``script_location`` ou
   ``Command.ScriptLocation``) e cada arquivo de ``--extra-py-files``, ``--extra-jars`` e
   ``--extra-files`` estão sob um prefixo permitido, como a entrada de código; os scripts das pastas
@@ -66,7 +81,12 @@ As regras, pelo nome que uma recusa traz:
 - ``manifest``: nenhum item de ``content.storage`` com ``connectionName``, nenhum ``content.git``,
   ``content.notebooks`` desligado e nenhum painel de ``content.quicksight`` exportado do serviço
   (``assetBundle`` ausente ou ``export``), porque com eles o ``bundle`` leva o que um projeto, um
-  repositório ou uma conta tem no lugar dos arquivos da tag; ``content.catalog`` ligado só com
+  repositório ou uma conta tem no lugar dos arquivos da tag; a exceção é o item que leva o
+  modelo, quando ``model_item`` o nomeia, com a conexão ``default.s3_shared``, a pasta
+  ``shared/`` do projeto, e um ``include`` que nomeia o prefixo, porque sem ``include`` o
+  ``bundle`` copia a pasta inteira da conexão; esse item não é uma pasta da tag: não cobre o
+  ``code`` de um workflow, o lint não lê definições sob ele, e a pasta em que um stage o grava
+  não é um prefixo da regra ``codigo``; ``content.catalog`` ligado só com
   ``skipPublish`` verdadeiro e sem ``assets.access``, porque o ``bundle`` exporta o catálogo que
   o projeto do stage possui e, sem isso, o ``deploy`` publicaria no destino o que estava
   publicado na origem ou pediria acesso a um asset de outro projeto; nenhum ``include`` com
@@ -133,11 +153,29 @@ _JOB_RUNTIME_LIMIT_SECONDS = 2_820
 _AMAZON_PROVIDER = "airflow.providers.amazon.aws."
 _STANDARD_OPERATORS = "airflow.providers.standard.operators."
 _CORE_OPERATORS = frozenset({"PythonOperator", "BashOperator"})
-# Os operadores recusados pelo nome, com o motivo.
+# Os operadores recusados pelo nome, com o motivo, lido no código do provedor Amazon 9.32.0, o do
+# worker, e igual na 9.38.0 nas chamadas e nos logs que os motivos citam (2026-11-17).
 _REFUSED_OPERATORS = {
     "SageMakerNotebookOperator": "uma task de notebook roda um job de treinamento cuja rede e "
     "chave a definição não controla; use PythonOperator, BashOperator ou "
     "SageMakerProcessingOperator",
+    "SageMakerRegisterModelVersionOperator": "cria o grupo em que registra "
+    "(CreateModelPackageGroup) antes da versão, e sem a permissão de criar grupos falha mesmo "
+    "num grupo que já existe; registre a versão com boto3 numa task Python",
+    "SageMakerEndpointOperator": "cria o modelo e a configuração que o config traz sem conferir "
+    "os nomes e, num endpoint que já existe, chama UpdateEndpoint sem as etiquetas; o lint não "
+    "lê o pedido dele",
+    "SageMakerEndpointConfigOperator": "cria a configuração de um endpoint "
+    "(CreateEndpointConfig), que só um endpoint usa, e o lint não lê o pedido dele",
+    "BedrockInvokeModelOperator": "grava no log da task o prompt e a resposta do modelo, e o "
+    "InvokeModel que envia não nomeia guardrail; chame o modelo com boto3 numa task Python, com "
+    "o guardrail no pedido",
+    "BedrockRaGOperator": "grava no log da task o prompt, a resposta e as citações, e chama o "
+    "RetrieveAndGenerate, cujas chamadas InvokeModel nem todas levam o guardrail, e que a página "
+    "da AWS diz para não permitir a um papel que exige um guardrail; recupere e chame o modelo "
+    "com boto3 numa task Python",
+    "BedrockRetrieveOperator": "grava no log da task a consulta e os trechos recuperados da base "
+    "de conhecimento; recupere com boto3 numa task Python",
 }
 
 # Os nomes que o serviço renderiza num template (laboratório, 2026-10-11).
@@ -227,8 +265,8 @@ class Finding:
 
     rule: str
     """[public] O nome da regra, um dos da lista do módulo: ``forma``, ``projeto``, ``datas``,
-    ``operador``, ``limites``, ``imagem``, ``job``, ``treino``, ``templates``, ``codigo``,
-    ``glue`` ou ``manifest``."""
+    ``operador``, ``limites``, ``imagem``, ``job``, ``treino``, ``transformacao``, ``modelo``,
+    ``templates``, ``codigo``, ``glue`` ou ``manifest``."""
 
     message: str
     """[public] O motivo, numa linha, com a task ou a linha em que a regra falhou."""
@@ -324,8 +362,8 @@ def lint_definition(
     :param prefixes: os prefixos S3 sob os quais a entrada de código do job e o script do Glue
         têm de estar, na mesma notação do arquivo; vazio, o padrão, não confere as regras
         ``codigo`` e ``glue``.
-    :param instance_types: os tipos de instância que um job de processamento ou de treinamento
-        pode pedir; vazio, o padrão, aceita qualquer um.
+    :param instance_types: os tipos de instância que um job de processamento, de treinamento ou
+        de transformação pode pedir; vazio, o padrão, aceita qualquer um.
     :param image_repository: o repositório ECR que um ``ImageUri`` ou ``TrainingImage`` literal
         tem de nomear; ``None``, o padrão, aceita qualquer repositório.
     :param algorithm_repositories: os repositórios de algoritmo da AWS que uma imagem também pode
@@ -351,6 +389,8 @@ def lint_definition(
         )
         findings.extend(_check_processing(definition, task_name, task, promoted, instance_types))
         findings.extend(_check_training(definition, task_name, task, promoted, instance_types))
+        findings.extend(_check_transform(definition, task_name, task, instance_types))
+        findings.extend(_check_model(definition, task_name, task))
         findings.extend(_check_code_input(definition, task_name, task, allowed))
         findings.extend(_check_glue(definition, task_name, task, allowed))
         if promoted:
@@ -365,12 +405,13 @@ def lint_application(
     instance_types: Sequence[str] = (),
     image_repository: str | None = None,
     algorithm_repositories: Sequence[str] = (),
+    model_item: str | None = None,
 ) -> Report:
     """[public] Confere uma aplicação da CLI de CI/CD, a pasta com o ``manifest.yaml``, no modo de
     autoria.
 
-    Cada YAML sob uma pasta que ``content.storage`` copia é uma definição, conferida com os
-    prefixos das pastas que todos os stages copiam; os scripts dessas pastas passam pelos padrões
+    Cada YAML sob uma pasta da tag que ``content.storage`` copia é uma definição, conferida com
+    os prefixos das pastas que todos os stages copiam; os scripts dessas pastas passam pelos padrões
     de projeto; e o manifest passa pelas regras ``manifest``.
 
     Exemplo:
@@ -380,14 +421,19 @@ def lint_application(
         report = lint_application(Path("examples/demo-devenv-job"), instance_types=["ml.t3.medium"])
         for finding in report.findings:
             print(finding)
+        report = lint_application(Path("meu-app"), model_item="modelo")
 
     :param folder: a pasta da aplicação, onde o ``manifest.yaml`` está.
-    :param instance_types: os tipos de instância que um job de processamento ou de treinamento
-        pode pedir; vazio, o padrão, aceita qualquer um.
+    :param instance_types: os tipos de instância que um job de processamento, de treinamento ou
+        de transformação pode pedir; vazio, o padrão, aceita qualquer um.
     :param image_repository: o repositório ECR que um ``ImageUri`` ou ``TrainingImage`` literal
         tem de nomear; ``None``, o padrão, aceita qualquer repositório.
     :param algorithm_repositories: os repositórios de algoritmo da AWS que uma imagem também pode
         nomear quando há ``image_repository``; vazio, o padrão, não admite nenhum.
+    :param model_item: o nome do item de ``content.storage`` que leva o modelo do projeto, o único
+        que pode nomear uma conexão, desde que seja ``default.s3_shared`` e que um ``include``
+        nomeie o prefixo; um nome que nenhum item tem, ou que dois têm, é uma recusa
+        ``manifest``; ``None``, o padrão, recusa todo item com ``connectionName``.
     :return: os arquivos lidos e as recusas.
     :raises awsds_workflows.errors.RefusalError: quando a pasta ou o ``manifest.yaml`` não existe.
     """
@@ -418,7 +464,7 @@ def lint_application(
         )
     for script in scripts:
         findings.extend(_check_script(script))
-    findings.extend(_check_manifest(manifest_path, manifest, folder, definitions))
+    findings.extend(_check_manifest(manifest_path, manifest, folder, definitions, model_item))
     return Report(files=[manifest_path, *definitions, *scripts], findings=findings)
 
 
@@ -883,6 +929,94 @@ def _check_training(
     return findings
 
 
+def _check_transform(
+    definition: _Definition,
+    task_name: str,
+    task: dict[str, Any],
+    instance_types: Sequence[str],
+) -> list[Finding]:
+    """[private] O pedido do job de um ``SageMakerTransformOperator``: a nova tentativa que falha,
+    o tipo de instância e as chaves do volume e da saída, nos dois modos; o ``Model`` do
+    ``config``, quando há um, passa pela regra ``modelo``."""
+    if not _is_operator(task, "SageMakerTransformOperator"):
+        return []
+    path = definition.path
+    config = task.get("config")
+    if not isinstance(config, dict):
+        message = f"task {task_name}: sem config, a chamada CreateTransformJob"
+        return [Finding(path, "transformacao", message)]
+
+    findings: list[Finding] = []
+    if task.get("action_if_job_exists") != "fail":
+        message = (
+            f"task {task_name}: action_if_job_exists tem de ser fail; com o padrão, uma nova "
+            "tentativa com o mesmo nome inicia um segundo job"
+        )
+        findings.append(Finding(path, "transformacao", message))
+
+    # O pedido do job é o Transform do config, ou o config inteiro sem ele, como o operador o lê.
+    transform = config
+    if "Transform" in config:
+        transform = _mapping_at(config, "Transform")
+    resources = _mapping_at(transform, "TransformResources")
+    instance_type = resources.get("InstanceType")
+    if instance_types and instance_type not in instance_types:
+        message = (
+            f"task {task_name}: TransformResources.InstanceType {instance_type} fora de "
+            f"{', '.join(instance_types)}"
+        )
+        findings.append(Finding(path, "transformacao", message))
+    if not resources.get("VolumeKmsKeyId"):
+        message = f"task {task_name}: TransformResources.VolumeKmsKeyId ausente"
+        findings.append(Finding(path, "transformacao", message))
+    if not _mapping_at(transform, "TransformOutput").get("KmsKeyId"):
+        message = f"task {task_name}: TransformOutput.KmsKeyId ausente"
+        findings.append(Finding(path, "transformacao", message))
+
+    # Com um Model, o operador cria o modelo antes do job.
+    if "Model" in config:
+        model = _mapping_at(config, "Model")
+        findings.extend(_check_model_request(path, task_name, model, "Model."))
+    return findings
+
+
+def _check_model(
+    definition: _Definition,
+    task_name: str,
+    task: dict[str, Any],
+) -> list[Finding]:
+    """[private] O ``config`` de um ``SageMakerModelOperator``, a chamada ``CreateModel``, pela
+    regra ``modelo``."""
+    if not _is_operator(task, "SageMakerModelOperator"):
+        return []
+    config = task.get("config")
+    if not isinstance(config, dict):
+        message = f"task {task_name}: sem config, a chamada CreateModel"
+        return [Finding(definition.path, "modelo", message)]
+    return _check_model_request(definition.path, task_name, config, "")
+
+
+def _check_model_request(
+    path: Path,
+    task_name: str,
+    model: dict[str, Any],
+    where: str,
+) -> list[Finding]:
+    """[private] A rede de um pedido ``CreateModel``: ``VpcConfig`` com ``Subnets`` e
+    ``SecurityGroupIds`` e ``EnableNetworkIsolation`` verdadeiro; ``where`` é o caminho do pedido
+    no ``config``, vazio ou ``Model.``."""
+    findings: list[Finding] = []
+    vpc = _mapping_at(model, "VpcConfig")
+    for key in ("Subnets", "SecurityGroupIds"):
+        if not _is_nonempty_list(vpc.get(key)):
+            message = f"task {task_name}: {where}VpcConfig.{key} ausente ou vazio"
+            findings.append(Finding(path, "modelo", message))
+    if model.get("EnableNetworkIsolation") is not True:
+        message = f"task {task_name}: {where}EnableNetworkIsolation tem de ser true"
+        findings.append(Finding(path, "modelo", message))
+    return findings
+
+
 def _bucket_of(
     uri: str,
 ) -> str:
@@ -1118,11 +1252,11 @@ def _copied_files(
     folder: Path,
     manifest: dict[str, Any],
 ) -> list[Path]:
-    """[private] Os arquivos que os itens de ``content.storage`` incluem, em ordem de caminho: cada
-    ``include`` é uma pasta, com a barra no fim, ou um padrão de ``glob``; um ``exclude`` casa com
-    o caminho relativo ou com o nome do arquivo."""
+    """[private] Os arquivos que os itens da tag incluem, em ordem de caminho: cada ``include`` é
+    uma pasta, com a barra no fim, ou um padrão de ``glob``; um ``exclude`` casa com o caminho
+    relativo ou com o nome do arquivo."""
     files: set[Path] = set()
-    for item in _storage_items(manifest):
+    for item in _tag_items(manifest):
         excludes = item.get("exclude") or []
         for pattern in item.get("include") or []:
             for path in _included(folder, str(pattern)):
@@ -1162,8 +1296,13 @@ def _excluded(
 def _shared_prefixes(
     manifest: dict[str, Any],
 ) -> list[str]:
-    """[private] Os prefixos, na notação traduzida, das pastas que todos os stages copiam para a
-    conexão ``default.s3_shared``: a interseção dos ``targetDirectory`` dos stages."""
+    """[private] Os prefixos, na notação traduzida, das pastas da tag que todos os stages copiam
+    para a conexão ``default.s3_shared``: a interseção dos ``targetDirectory`` dos stages. A pasta
+    de um item com conexão, como o do modelo, guarda o que o ``bundle`` leu de um projeto, e não é
+    um prefixo de código."""
+    from_projects = {
+        item.get("name") for item in _storage_items(manifest) if item.get("connectionName")
+    }
     common: set[str] | None = None
     for stage in manifest["stages"].values():
         if not isinstance(stage, dict):
@@ -1172,6 +1311,8 @@ def _shared_prefixes(
         deployment = _mapping_at(stage, "deployment_configuration")
         for item in deployment.get("storage") or []:
             if not isinstance(item, dict) or item.get("connectionName") != _SHARED_CONNECTION:
+                continue
+            if item.get("name") in from_projects:
                 continue
             target = item.get("targetDirectory")
             if isinstance(target, str) and target:
@@ -1190,13 +1331,14 @@ def _check_manifest(
     manifest: dict[str, Any],
     folder: Path,
     definitions: list[Path],
+    model_item: str | None,
 ) -> list[Finding]:
-    """[private] As regras ``manifest``: o conteúdo só da tag, cada ``include`` sem glob, as
-    variáveis de stage declaradas, cada ``workflowName`` exposto por uma definição copiada e o
-    ``code`` de cada workflow."""
+    """[private] As regras ``manifest``: o conteúdo só da tag, com o item do modelo como exceção,
+    cada ``include`` sem glob, as variáveis de stage declaradas, cada ``workflowName`` exposto por
+    uma definição copiada e o ``code`` de cada workflow."""
     findings: list[Finding] = []
     content = manifest["content"]
-    findings.extend(_check_content_from_the_tag(path, content))
+    findings.extend(_check_content_from_the_tag(path, content, model_item))
     findings.extend(_check_includes(path, manifest))
     findings.extend(_check_stage_variables(path, manifest, definitions))
     findings.extend(_check_workflow_names(path, manifest, definitions))
@@ -1207,18 +1349,33 @@ def _check_manifest(
 def _check_content_from_the_tag(
     path: Path,
     content: dict[str, Any],
+    model_item: str | None,
 ) -> list[Finding]:
-    """[private] O ``content`` que o ``bundle`` leria de fora da tag: um storage com conexão, um
-    ``git``, os notebooks ligados, um painel exportado do serviço; e o catálogo ligado que
-    publica ou pede acesso (``_check_catalog``)."""
+    """[private] O ``content`` que o ``bundle`` leria de fora da tag: um storage com conexão, salvo
+    o item do modelo que ``model_item`` nomeia (``_check_model_item``), um ``git``, os notebooks
+    ligados, um painel exportado do serviço; e o catálogo ligado que publica ou pede acesso
+    (``_check_catalog``)."""
     findings: list[Finding] = []
-    for item in content.get("storage") or []:
-        if isinstance(item, dict) and item.get("connectionName"):
-            message = (
-                f"content.storage {item.get('name')}: com connectionName, o bundle lê o projeto, "
-                "e não a pasta ao lado do manifest"
-            )
+    items = [item for item in content.get("storage") or [] if isinstance(item, dict)]
+    # Sem model_item, nenhum item é o do modelo, nem um item sem name.
+    named: list[dict[str, Any]] = []
+    if model_item is not None:
+        named = [item for item in items if item.get("name") == model_item]
+        if len(named) != 1:
+            quantity = "mais de um item" if named else "nenhum item"
+            message = f"--model-item {model_item}: {quantity} de content.storage com esse nome"
             findings.append(Finding(path, "manifest", message))
+    for item in items:
+        if not item.get("connectionName"):
+            continue
+        if len(named) == 1 and item is named[0]:
+            findings.extend(_check_model_item(path, item))
+            continue
+        message = (
+            f"content.storage {item.get('name')}: com connectionName, o bundle lê o projeto, "
+            "e não a pasta ao lado do manifest"
+        )
+        findings.append(Finding(path, "manifest", message))
     if content.get("git"):
         message = "content.git: o bundle clonaria um repositório no lugar dos arquivos da tag"
         findings.append(Finding(path, "manifest", message))
@@ -1233,6 +1390,33 @@ def _check_content_from_the_tag(
                 "exportado do serviço no lugar de um arquivo da tag"
             )
             findings.append(Finding(path, "manifest", message))
+    return findings
+
+
+def _check_model_item(
+    path: Path,
+    item: dict[str, Any],
+) -> list[Finding]:
+    """[private] O item que leva o modelo, o único que pode nomear uma conexão: o ``bundle`` o lê
+    do projeto do stage, e o modelo fica na pasta ``shared/`` desse projeto, a conexão
+    ``default.s3_shared``; cada ``include`` nomeia um prefixo dela, porque sem ``include``, ou com
+    um vazio, a CLI 1.0.9 copia a pasta inteira da conexão para o bundle."""
+    findings: list[Finding] = []
+    name = item.get("name")
+    connection = item.get("connectionName")
+    if connection != _SHARED_CONNECTION:
+        message = (
+            f"content.storage {name}: o item do modelo lê a conexão {connection}; só "
+            f"{_SHARED_CONNECTION}, a pasta shared/ do projeto, é admitida"
+        )
+        findings.append(Finding(path, "manifest", message))
+    includes = item.get("include")
+    if not _is_nonempty_list(includes) or any(not str(pattern).strip("/") for pattern in includes):
+        message = (
+            f"content.storage {name}: o item do modelo sem um include que nomeie o prefixo; o "
+            "bundle copiaria a pasta inteira da conexão"
+        )
+        findings.append(Finding(path, "manifest", message))
     return findings
 
 
@@ -1349,10 +1533,10 @@ def _check_codes(
     manifest: dict[str, Any],
 ) -> list[Finding]:
     """[private] O ``code`` de cada workflow: um ``.py``, ``.sh`` ou ``.zip`` que um ``include`` de
-    ``content.storage`` cobre."""
+    um item da tag cobre; o item do modelo, que o ``bundle`` lê do projeto, não cobre código."""
     findings: list[Finding] = []
     includes: list[str] = []
-    for item in _storage_items(manifest):
+    for item in _tag_items(manifest):
         includes.extend(str(pattern) for pattern in item.get("include") or [])
     for item in manifest["content"].get("workflows") or []:
         if not isinstance(item, dict) or "code" not in item:
@@ -1385,6 +1569,14 @@ def _storage_items(
     """[private] Os itens de ``content.storage`` que são mapeamentos."""
     items = manifest["content"].get("storage") or []
     return [item for item in items if isinstance(item, dict)]
+
+
+def _tag_items(
+    manifest: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """[private] Os itens de ``content.storage`` sem ``connectionName``, os que o ``bundle`` lê da
+    pasta ao lado do manifest."""
+    return [item for item in _storage_items(manifest) if not item.get("connectionName")]
 
 
 def _is_operator(

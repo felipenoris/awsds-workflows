@@ -613,6 +613,43 @@ session's choices, which the merge confirms:
 - **`connectionName` under `content.catalog` passes unread.** The CLI 1.0.9 keeps it in the
   manifest's model and no command reads it (grep of its code, 2026-11-12).
 
+## The Stage 17 rules: transform, model, the refused operators and the model item
+
+AWS-DataScience's Stage 17 promotes two applications on the template its Stage 19 built: `app-ml`,
+which trains in the `dev` project and carries the trained model in the bundle to Staging and
+Production, where a batch transform serves it, and `app-genai`, which calls a foundation model under
+a guardrail. Its steps 9.3 and 10.3 (written 2026-11-16 and 2026-11-17) ask this package for the
+rules that read the transform and model requests, refusals by name of the operators that register a
+version by creating its group, create an endpoint or its configuration, or write what they send to
+Amazon Bedrock and what they receive to the task log, and an exception in the `manifest` rule for
+the one item that carries the model.
+
+The session of 2026-11-17, a subagent of an AWS-DataScience session, wrote them on the local branch
+`claude/lint-transformacao-modelo-bedrock`, unpublished: the user decides whether to publish. The
+session's choices, which a merge confirms:
+
+- **Two rules, `transformacao` and `modelo`.** `transformacao` reads the `CreateTransformJob`
+  request where the operator reads it, the `config`'s `Transform` or the whole `config`; `modelo`
+  reads a `CreateModel` request, a `SageMakerModelOperator`'s `config` or a transform's `Model`.
+- **Both keys of a transform are required in both modes**, where `job` and `treino` require theirs
+  in the promoted mode alone: the promoted mode has no caller since AWS-DataScience's Stage 19 item
+  31, and the step lists them unconditionally.
+- **`--instance-type` restricts the transform too**; no new option.
+- **`--model-item ITEM`, one name, for an application alone**, refused on a file;
+  `lint_application(model_item=...)`. The item passes only with `default.s3_shared` and an
+  `include` whose every entry names a prefix, since without one, or with an empty one, the CLI
+  copies the connection's whole folder. A name no item has, or two have, is a finding and admits
+  none.
+- **An item that names a connection is not a folder of the tag.** Its `include` covers no
+  workflow's `code`, the lint reads no file under it, and the folder a stage writes it to is no
+  prefix of the `codigo` rule. This holds for every such item; the existing test of a refused
+  connection item now reads a `codigo` finding beside the `manifest` one.
+- **The refusals by name hold in every definition**, as `SageMakerNotebookOperator`'s does. In an
+  application only the copied folders are read, so a probe outside them, which the bundle does not
+  carry, passes `lint .` and is refused when linted alone.
+- **The Bedrock operators that create a guardrail, a knowledge base or a data source pass**, as
+  every class of the Amazon provider the rule does not name.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.
