@@ -18,6 +18,8 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
   contêiner de um job e o patch da versão ([A imagem do job](#a-imagem-do-job));
 - no ambiente alvo, o caminho do job, do download da imagem à gravação da saída
   ([A rede](#a-rede));
+- um job de processamento sem isolamento rodado por um workflow, e o que o contêiner dele alcança
+  ([Uma task de processamento](#uma-task-de-processamento));
 - uma pasta gravada pelo próprio `package-job` num job
   ([A pasta de código com `package-job`](#a-pasta-de-codigo-com-package-job));
 - o `.tar.gz` do `prepare-offline` num job, e o custo por arquivo de uma entrada de código
@@ -227,6 +229,13 @@ No guia: [Regras de autoria](../awsds_workflows.html#regras-de-autoria).
 ## Uma task de processamento
 
 No guia: [Uma task de processamento](../awsds_workflows.html#uma-task-de-processamento).
+
+- **Laboratório, 2026-11-17.** O limite dos papéis de projeto e a política da organização deixaram
+  de exigir `EnableNetworkIsolation: true` num job de processamento, aplicados das 16:01 às 16:09
+  UTC; um job de treinamento e um modelo seguem sob a exigência. Um teste da política da
+  organização, das 16:03 às 16:04 UTC, admitiu a chamada de um job de processamento sem
+  isolamento, recusou a de um job de treinamento sem ele e seguiu recusando o job de processamento
+  fora da VPC, acima do teto de instância, sem a cifra entre contêineres e sem a chave do volume.
 
 ### A pasta de código com `package-job`
 

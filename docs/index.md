@@ -137,8 +137,8 @@ fazer uma coisa, com os parâmetros dela. Três tipos de task entram nos workflo
 **O worker** é a máquina pequena que o MWAA Serverless prepara para cada task, com Python 3.12, o
 Airflow e sem internet. Uma task Python ou Bash roda nele. Numa task de processamento, ele roda só
 o operador: o trabalho acontece num job de processamento do SageMaker, um contêiner que a AWS
-inicia numa instância à parte, com a imagem que a task escolhe, e que no laboratório roda isolado
-da rede.
+inicia numa instância à parte, com a imagem que a task escolhe, isolado da rede quando o pedido o
+pede.
 
 > [!WARNING]
 > **Nem o worker nem o job alcançam o PyPI**, então um `pip install` não existe lá. O código e cada
@@ -618,7 +618,7 @@ As regras, pelo nome que a recusa traz:
 | `operador` | um `operator` que não é uma classe de `airflow.providers.amazon.aws.` nem o `PythonOperator` ou o `BashOperator` de `airflow.providers.standard.operators.`, os que o serviço roda; e, pelo nome, com o motivo na recusa, os da tabela de [Os operadores recusados pelo nome](#os-operadores-recusados-pelo-nome) |
 | `limites` | `retries` ausente, porque o serviço assume 1, ou fora de 0 a 3; `retry_delay` acima de 300 s; `execution_timeout` e o `timeout` de um sensor acima de 3.600 s; o arquivo acima de 50.000 bytes, a cota de uma definição; as grafias `retry_delay_sec` e `execution_timeout_secs` do dag-factory contam |
 | `imagem` | um `ImageUri` ou `TrainingImage` literal que não é `<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>`, ou de outro repositório que o de `--image-repository` e os de `--algorithm-repository`; na autoria, um placeholder passa |
-| `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId` |
+| `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableInterContainerTrafficEncryption` verdadeiro, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId`; `EnableNetworkIsolation` fica a critério da task ([Uma task de processamento](#uma-task-de-processamento)) |
 | `treino` | o `config` de um `SageMakerTrainingOperator` sem `VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, com um `ResourceConfig.InstanceType` fora de `--instance-type`, sem `OutputDataConfig.S3OutputPath` ou com um canal de `InputDataConfig` noutro bucket que o dela; a task sem `action_if_job_exists: fail`, porque com o padrão do operador uma nova tentativa com o mesmo nome inicia um segundo job; e, no modo promovido, sem `ResourceConfig.VolumeKmsKeyId`, sem `OutputDataConfig.KmsKeyId` ou com a saída fora de `models/` do bucket |
 | `transformacao` | o pedido do job de um `SageMakerTransformOperator`, o `Transform` do `config` ou, sem ele, o `config` inteiro, como o operador o lê, com um `TransformResources.InstanceType` fora de `--instance-type`, sem `TransformResources.VolumeKmsKeyId` ou sem `TransformOutput.KmsKeyId`, nos dois modos; a task sem `action_if_job_exists: fail`, como na regra `treino`; o `Model` do `config`, quando há um, passa pela regra `modelo` |
 | `modelo` | o pedido `CreateModel` que a definição escreve, o `config` de um `SageMakerModelOperator` ou o `Model` do `config` de um `SageMakerTransformOperator`, sem `VpcConfig` com `Subnets` e `SecurityGroupIds` ou sem `EnableNetworkIsolation` verdadeiro |
@@ -686,11 +686,11 @@ awsds-workflows lint . --model-item model --instance-type ml.m5.large
 ```
 
 Com `--model-item model`, o item passa quando nomeia `default.s3_shared`, a pasta `shared/` do
-projeto, e tem um `include` que nomeia o prefixo: sem `include`, ou com um vazio, o `bundle`
-copia a pasta inteira da conexão. Outro item com conexão segue recusado, e um nome que nenhum
-item tem, ou que dois têm, é uma recusa. O item do modelo não é uma pasta da tag: não cobre o
-`code` de um workflow, o `lint` não lê definições nem scripts sob ele, e a pasta em que um stage o
-grava não é um prefixo da regra `codigo`, porque o que está lá veio de um projeto.
+projeto, e tem um `include` que nomeia o prefixo: sem `include`, com um vazio ou com o `*`, o
+`bundle` copia a pasta inteira da conexão. Outro item com conexão segue recusado, e um nome que
+nenhum item tem, ou que dois têm, é uma recusa. O item do modelo não é uma pasta da tag: não cobre
+o `code` de um workflow, o `lint` não lê definições nem scripts sob ele, e a pasta em que um stage
+o grava não é um prefixo da regra `codigo`, porque o que está lá veio de um projeto.
 
 > [!WARNING]
 > **Uma leitura que falha não falha o `bundle`.** O `bundle` da CLI de CI/CD 1.0.9 resolve a
@@ -774,7 +774,6 @@ ao S3. O `config` da task é a chamada `CreateProcessingJob` inteira, em YAML.
 política que a infraestrutura põe por cima de cada papel, exige em todo job:
 
 - `NetworkConfig.VpcConfig`: as duas sub-redes privadas e o grupo de segurança do projeto;
-- `EnableNetworkIsolation: true`: o contêiner não tem rede nem credenciais da AWS;
 - `EnableInterContainerTrafficEncryption: true`, mesmo com uma só instância;
 - `ProcessingResources.ClusterConfig.VolumeKmsKeyId`: a chave do projeto;
 - um tipo de instância dentro do teto do limite; `ml.t3.medium` é o menor que ele admite.
@@ -782,6 +781,19 @@ política que a infraestrutura põe por cima de cada papel, exige em todo job:
 As regras do próprio projeto acrescentam `Tags: [{Key: AmazonDataZoneProject, Value: <projeto>}]`
 e o `KmsKeyId` da saída, a chave do projeto. Outro ambiente pode exigir outra lista; a recusa do
 `CreateProcessingJob` no log da task a nomeia.
+
+**O isolamento de rede é escolha do job.** Com `NetworkConfig.EnableNetworkIsolation: true`, o
+contêiner não tem rede nem credenciais da AWS, e só lê e grava as entradas e as saídas que o
+SageMaker monta. Sem ele, o contêiner roda nas sub-redes do projeto com as credenciais do papel do
+job, o do projeto, e alcança o que a rede do projeto alcança: os endpoints da VPC e, no
+laboratório, os nomes que o proxy libera. O limite do laboratório não exige o isolamento num job de
+processamento, e o exige num job de treinamento e num modelo. A
+[definição de exemplo](#uma-definicao-de-exemplo) o mantém, porque o job só lê as suas entradas.
+
+> [!NOTE]
+> **Estado**: a política da organização foi testada no laboratório sem a exigência do isolamento num
+> job de processamento; um job sem isolamento ainda não rodou num workflow
+> ([as notas](awsds_workflows/lab_notes.html#uma-task-de-processamento)).
 
 **As entradas e as saídas ficam em `/opt/ml/processing/`.** O SageMaker baixa cada
 `ProcessingInput` para uma pasta de lá antes de o comando começar e envia cada `ProcessingOutput`
