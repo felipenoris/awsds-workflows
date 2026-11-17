@@ -15,9 +15,7 @@ nomeia esse lugar.
   (`decisions.md`, "The examples as applications"), as três do `lint` não levadas ao usuário,
   que confirmou as cinco do PR #21 em 2026-10-16 (`decisions.md`, "The lint of an application"),
   e as do `lint-plan` e da regra (6), de 2026-10-23 (`decisions.md`, "The Stage 10 rules after
-  Stage 18"), e as das regras do estágio 17, de 2026-11-17 (`decisions.md`, "The Stage 17 rules:
-  transform, model, the refused operators and the model item"). Fecha com a resposta do usuário no
-  PR.
+  Stage 18"). Fecha com a resposta do usuário no PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -140,6 +138,21 @@ nomeia esse lugar.
   e uma de modelo num worker, com as chamadas que o código lê; um `bundle` com o item do modelo,
   o que ele imprime e o código de saída quando a cópia é recusada; e o `deploy` que grava o modelo
   no stage. Fecha com a primeira promoção do `app-ml` do AWS-DataScience.
+- **Três pedidos que as regras do estágio 17 não leem.** O PR #26 os anotou só na descrição, e a
+  revisão de 2026-11-17 confirmou que passam pelo `lint`: a `Image` do `PrimaryContainer` de um
+  `CreateModel` por tag ou de qualquer repositório, mesmo com `--image-repository`, porque a regra
+  `imagem` lê só `ImageUri` e `TrainingImage`; o `config` de um `SageMakerTransformOperator` com
+  `Model` e sem `Transform`, com que o operador 9.32.0 falha num `KeyError` antes de criar o
+  modelo; e `action_if_model_exists` no padrão do operador, `timestamp`, com que uma nova
+  tentativa cria outro modelo. Nenhuma aplicação do AWS-DataScience escreve um desses pedidos: o
+  `app-ml` cria o modelo numa task Python (`decisions.md`, "The `job` rule and a processing job
+  without network isolation"). Fecha com uma aplicação que escreva um deles, e a regra com o teste.
+- **Um job de processamento sem isolamento num workflow.** A regra `job` aceita o job sem
+  `EnableNetworkIsolation` desde 2026-11-17, quando o limite do laboratório deixou de exigi-lo
+  (`decisions.md`, "The `job` rule and a processing job without network isolation";
+  `environments.md`, "The AWS-DataScience lab"). Não medidos: um job assim rodado por um workflow,
+  com as credenciais do papel do projeto no contêiner, e o que ele alcança da rede do projeto.
+  Fecha com a etapa 4.5 do estágio 20 do AWS-DataScience.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

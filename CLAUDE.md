@@ -84,9 +84,10 @@ When you need to commit in this repo, do it on a new branch prefixed with `claud
 - A Python or Bash task runs on the MWAA Serverless worker: CPython 3.12 on Linux x86_64, with the
   packages the worker pre-installs, no internet and no proxy.
 
-- A processing job runs the image it names, network-isolated: the SageMaker default image
-  (SageMaker Distribution 4.5 at the start; the "4.15" of the user section is a typo, by the
-  user's word of 2026-10-13) or a custom image.
+- A processing job runs the image it names, network-isolated when its request asks for it
+  (`EnableNetworkIsolation`): the SageMaker default image (SageMaker Distribution 4.5 at the
+  start; the "4.15" of the user section is a typo, by the user's word of 2026-10-13) or a custom
+  image.
 
 - The lab where every step was measured is the AWS-DataScience Sandbox account (`us-west-2`), whose
   custom image is the house image `awsds-sandbox-dev-env`.
@@ -638,9 +639,9 @@ manifest rule" in `.claude/memory/decisions.md`). What the CLI 1.0.9 does with t
 in its code and has not run (`.claude/memory/cicd-cli.md`, "The catalog item").
 
 PR #24 (2026-10-24) wrote the `treino` rule and the `imagem` rule's algorithm repositories,
-without this file's update. A subagent of an AWS-DataScience session (2026-11-17, local branch
-`claude/lint-transformacao-modelo-bedrock`, unpublished: the user decides whether to publish)
-wrote that repository's Stage 17 steps 9.3 and 10.3 ("The Stage 17 rules" in
+without this file's update. A subagent of an AWS-DataScience session (2026-11-17, branch
+`claude/lint-transformacao-modelo-bedrock`, PR #26, merged that day as `37cb5a6`) wrote that
+repository's Stage 17 steps 9.3 and 10.3 ("The Stage 17 rules" in
 `.claude/memory/decisions.md`): the rules `transformacao` and `modelo`; the refusal by name of
 `SageMakerRegisterModelVersionOperator`, `SageMakerEndpointOperator`,
 `SageMakerEndpointConfigOperator`, `BedrockInvokeModelOperator`, `BedrockRaGOperator` and
@@ -649,10 +650,18 @@ carries the model. They come from the provider's code at 9.32.0 and 9.38.0, AWS'
 and the CLI's code at `v1.0.9`, read that day (`.claude/memory/cicd-cli.md`, "A storage item that
 names a connection"), and have not run.
 
+A session on branch `claude/project-thread-9dn3by` (2026-11-17) reviewed PR #26 at the user's
+request, and by the user's choice of 17:39 UTC ("The `job` rule and a processing job without
+network isolation" in `.claude/memory/decisions.md`) the `job` rule no longer requires
+`EnableNetworkIsolation` of a processing task, the lab's boundary having admitted such a job that
+day (`.claude/memory/environments.md`, "The AWS-DataScience lab"). The same PR corrects the
+`manifest` rule's reason for `include: ["*"]` on an item that names a connection and the unnamed
+items of `_shared_prefixes`, and records the three requests the Stage 17 rules leave unread.
+
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
 ("Design choices of the first session", "The examples folder", "The examples as applications" and
-the three of "The lint of an application" not put to the user, those of "The Stage 10 rules
-after Stage 18", and those of "The Stage 17 rules"); the target's change request
+the three of "The lint of an application" not put to the user, and those of "The Stage 10
+rules after Stage 18"); the target's change request
 applied, the processing job's grant and the `glue:GetJob`, and a run that creates the processing
 job, which measures the image's facts and the job's path; a Bash task whose `Code` is a lone `.py`
 or `.sh`, and one with `env` and no `append_env`; a Python task that prints its `sys.path`;
@@ -661,5 +670,7 @@ or `.sh`, and one with `env` and no `append_env`; a Python task that prints its 
 copies, and the `houseprice-etl` run without `UpdateJob`; the `lint --promoted` and the
 `lint-plan` on AWS-DataScience's pipeline, once it bumps the package's pin; a `bundle` with the
 catalog enabled and the `deploy` that imports it; the Stage 17 rules' tasks on a worker, and a
-`bundle` and a `deploy` with the model item. Each one is an item in
+`bundle` and a `deploy` with the model item; an application that writes one of the three requests
+the Stage 17 rules leave unread; a processing job without isolation run from a workflow. Each one
+is an item in
 `.claude/memory/OPEN_QUESTIONS.md`.
