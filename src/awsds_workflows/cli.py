@@ -22,8 +22,11 @@ depois para o ambiente do SageMaker, que não tem internet.
   definição de workflow sozinha, contra as regras do serviço e da esteira
   (``awsds_workflows.lint``): sem opção, na notação da CLI, como os arquivos do repositório; com
   ``--promoted``, uma cópia renderizada por conta, que pede ``--prefix``, o prefixo da versão no
-  bucket. ``--instance-type`` e ``--image-repository`` restringem os jobs de processamento e de
-  treinamento, e ``--algorithm-repository`` admite também um repositório de algoritmo da AWS.
+  bucket. ``--instance-type`` restringe os jobs de processamento, de treinamento e de
+  transformação, ``--image-repository`` os de processamento e de treinamento, e
+  ``--algorithm-repository`` admite também um repositório de algoritmo da AWS. ``--model-item``,
+  só numa aplicação, nomeia o item de ``content.storage`` que leva o modelo, o único que pode
+  nomear uma conexão.
 - ``lint-plan`` confere os jobs do Glue do plano do Terraform que os cria numa conta sem projeto,
   o JSON de ``terraform show -json`` sobre o plano salvo, antes do ``apply``: o script e os
   arquivos de cada job sob um ``--prefix``, e nenhum módulo pelo nome do PyPI
@@ -57,6 +60,7 @@ Exemplo:
     awsds-workflows values --profile meu-perfil --subnet-name 'meu-projeto-private-*' > valores.json
     awsds-workflows compare meu-workflow.yaml /tmp/salvo.yaml
     awsds-workflows lint examples/demo-devenv-job
+    awsds-workflows lint ~/src/app-ml --model-item model --instance-type ml.m5.large
     awsds-workflows lint /tmp/meu-workflow.yaml --promoted \\
         --prefix s3://meu-bucket/applications/meu-workflow/v1.0.0/ --instance-type ml.m5.xlarge
     awsds-workflows lint-plan /tmp/plano.json \\
@@ -330,7 +334,8 @@ def _add_lint_parser(
         action="append",
         default=[],
         metavar="TYPE",
-        help="um tipo de instância que um job de processamento pode pedir; repetível",
+        help="um tipo de instância que um job de processamento, de treinamento ou de "
+        "transformação pode pedir; repetível",
     )
     command.add_argument(
         "--image-repository",
@@ -344,6 +349,12 @@ def _add_lint_parser(
         metavar="REPOSITORY",
         help="um repositório de algoritmo da AWS que a imagem também pode nomear com "
         "--image-repository, como sagemaker-xgboost; repetível",
+    )
+    command.add_argument(
+        "--model-item",
+        metavar="ITEM",
+        help="o nome do item de content.storage que leva o modelo, o único que pode nomear uma "
+        "conexão: default.s3_shared, com um include que nomeie o prefixo; só numa aplicação",
     )
     command.set_defaults(handler=_lint)
 
@@ -577,12 +588,17 @@ def _lint(
             instance_types=arguments.instance_type,
             image_repository=arguments.image_repository,
             algorithm_repositories=arguments.algorithm_repository,
+            model_item=arguments.model_item,
         )
         files = report.files
         findings = report.findings
     else:
         if arguments.promoted and not arguments.prefix:
             raise RefusalError("--promoted pede --prefix, o prefixo da versão promovida no bucket")
+        if arguments.model_item is not None:
+            raise RefusalError(
+                "--model-item nomeia um item do manifest: passe a pasta da aplicação, não o arquivo"
+            )
         files = [arguments.path]
         findings = lint.lint_definition(
             arguments.path,

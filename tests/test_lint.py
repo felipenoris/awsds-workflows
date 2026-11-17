@@ -429,6 +429,69 @@ def test_the_notebook_operator_is_refused_by_name(
     assert "SageMakerNotebookOperator: uma task de notebook" in findings[0].message
 
 
+@pytest.mark.parametrize(
+    ("operator", "reason"),
+    [
+        (
+            "sagemaker.SageMakerRegisterModelVersionOperator",
+            "cria o grupo em que registra (CreateModelPackageGroup) antes da versão",
+        ),
+        ("sagemaker.SageMakerEndpointOperator", "chama UpdateEndpoint sem as etiquetas"),
+        (
+            "sagemaker.SageMakerEndpointConfigOperator",
+            "cria a configuração de um endpoint (CreateEndpointConfig)",
+        ),
+        (
+            "bedrock.BedrockInvokeModelOperator",
+            "grava no log da task o prompt e a resposta do modelo, e o InvokeModel que envia não "
+            "nomeia guardrail",
+        ),
+        (
+            "bedrock.BedrockRaGOperator",
+            "grava no log da task o prompt, a resposta e as citações, e chama o "
+            "RetrieveAndGenerate",
+        ),
+        (
+            "bedrock.BedrockRetrieveOperator",
+            "grava no log da task a consulta e os trechos recuperados da base de conhecimento",
+        ),
+    ],
+)
+def test_an_operator_refused_by_name_fails_with_its_reason(
+    tmp_path: Path,
+    operator: str,
+    reason: str,
+) -> None:
+    """O operador que registra uma versão criando o grupo, os que criam um endpoint ou a
+    configuração dele e os do Bedrock que gravam no log da task o que enviam e o que recebem são
+    recusados pelo nome, com o motivo."""
+    task = {"operator": f"airflow.providers.amazon.aws.operators.{operator}", "retries": 0}
+    findings = lint_tasks(tmp_path, {"run": task})
+    assert rules_of(findings) == ["operador"]
+    class_name = operator.rpartition(".")[2]
+    assert findings[0].message.startswith(f"task run: {class_name}: ")
+    assert reason in findings[0].message
+
+
+@pytest.mark.parametrize(
+    "operator",
+    [
+        "bedrock.BedrockCreateGuardrailOperator",
+        "bedrock.BedrockCreateKnowledgeBaseOperator",
+        "bedrock.BedrockCreateDataSourceOperator",
+        "sagemaker.SageMakerDeleteModelOperator",
+    ],
+)
+def test_the_operators_that_create_a_guardrail_a_knowledge_base_or_a_data_source_pass(
+    tmp_path: Path,
+    operator: str,
+) -> None:
+    """Os operadores do Bedrock que criam um guardrail, uma base de conhecimento ou uma fonte de
+    dados continuam admitidos, como o que apaga um modelo: a recusa é pelo nome."""
+    task = {"operator": f"airflow.providers.amazon.aws.operators.{operator}", "retries": 0}
+    assert lint_tasks(tmp_path, {"run": task}) == []
+
+
 def test_retries_absent_fails_the_limits_rule(
     tmp_path: Path,
 ) -> None:
@@ -1125,13 +1188,174 @@ def test_the_prefixes_of_an_application_are_the_folders_every_stage_copies(
 def test_a_storage_item_with_a_connection_fails_the_manifest_rule(
     tmp_path: Path,
 ) -> None:
-    """Um item de ``content.storage`` com ``connectionName`` faz o bundle ler o projeto."""
+    """Um item de ``content.storage`` com ``connectionName`` faz o bundle ler o projeto, e a pasta
+    em que os stages o gravam deixa de ser um prefixo de código: a entrada do job sob ``src/`` é
+    uma recusa ``codigo``."""
     manifest = manifest_document()
     manifest["content"]["storage"][0]["connectionName"] = "default.s3_shared"
     folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
     report = lint.lint_application(folder)
+    assert rules_of(report.findings) == ["codigo", "manifest"]
+    assert "content.storage src: com connectionName" in report.findings[1].message
+
+
+# O prefixo, na pasta shared/ do projeto, onde o treino publica o modelo que o item ``model`` leva.
+MODEL_PREFIX = "meu-workflow/models/latest"
+
+
+def manifest_with_model() -> dict[str, Any]:
+    """O manifest fabricado com o item ``model``, que lê o modelo da conexão do projeto, gravado em
+    ``exemplos/meu-workflow/model`` só no stage ``test``, como o ``dev`` o deixa fora."""
+    manifest = manifest_document()
+    manifest["content"]["storage"].append(
+        {"name": "model", "connectionName": "default.s3_shared", "include": [MODEL_PREFIX]}
+    )
+    manifest["stages"]["test"]["deployment_configuration"]["storage"].append(
+        {
+            "name": "model",
+            "connectionName": "default.s3_shared",
+            "targetDirectory": "exemplos/meu-workflow/model",
+        }
+    )
+    return manifest
+
+
+def test_the_model_item_passes_when_the_option_names_it(
+    tmp_path: Path,
+) -> None:
+    """O item que leva o modelo, nomeado por ``model_item``, passa com ``default.s3_shared`` e um
+    ``include``; o lint não lê, ao lado do manifest, o que esse item nomeia; e sem a opção o item
+    é recusado como qualquer outro com conexão."""
+    folder = write_application(tmp_path / "app", manifest_with_model(), {"run": job_task()})
+    (folder / MODEL_PREFIX).mkdir(parents=True)
+    (folder / MODEL_PREFIX / "tasks.py").write_text("R = 'datazone_usr_role_x'\n", encoding="utf-8")
+    report = lint.lint_application(folder, model_item="model")
+    assert report.findings == []
+    assert report.files == [
+        folder / "manifest.yaml",
+        folder / "workflows" / "meu-workflow.yaml",
+        folder / "glue" / "etl.py",
+    ]
+    report = lint.lint_application(folder)
     assert rules_of(report.findings) == ["manifest"]
-    assert "content.storage src: com connectionName" in report.findings[0].message
+    assert "content.storage model: com connectionName" in report.findings[0].message
+
+
+def test_a_second_item_with_a_connection_fails_beside_the_model_item(
+    tmp_path: Path,
+) -> None:
+    """A opção admite um item, o do modelo, e todo outro item com conexão segue recusado."""
+    manifest = manifest_with_model()
+    manifest["content"]["storage"].append(
+        {"name": "dados", "connectionName": "default.s3_shared", "include": ["dados/"]}
+    )
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder, model_item="model")
+    assert rules_of(report.findings) == ["manifest"]
+    assert "content.storage dados: com connectionName" in report.findings[0].message
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        (
+            lambda item: item.update(connectionName="project.default_lakehouse"),
+            "o item do modelo lê a conexão project.default_lakehouse; só default.s3_shared",
+        ),
+        (lambda item: item.pop("include"), "o item do modelo sem um include que nomeie o prefixo"),
+        (lambda item: item.update(include=[]), "sem um include que nomeie o prefixo"),
+        (lambda item: item.update(include=["/"]), "sem um include que nomeie o prefixo"),
+    ],
+)
+def test_a_model_item_on_another_connection_or_without_an_include_fails_the_manifest_rule(
+    tmp_path: Path,
+    change: Any,
+    expected: str,
+) -> None:
+    """O item do modelo lê ``default.s3_shared``, a pasta ``shared/`` do projeto, e um
+    ``include`` nomeia o prefixo: sem ele, ou com um vazio, o ``bundle`` copia a pasta inteira da
+    conexão."""
+    manifest = manifest_with_model()
+    change(manifest["content"]["storage"][-1])
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder, model_item="model")
+    assert rules_of(report.findings) == ["manifest"]
+    assert report.findings[0].message.startswith("content.storage model: ")
+    assert expected in report.findings[0].message
+
+
+def test_a_model_item_the_manifest_does_not_name_once_fails_the_manifest_rule(
+    tmp_path: Path,
+) -> None:
+    """Um ``model_item`` que nenhum item tem, ou que dois têm, é uma recusa, e nenhum item com
+    conexão é admitido."""
+    folder = write_application(tmp_path / "app", manifest_document(), {"run": job_task()})
+    report = lint.lint_application(folder, model_item="model")
+    assert [finding.message for finding in report.findings] == [
+        "--model-item model: nenhum item de content.storage com esse nome"
+    ]
+    manifest = manifest_with_model()
+    manifest["content"]["storage"].append(dict(manifest["content"]["storage"][-1]))
+    folder = write_application(tmp_path / "outra", manifest, {"run": job_task()})
+    report = lint.lint_application(folder, model_item="model")
+    assert rules_of(report.findings) == ["manifest"] * 3
+    assert report.findings[0].message == (
+        "--model-item model: mais de um item de content.storage com esse nome"
+    )
+    assert "content.storage model: com connectionName" in report.findings[2].message
+
+
+def test_the_model_item_covers_no_code_and_its_folder_is_no_code_prefix(
+    tmp_path: Path,
+) -> None:
+    """O item do modelo não é uma pasta da tag: o ``code`` de um workflow sob ele fica fora dos
+    ``include``, e a entrada de código de um job na pasta em que os stages o gravam é uma recusa
+    ``codigo``, mesmo quando todos os stages o gravam."""
+    manifest = manifest_with_model()
+    manifest["content"]["storage"][-1]["include"] = ["model/"]
+    manifest["content"]["workflows"][0]["code"] = "model/tasks.zip"
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder, model_item="model")
+    assert [finding.message for finding in report.findings] == [
+        "workflow meu-workflow: code model/tasks.zip fora dos include de content.storage"
+    ]
+
+    manifest = manifest_with_model()
+    target = manifest["stages"]["test"]["deployment_configuration"]["storage"][-1]
+    manifest["stages"]["dev"]["deployment_configuration"]["storage"].append(dict(target))
+    task = job_task()
+    task["config"]["ProcessingInputs"][0]["S3Input"]["S3Uri"] = f"{PREFIX}model/"
+    folder = write_application(tmp_path / "outra", manifest, {"run": task})
+    report = lint.lint_application(folder, model_item="model")
+    assert rules_of(report.findings) == ["codigo"]
+
+
+def test_a_bedrock_invoke_in_an_application_fails_and_a_probe_outside_it_is_not_read(
+    tmp_path: Path,
+) -> None:
+    """Numa aplicação, uma task ``BedrockInvokeModelOperator`` num workflow copiado é recusada,
+    e uma sonda fora das pastas que o manifest copia não é lida."""
+    invoke = {
+        "operator": "airflow.providers.amazon.aws.operators.bedrock.BedrockInvokeModelOperator",
+        "model_id": "amazon.nova-lite-v1:0",
+        "input_data": {"messages": [{"role": "user", "content": [{"text": "oi"}]}]},
+        "retries": 0,
+    }
+    folder = write_application(tmp_path / "app", manifest_document(), {"run": python_task()})
+    (folder / "probes").mkdir()
+    probe = folder / "probes" / "operator.yaml"
+    probe.write_text(definition_text({"run": invoke}), encoding="utf-8")
+    report = lint.lint_application(folder)
+    assert report.findings == []
+    assert probe not in report.files
+
+    folder = write_application(tmp_path / "outra", manifest_document(), {"triage": invoke})
+    report = lint.lint_application(folder)
+    assert rules_of(report.findings) == ["operador"]
+    assert report.findings[0].path == folder / "workflows" / "meu-workflow.yaml"
+    assert "task triage: BedrockInvokeModelOperator: grava no log da task" in (
+        report.findings[0].message
+    )
 
 
 @pytest.mark.parametrize(
@@ -1508,3 +1732,250 @@ def test_a_promoted_training_task_without_its_keys_or_its_prefix_fails_the_train
     findings = lint_tasks(tmp_path, {"train": task}, promoted=True, prefixes=["s3://meu-bucket/"])
     assert rules_of(findings) == ["treino"]
     assert expected in findings[0].message
+
+
+def transform_request() -> dict[str, Any]:
+    """O pedido ``CreateTransformJob`` de uma task de pontuação, sobre um modelo que uma task
+    anterior criou."""
+    return {
+        "TransformJobName": "meu-score-{{ ts_nodash }}",
+        "ModelName": "meu-modelo-{{ ts_nodash }}",
+        "TransformInput": {
+            "DataSource": {
+                "S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": f"{PREFIX}work/score/"}
+            },
+            "ContentType": "text/csv",
+            "SplitType": "Line",
+        },
+        "TransformOutput": {
+            "S3OutputPath": f"{PREFIX}work/scored/",
+            "KmsKeyId": "{env.PROJECT_KEY_ARN}",
+        },
+        "TransformResources": {
+            "InstanceType": "ml.m5.large",
+            "InstanceCount": 1,
+            "VolumeKmsKeyId": "{env.PROJECT_KEY_ARN}",
+        },
+    }
+
+
+def transform_task() -> dict[str, Any]:
+    """Uma task de transformação sem ``Model``, que passa na autoria."""
+    return {
+        "operator": "airflow.providers.amazon.aws.operators.sagemaker.SageMakerTransformOperator",
+        "action_if_job_exists": "fail",
+        "retries": 0,
+        "config": transform_request(),
+    }
+
+
+def model_request() -> dict[str, Any]:
+    """Um pedido ``CreateModel`` com a rede que a regra ``modelo`` pede."""
+    return {
+        "ModelName": "meu-modelo-{{ ts_nodash }}",
+        "ExecutionRoleArn": "{proj.iam_role_arn}",
+        "PrimaryContainer": {
+            "Image": "{env.TRAINING_IMAGE_URI}",
+            "ModelDataUrl": f"{PREFIX}models/model.tar.gz",
+        },
+        "VpcConfig": {
+            "Subnets": ["{env.SUBNET_AZ1}", "{env.SUBNET_AZ2}"],
+            "SecurityGroupIds": ["{env.PROJECT_SG}"],
+        },
+        "EnableNetworkIsolation": True,
+    }
+
+
+def model_task() -> dict[str, Any]:
+    """Uma task ``SageMakerModelOperator`` que passa na autoria."""
+    return {
+        "operator": "airflow.providers.amazon.aws.operators.sagemaker.SageMakerModelOperator",
+        "retries": 0,
+        "config": model_request(),
+    }
+
+
+def test_a_transform_task_passes_in_authoring(
+    tmp_path: Path,
+) -> None:
+    """Uma task de transformação sem ``Model`` passa sem recusa, com a lista de tipos."""
+    findings = lint_tasks(tmp_path, {"score": transform_task()}, instance_types=["ml.m5.large"])
+    assert findings == []
+
+
+def test_a_transform_task_with_its_request_under_transform_and_a_model_passes(
+    tmp_path: Path,
+) -> None:
+    """O pedido sob ``Transform``, como o operador o lê, ao lado de um ``Model`` com a rede,
+    passa."""
+    task = transform_task()
+    task["config"] = {"Model": model_request(), "Transform": transform_request()}
+    assert lint_tasks(tmp_path, {"score": task}, instance_types=["ml.m5.large"]) == []
+
+
+def test_a_transform_task_without_fail_on_an_existing_job_fails_the_transform_rule(
+    tmp_path: Path,
+) -> None:
+    """A task leva ``action_if_job_exists: fail``."""
+    task = transform_task()
+    task["action_if_job_exists"] = "timestamp"
+    findings = lint_tasks(tmp_path, {"score": task})
+    assert rules_of(findings) == ["transformacao"]
+    assert "action_if_job_exists tem de ser fail" in findings[0].message
+
+
+def test_a_transform_task_without_config_fails_the_transform_rule(
+    tmp_path: Path,
+) -> None:
+    """Uma task de transformação tem ``config``, a chamada ``CreateTransformJob``."""
+    task = transform_task()
+    del task["config"]
+    findings = lint_tasks(tmp_path, {"score": task})
+    assert rules_of(findings) == ["transformacao"]
+    assert "sem config, a chamada CreateTransformJob" in findings[0].message
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        (
+            lambda r: r["TransformResources"].pop("VolumeKmsKeyId"),
+            "TransformResources.VolumeKmsKeyId ausente",
+        ),
+        (lambda r: r["TransformOutput"].pop("KmsKeyId"), "TransformOutput.KmsKeyId ausente"),
+        (
+            lambda r: r["TransformResources"].update(InstanceType="ml.m5.2xlarge"),
+            "TransformResources.InstanceType ml.m5.2xlarge fora de ml.m5.large",
+        ),
+    ],
+)
+def test_a_transform_request_without_its_keys_or_its_type_fails_the_transform_rule(
+    tmp_path: Path,
+    change: Any,
+    expected: str,
+) -> None:
+    """As duas chaves estão escritas já na autoria, e o tipo de instância é um da lista."""
+    task = transform_task()
+    change(task["config"])
+    findings = lint_tasks(tmp_path, {"score": task}, instance_types=["ml.m5.large"])
+    assert rules_of(findings) == ["transformacao"]
+    assert findings[0].message == f"task score: {expected}"
+
+
+def test_the_transform_request_is_read_under_transform_when_there_is_one(
+    tmp_path: Path,
+) -> None:
+    """Com ``Transform`` no ``config``, o operador não lê o resto, e as chaves escritas fora dele
+    não contam."""
+    request = transform_request()
+    del request["TransformResources"]["VolumeKmsKeyId"]
+    del request["TransformOutput"]["KmsKeyId"]
+    task = transform_task()
+    task["config"] = {**transform_request(), "Transform": request}
+    findings = lint_tasks(tmp_path, {"score": task})
+    assert [finding.message for finding in findings] == [
+        "task score: TransformResources.VolumeKmsKeyId ausente",
+        "task score: TransformOutput.KmsKeyId ausente",
+    ]
+
+
+def test_a_promoted_transform_task_passes_with_its_keys_and_fails_without_them(
+    tmp_path: Path,
+) -> None:
+    """A cópia promovida passa com as duas chaves literais e falha sem a do volume, como na
+    autoria."""
+    task = transform_task()
+    request = task["config"]
+    request["TransformInput"]["DataSource"]["S3DataSource"]["S3Uri"] = (
+        "s3://meu-bucket/meu-workflow/work/score/"
+    )
+    request["TransformOutput"] = {
+        "S3OutputPath": "s3://meu-bucket/meu-workflow/work/scored/",
+        "KmsKeyId": "alias/minha-chave",
+    }
+    request["TransformResources"]["VolumeKmsKeyId"] = "alias/minha-chave"
+    options: dict[str, Any] = {"promoted": True, "prefixes": ["s3://meu-bucket/meu-workflow/v1/"]}
+    assert lint_tasks(tmp_path, {"score": task}, **options) == []
+    del request["TransformResources"]["VolumeKmsKeyId"]
+    findings = lint_tasks(tmp_path, {"score": task}, **options)
+    assert rules_of(findings) == ["transformacao"]
+    assert "TransformResources.VolumeKmsKeyId ausente" in findings[0].message
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        (
+            lambda m: m.pop("VpcConfig"),
+            [
+                "Model.VpcConfig.Subnets ausente ou vazio",
+                "Model.VpcConfig.SecurityGroupIds ausente ou vazio",
+            ],
+        ),
+        (
+            lambda m: m.update(EnableNetworkIsolation=False),
+            ["Model.EnableNetworkIsolation tem de ser true"],
+        ),
+    ],
+)
+def test_a_transform_model_without_its_network_fails_the_model_rule(
+    tmp_path: Path,
+    change: Any,
+    expected: list[str],
+) -> None:
+    """O ``Model`` do ``config``, que o operador cria antes do job, tem ``VpcConfig`` e o
+    isolamento de rede."""
+    model = model_request()
+    change(model)
+    task = transform_task()
+    task["config"] = {"Model": model, "Transform": transform_request()}
+    findings = lint_tasks(tmp_path, {"score": task})
+    assert rules_of(findings) == ["modelo"] * len(expected)
+    assert [finding.message for finding in findings] == [f"task score: {e}" for e in expected]
+
+
+def test_a_model_task_passes(
+    tmp_path: Path,
+) -> None:
+    """Uma task ``SageMakerModelOperator`` com a rede passa sem recusa."""
+    assert lint_tasks(tmp_path, {"model": model_task()}) == []
+
+
+def test_a_model_task_without_config_fails_the_model_rule(
+    tmp_path: Path,
+) -> None:
+    """Uma task ``SageMakerModelOperator`` tem ``config``, a chamada ``CreateModel``."""
+    task = model_task()
+    del task["config"]
+    findings = lint_tasks(tmp_path, {"model": task})
+    assert rules_of(findings) == ["modelo"]
+    assert "sem config, a chamada CreateModel" in findings[0].message
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        (lambda m: m["VpcConfig"].update(Subnets=[]), "VpcConfig.Subnets ausente ou vazio"),
+        (
+            lambda m: m["VpcConfig"].pop("SecurityGroupIds"),
+            "VpcConfig.SecurityGroupIds ausente ou vazio",
+        ),
+        (lambda m: m.pop("EnableNetworkIsolation"), "EnableNetworkIsolation tem de ser true"),
+        (
+            lambda m: m.update(EnableNetworkIsolation="true"),
+            "EnableNetworkIsolation tem de ser true",
+        ),
+    ],
+)
+def test_a_model_task_without_its_network_fails_the_model_rule(
+    tmp_path: Path,
+    change: Any,
+    expected: str,
+) -> None:
+    """O ``config`` de um ``SageMakerModelOperator`` tem ``VpcConfig`` com ``Subnets`` e
+    ``SecurityGroupIds`` e ``EnableNetworkIsolation`` ``true``, o booleano."""
+    task = model_task()
+    change(task["config"])
+    findings = lint_tasks(tmp_path, {"model": task})
+    assert rules_of(findings) == ["modelo"]
+    assert findings[0].message == f"task model: {expected}"

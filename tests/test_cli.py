@@ -625,6 +625,59 @@ def test_lint_promoted_without_a_prefix_is_refused(
     assert "--promoted pede --prefix" in capsys.readouterr().err
 
 
+def test_lint_passes_the_options_of_an_application(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Cada ``--instance-type``, ``--image-repository``, cada ``--algorithm-repository`` e
+    ``--model-item`` chegam a ``lint_application``."""
+    received: dict[str, object] = {}
+
+    def fake_lint_application(
+        folder: Path,
+        **options: object,
+    ) -> lint.Report:
+        received["folder"] = folder
+        received.update(options)
+        return lint.Report(files=[folder / "manifest.yaml"], findings=[])
+
+    monkeypatch.setattr(lint, "lint_application", fake_lint_application)
+    command = [
+        "lint",
+        str(tmp_path),
+        "--instance-type",
+        "ml.m5.large",
+        "--image-repository",
+        "minha-imagem",
+        "--algorithm-repository",
+        "sagemaker-xgboost",
+        "--model-item",
+        "model",
+    ]
+    assert cli.main(command) == 0
+    assert received == {
+        "folder": tmp_path,
+        "instance_types": ["ml.m5.large"],
+        "image_repository": "minha-imagem",
+        "algorithm_repositories": ["sagemaker-xgboost"],
+        "model_item": "model",
+    }
+    assert capsys.readouterr().out == "ok: 1 arquivo(s)\n"
+
+
+def test_lint_refuses_the_model_item_on_a_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--model-item`` nomeia um item do manifest, e num arquivo é recusado com 1."""
+    definition = write_definition(tmp_path / "meu-workflow.yaml", "      retries: 0\n")
+    assert cli.main(["lint", str(definition), "--model-item", "model"]) == 1
+    captured = capsys.readouterr()
+    assert "--model-item nomeia um item do manifest" in captured.err
+    assert captured.out == ""
+
+
 # O prefixo da pasta glue/ de uma versão, e um plano com um job do Glue cujo script está sob ele,
 # na forma do JSON do Terraform 1.15.8 (2026-10-23).
 GLUE_PREFIX = "s3://meu-bucket/applications/meu-app/v1.0.0/glue/"
