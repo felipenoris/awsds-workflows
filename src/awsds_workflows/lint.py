@@ -1357,11 +1357,14 @@ def _check_content_from_the_tag(
     (``_check_catalog``)."""
     findings: list[Finding] = []
     items = [item for item in content.get("storage") or [] if isinstance(item, dict)]
-    named = [item for item in items if item.get("name") == model_item]
-    if model_item is not None and len(named) != 1:
-        quantity = "mais de um item" if named else "nenhum item"
-        message = f"--model-item {model_item}: {quantity} de content.storage com esse nome"
-        findings.append(Finding(path, "manifest", message))
+    # Sem model_item, nenhum item é o do modelo, nem um item sem name.
+    named: list[dict[str, Any]] = []
+    if model_item is not None:
+        named = [item for item in items if item.get("name") == model_item]
+        if len(named) != 1:
+            quantity = "mais de um item" if named else "nenhum item"
+            message = f"--model-item {model_item}: {quantity} de content.storage com esse nome"
+            findings.append(Finding(path, "manifest", message))
     for item in items:
         if not item.get("connectionName"):
             continue

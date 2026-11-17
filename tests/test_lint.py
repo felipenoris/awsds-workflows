@@ -1305,6 +1305,21 @@ def test_a_model_item_the_manifest_does_not_name_once_fails_the_manifest_rule(
     assert "content.storage model: com connectionName" in report.findings[2].message
 
 
+def test_an_item_without_a_name_is_never_taken_for_the_model_item(
+    tmp_path: Path,
+) -> None:
+    """Sem ``model_item``, um item com conexão e sem ``name`` é recusado como qualquer outro com
+    conexão, e não passa pelas regras do item do modelo."""
+    manifest = manifest_document()
+    manifest["content"]["storage"].append(
+        {"connectionName": "default.s3_shared", "include": [MODEL_PREFIX]}
+    )
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder)
+    assert rules_of(report.findings) == ["manifest"]
+    assert "content.storage None: com connectionName" in report.findings[0].message
+
+
 def test_the_model_item_covers_no_code_and_its_folder_is_no_code_prefix(
     tmp_path: Path,
 ) -> None:
