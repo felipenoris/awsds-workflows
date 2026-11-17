@@ -134,6 +134,17 @@ step of the runbook was measured in October 2026 (its stage log
   `--python >=3.11` and names `$AWSDS_PYTHON_ENV/bin/python` to its uv commands through
   `UV_PYTHON`. What the package does there is in `packaging.md` ("The interpreter `uv` needs").
 
+- **A processing job without network isolation is admitted since 2026-11-17** (AWS-DataScience's
+  Stage 20 decision 13; its stage log, "4.4 applied with Stage 17's 9.5"; `TM-35`):
+  `sagemaker:CreateProcessingJob` left `DenySageMakerJobsWithoutNetworkIsolation` in the persona
+  sets (16:01:26 UTC), the `Workloads` SCP (16:02:03), Sandbox's project boundary (16:07:18) and
+  the targets' (16:08:13 and 16:09:05). The SCP battery in Production, 16:03:10 to 16:04:34 UTC,
+  read `CreateProcessingJob` without isolation `ALLOWED` at `reached-authorization`,
+  `CreateTrainingJob` without it `DENY-SCP`, and the processing job off the VPC, above the instance
+  ceiling, without inter-container encryption or without the volume key `DENY-SCP` as before. No
+  processing job without isolation has run from a workflow; the `job` rule follows
+  (`decisions.md`, "The `job` rule and a processing job without network isolation").
+
 - **The CI/CD CLI from a laptop** (2026-10-15 and 2026-10-16): `aws-smus-cicd-cli` 1.0.9 deployed
   and ran `houseprice-etl` between two projects of the account, from the user's Mac, with the
   credential exported from the SSO profile; what it did, and what the Glue job's runs read, is in

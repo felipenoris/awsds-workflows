@@ -624,9 +624,9 @@ version by creating its group, create an endpoint or its configuration, or write
 Amazon Bedrock and what they receive to the task log, and an exception in the `manifest` rule for
 the one item that carries the model.
 
-The session of 2026-11-17, a subagent of an AWS-DataScience session, wrote them on the local branch
-`claude/lint-transformacao-modelo-bedrock`, unpublished: the user decides whether to publish. The
-session's choices, which a merge confirms:
+The session of 2026-11-17, a subagent of an AWS-DataScience session, wrote them on the branch
+`claude/lint-transformacao-modelo-bedrock`, published as PR #26 and merged by the user on
+2026-11-17 at 15:48 UTC as `37cb5a6`. The session's choices, which the merge confirms:
 
 - **Two rules, `transformacao` and `modelo`.** `transformacao` reads the `CreateTransformJob`
   request where the operator reads it, the `config`'s `Transform` or the whole `config`; `modelo`
@@ -649,6 +649,36 @@ session's choices, which a merge confirms:
   carry, passes `lint .` and is refused when linted alone.
 - **The Bedrock operators that create a guardrail, a knowledge base or a data source pass**, as
   every class of the Amazon provider the rule does not name.
+
+## The `job` rule and a processing job without network isolation
+
+AWS-DataScience's Stage 20 decision 13, the user's of 2026-11-16 (22:32 and 22:46 UTC, "Processing
+job, nos três ambientes"), takes `sagemaker:CreateProcessingJob` out of
+`DenySageMakerJobsWithoutNetworkIsolation` in Sandbox, Staging and Production, so that a processing
+job reaches what a space of the project reaches (the user: "Um Processing Job deveria ter a mesma
+capacidade que um cientista de dados teria se ele mesmo abrir um space no projeto"). It was applied
+on 2026-11-17 from 16:01 to 16:09 UTC (its stage log, "4.4 applied with Stage 17's 9.5"; `TM-35`),
+training, tuning and AutoML jobs and models staying under the statement, and its step 6.4 hands
+this package the `job` rule, which refused a processing task without `EnableNetworkIsolation:
+true`, with the pages that state it.
+
+The session of 2026-11-17 on branch `claude/project-thread-9dn3by` reviewed PR #26 at the user's
+request (15:51 UTC) and again after AWS-DataScience's PR #314 (17:22 UTC), and put the follow-up
+on a card. At 17:39 UTC the user took the recommended option, "Correções + regra job" ("Ok, pode
+fazer conforme sua recomendação"):
+
+- **The `job` rule no longer reads `EnableNetworkIsolation`.** A processing task passes with it
+  false or absent; the rule keeps the VPC, the inter-container encryption, the runtime ceiling, the
+  instance type and, in the promoted mode, the volume key. `treino` and `modelo` keep requiring
+  isolation, as the lab's boundary does.
+- **`demo-devenv-job` keeps its isolation**, since its job reads its inputs alone; the guide says
+  isolation is the job's choice ("Uma task de processamento").
+- **The review's corrections**: this memory, left stale by PR #26's merge; the `manifest` rule's
+  reason for `include: ["*"]` on an item that names a connection, which the CLI 1.0.9 turns into a
+  sync of the connection's whole folder (`download_s3_files`), where other globs keep the tag
+  item's reason; and `_shared_prefixes`, whose unnamed connection item dropped the folder of an
+  unnamed stage item. The three requests PR #26 left unread, listed only in its body, are an item
+  of `OPEN_QUESTIONS.md`.
 
 ## Design choices of the first session
 
