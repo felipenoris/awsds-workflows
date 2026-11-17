@@ -618,28 +618,39 @@ def test_a_job_without_the_vpc_fails_the_job_rule(
     assert f"VpcConfig.{key} ausente ou vazio" in findings[0].message
 
 
-@pytest.mark.parametrize(
-    ("key", "value"),
-    [
-        ("EnableNetworkIsolation", False),
-        ("EnableNetworkIsolation", "true"),
-        ("EnableInterContainerTrafficEncryption", None),
-    ],
-)
-def test_a_job_without_isolation_or_encryption_fails_the_job_rule(
+@pytest.mark.parametrize("value", [False, "true", None])
+def test_a_job_without_encryption_fails_the_job_rule(
     tmp_path: Path,
-    key: str,
     value: Any,
 ) -> None:
-    """O isolamento de rede e a cifra entre contêineres são ``true``, o booleano."""
+    """A cifra entre contêineres é ``true``, o booleano."""
     task = job_task()
+    network = task["config"]["NetworkConfig"]
     if value is None:
-        del task["config"]["NetworkConfig"][key]
+        del network["EnableInterContainerTrafficEncryption"]
     else:
-        task["config"]["NetworkConfig"][key] = value
+        network["EnableInterContainerTrafficEncryption"] = value
     findings = lint_tasks(tmp_path, {"run": task})
     assert rules_of(findings) == ["job"]
-    assert f"NetworkConfig.{key} tem de ser true" in findings[0].message
+    expected = "NetworkConfig.EnableInterContainerTrafficEncryption tem de ser true"
+    assert expected in findings[0].message
+
+
+@pytest.mark.parametrize("value", [False, None])
+def test_a_job_without_isolation_passes_the_job_rule(
+    tmp_path: Path,
+    value: Any,
+) -> None:
+    """O isolamento de rede fica a critério da task: um job de processamento com
+    ``EnableNetworkIsolation`` falso, ou sem ele, passa, como o limite do laboratório o admite
+    desde 2026-11-17."""
+    task = job_task()
+    network = task["config"]["NetworkConfig"]
+    if value is None:
+        del network["EnableNetworkIsolation"]
+    else:
+        network["EnableNetworkIsolation"] = value
+    assert lint_tasks(tmp_path, {"run": task}) == []
 
 
 def test_a_job_without_a_runtime_limit_fails_the_job_rule(
@@ -1314,6 +1325,49 @@ def test_an_item_without_a_name_is_never_taken_for_the_model_item(
     manifest["content"]["storage"].append(
         {"connectionName": "default.s3_shared", "include": [MODEL_PREFIX]}
     )
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder)
+    assert rules_of(report.findings) == ["manifest"]
+    assert "content.storage None: com connectionName" in report.findings[0].message
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        ("*", "include * faz o bundle copiar a pasta inteira da conexão; nomeie o prefixo"),
+        (f"{MODEL_PREFIX}/*.tar.gz", f"include {MODEL_PREFIX}/*.tar.gz é um glob"),
+    ],
+)
+def test_a_glob_include_on_the_model_item_fails_with_what_the_bundle_copies(
+    tmp_path: Path,
+    pattern: str,
+    expected: str,
+) -> None:
+    """No item do modelo, a CLI 1.0.9 copia a pasta inteira da conexão quando a lista de
+    ``include`` tem o ``*`` (``download_s3_files``, um ``aws s3 sync`` da raiz), e lê outro glob
+    como o nome literal de um objeto ou de um prefixo, que não existe (código lido em
+    2026-11-17)."""
+    manifest = manifest_with_model()
+    manifest["content"]["storage"][-1]["include"] = [pattern]
+    folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
+    report = lint.lint_application(folder, model_item="model")
+    assert rules_of(report.findings) == ["manifest"]
+    assert report.findings[0].message.startswith("content.storage model: ")
+    assert expected in report.findings[0].message
+
+
+def test_an_unnamed_item_with_a_connection_keeps_the_code_prefix_of_an_unnamed_stage_item(
+    tmp_path: Path,
+) -> None:
+    """Um item com conexão e sem ``name`` é recusado pela regra ``manifest`` e não tira dos
+    prefixos de código a pasta de um item do stage sem ``name``: a entrada do job sob ``src/``
+    não é uma recusa ``codigo``."""
+    manifest = manifest_document()
+    manifest["content"]["storage"].append(
+        {"connectionName": "default.s3_shared", "include": ["x/"]}
+    )
+    for stage in manifest["stages"].values():
+        del stage["deployment_configuration"]["storage"][0]["name"]
     folder = write_application(tmp_path / "app", manifest, {"run": job_task()})
     report = lint.lint_application(folder)
     assert rules_of(report.findings) == ["manifest"]

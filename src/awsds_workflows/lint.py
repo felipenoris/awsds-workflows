@@ -42,10 +42,10 @@ As regras, pelo nome que uma recusa traz:
   pedido, quando há um, ou de um dos repositórios de algoritmo dados, como o
   ``sagemaker-xgboost`` da AWS; um placeholder passa na autoria.
 - ``job``: o ``config`` de um ``SageMakerProcessingOperator`` tem ``NetworkConfig.VpcConfig`` com
-  ``Subnets`` e ``SecurityGroupIds``, ``EnableNetworkIsolation`` e
-  ``EnableInterContainerTrafficEncryption`` verdadeiros, ``StoppingCondition.MaxRuntimeInSeconds``
-  até 2.820 s (os 3.600 s da task menos uns 13 minutos de provisionamento e encerramento), um
-  ``InstanceType`` da lista pedida, quando há uma, e, no modo promovido, ``VolumeKmsKeyId``.
+  ``Subnets`` e ``SecurityGroupIds``, ``EnableInterContainerTrafficEncryption`` verdadeiro,
+  ``StoppingCondition.MaxRuntimeInSeconds`` até 2.820 s (os 3.600 s da task menos uns 13 minutos de
+  provisionamento e encerramento), um ``InstanceType`` da lista pedida, quando há uma, e, no modo
+  promovido, ``VolumeKmsKeyId``; ``EnableNetworkIsolation`` fica a critério da task.
 - ``treino``: o ``config`` de um ``SageMakerTrainingOperator`` tem ``VpcConfig`` com ``Subnets``
   e ``SecurityGroupIds``, ``EnableNetworkIsolation`` e ``EnableInterContainerTrafficEncryption``
   verdadeiros, ``StoppingCondition.MaxRuntimeInSeconds`` até 2.820 s, um
@@ -787,8 +787,10 @@ def _check_processing(
     promoted: bool,
     instance_types: Sequence[str],
 ) -> list[Finding]:
-    """[private] O ``config`` de um ``SageMakerProcessingOperator``: a rede, o isolamento, a
-    cifra, o teto de tempo, o tipo de instância e, no modo promovido, a chave do volume."""
+    """[private] O ``config`` de um ``SageMakerProcessingOperator``: a rede, a cifra entre
+    contêineres, o teto de tempo, o tipo de instância e, no modo promovido, a chave do volume. O
+    isolamento de rede não é lido: sem ele, o contêiner roda com as credenciais do papel do job,
+    o que o limite do laboratório admite num job de processamento."""
     if not _is_operator(task, "SageMakerProcessingOperator"):
         return []
     path = definition.path
@@ -804,10 +806,11 @@ def _check_processing(
         if not _is_nonempty_list(vpc.get(key)):
             message = f"task {task_name}: NetworkConfig.VpcConfig.{key} ausente ou vazio"
             findings.append(Finding(path, "job", message))
-    for key in ("EnableNetworkIsolation", "EnableInterContainerTrafficEncryption"):
-        if network.get(key) is not True:
-            message = f"task {task_name}: NetworkConfig.{key} tem de ser true"
-            findings.append(Finding(path, "job", message))
+    if network.get("EnableInterContainerTrafficEncryption") is not True:
+        message = (
+            f"task {task_name}: NetworkConfig.EnableInterContainerTrafficEncryption tem de ser true"
+        )
+        findings.append(Finding(path, "job", message))
 
     runtime = _mapping_at(config, "StoppingCondition").get("MaxRuntimeInSeconds")
     if runtime is None:
@@ -1299,10 +1302,13 @@ def _shared_prefixes(
     """[private] Os prefixos, na notação traduzida, das pastas da tag que todos os stages copiam
     para a conexão ``default.s3_shared``: a interseção dos ``targetDirectory`` dos stages. A pasta
     de um item com conexão, como o do modelo, guarda o que o ``bundle`` leu de um projeto, e não é
-    um prefixo de código."""
-    from_projects = {
-        item.get("name") for item in _storage_items(manifest) if item.get("connectionName")
-    }
+    um prefixo de código; um item com conexão sem ``name`` não tira a pasta de um item do stage
+    sem ``name``."""
+    from_projects: set[str] = set()
+    for item in _storage_items(manifest):
+        name = item.get("name")
+        if item.get("connectionName") and name:
+            from_projects.add(name)
     common: set[str] | None = None
     for stage in manifest["stages"].values():
         if not isinstance(stage, dict):
@@ -1452,16 +1458,25 @@ def _check_includes(
 ) -> list[Finding]:
     """[private] Cada ``include`` de ``content.storage`` um arquivo ou uma pasta: o ``bundle`` da
     CLI 1.0.9 não expande um glob, e o arquivo fica fora do bundle, enquanto o ``deploy`` o
-    copia."""
+    copia. Num item com conexão, o ``include`` ``*`` faz o ``bundle`` copiar a pasta inteira da
+    conexão."""
     findings: list[Finding] = []
     for item in _storage_items(manifest):
+        name = item.get("name")
         for pattern in item.get("include") or []:
             if not _GLOB_CHARACTERS.search(str(pattern)):
                 continue
-            message = (
-                f"content.storage {item.get('name')}: include {pattern} é um glob, que o bundle "
-                "não expande, e o arquivo fica fora dele; nomeie o arquivo ou a pasta"
-            )
+            # A CLI troca a lista de um item com conexão que tem o * por um sync da raiz dela.
+            if item.get("connectionName") and pattern == "*":
+                message = (
+                    f"content.storage {name}: include * faz o bundle copiar a pasta inteira da "
+                    "conexão; nomeie o prefixo"
+                )
+            else:
+                message = (
+                    f"content.storage {name}: include {pattern} é um glob, que o bundle não "
+                    "expande, e o arquivo fica fora dele; nomeie o arquivo ou a pasta"
+                )
             findings.append(Finding(path, "manifest", message))
     return findings
 
