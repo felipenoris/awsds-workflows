@@ -15,7 +15,9 @@ nomeia esse lugar.
   (`decisions.md`, "The examples as applications"), as três do `lint` não levadas ao usuário,
   que confirmou as cinco do PR #21 em 2026-10-16 (`decisions.md`, "The lint of an application"),
   e as do `lint-plan` e da regra (6), de 2026-10-23 (`decisions.md`, "The Stage 10 rules after
-  Stage 18"). Fecha com a resposta do usuário no PR.
+  Stage 18"), e as das regras do estágio 17, de 2026-11-17 (`decisions.md`, "The Stage 17 rules:
+  transform, model, the refused operators and the model item"). Fecha com a resposta do usuário no
+  PR.
 - **A rede do alvo para um workflow.** Na primeira execução no alvo, em 2026-10-12, o worker listou
   a pasta de entrada no S3, chamou a API do SageMaker, que recusou o `DescribeProcessingJob` por
   permissão, e gravou o log da task; às 19:16 UTC, numa task Python, o worker recebeu a cópia do
@@ -128,14 +130,16 @@ nomeia esse lugar.
   `catalog/catalog_export.json` que ele grava e o `deploy` que o importa noutro projeto sem
   publicar. Fecha com a etapa 4.10 do estágio 19 do AWS-DataScience, a primeira promoção da
   aplicação pela CLI nas duas contas de destino.
-- **A regra do job de treinamento espera.** A etapa 10 do AWS-DataScience especificou em
-  2026-10-22 uma regra para o `config` de um `SageMakerTrainingOperator` (passo 5.1): `VpcConfig`,
-  isolamento de rede, criptografia entre contêineres, as duas chaves KMS, o tipo de instância, a
-  saída sob `models/<app>/`, os canais no bucket de saídas, `MaxRuntimeInSeconds` e
-  `action_if_job_exists: fail`. O usuário a deixou fora do PR de 2026-10-23 (`decisions.md`, "The
-  Stage 10 rules after Stage 18"): a cota de treinamento é 0 em Staging e Produção, a task vira
-  um segundo workflow depois do aumento, e a imagem de um algoritmo nativo, uma tag no registro
-  da AWS sem digest, é uma escolha em aberto do passo. Fecha com o aumento da cota e essa escolha.
+- **As regras do estágio 17 não rodaram num worker, e o item do modelo não rodou num `bundle`.**
+  As regras `transformacao` e `modelo`, as recusas pelo nome da regra `operador` e a exceção do
+  item do modelo na regra `manifest` vêm do código do provedor Amazon nas tags 9.32.0 e 9.38.0, da
+  página da AWS sobre guardrails e do código da CLI 1.0.9, lidos em 2026-11-17 (`decisions.md`,
+  "The Stage 17 rules: transform, model, the refused operators and the model item"; `cicd-cli.md`,
+  "A storage item that names a connection"; `docs/laboratorio.md`, "Regras de autoria"). O
+  provedor do worker foi medido na 9.32.0 em 2026-10-13. Não medidos: uma task de transformação
+  e uma de modelo num worker, com as chamadas que o código lê; um `bundle` com o item do modelo,
+  o que ele imprime e o código de saída quando a cópia é recusada; e o `deploy` que grava o modelo
+  no stage. Fecha com a primeira promoção do `app-ml` do AWS-DataScience.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver
