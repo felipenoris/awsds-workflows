@@ -10,11 +10,11 @@ e para o portal, nunca para o repositório.
 Uma definição na notação da CLI de CI/CD do SageMaker Unified Studio, a ``aws-smus-cicd-cli``,
 guarda os valores do projeto como variáveis dela, ``{proj.id}``, ``{proj.iam_role_arn}``,
 ``{proj.connection.default.s3_shared.s3Uri}``, ``{proj.connection.default.s3_shared.bucket}``,
-``{domain.id}`` e ``{domain.region}``, e o que nenhum projeto tem como variável de stage,
-``{env.NOME}``. ``translate_cli_variables`` troca cada uma pela expressão com placeholders da
-tabela ``CLI_VARIABLES``, e ``{env.NOME}`` por ``<NOME>``; ``fill_placeholders`` faz essa troca
-antes de preencher, e com isso o YAML que a CLI implanta num projeto se importa no portal
-preenchido com os valores desse projeto, sem a CLI.
+``{proj.connection.project.athena.workgroupName}``, ``{domain.id}`` e ``{domain.region}``, e o
+que nenhum projeto tem como variável de stage, ``{env.NOME}``. ``translate_cli_variables`` troca
+cada uma pela expressão com placeholders da tabela ``CLI_VARIABLES``, e ``{env.NOME}`` por
+``<NOME>``; ``fill_placeholders`` faz essa troca antes de preencher, e com isso o YAML que a CLI
+implanta num projeto se importa no portal preenchido com os valores desse projeto, sem a CLI.
 
 Um valor pode referenciar outros placeholders, que os dois caminhos trocam antes pelos valores
 deles, um nível: ``"JOB_IMAGE_URI": "<SMD_REGISTRY_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/..."``
@@ -96,14 +96,19 @@ CLI_VARIABLES = {
         "s3://<PROJECTS_BUCKET>/<DOMAIN_ID>/<PROJECT_ID>/shared/"
     ),
     "{proj.connection.default.s3_shared.bucket}": "<PROJECTS_BUCKET>",
+    "{proj.connection.project.athena.workgroupName}": "<ATHENA_WORKGROUP>",
     "{domain.id}": "<DOMAIN_ID>",
     "{domain.region}": "<REGION>",
 }
 """[public] A expressão com placeholders de cada variável da CLI de CI/CD que a tradução conhece,
 o que a CLI escreve no lugar dela num projeto: o id do projeto, o ARN do papel do projeto, o
 ``s3Uri`` da conexão ``default.s3_shared``, que é a pasta ``shared/`` do projeto no bucket, o
-``bucket`` dela, que a CLI tira desse URI, e o id e a região do domínio. Uma variável de stage,
-``{env.NOME}``, vira ``<NOME>`` e não está aqui."""
+``bucket`` dela, que a CLI tira desse URI, o ``workgroupName`` da conexão ``project.athena``, o
+workgroup do Athena que o ambiente Tooling do projeto cria, e o id e a região do domínio. A CLI
+1.0.9 lê o ``workgroupName`` das ``athenaProperties`` de uma conexão ``ATHENA`` e resolve
+``{proj.connection.<conexão>.<propriedade>}`` em qualquer conexão do projeto, um nome com pontos
+incluído (``helpers/connections.py`` e ``helpers/context_resolver.py``, lidos em 2026-11-18).
+Uma variável de stage, ``{env.NOME}``, vira ``<NOME>`` e não está aqui."""
 
 _PROJECT_ROLE_PREFIX = "datazone_usr_role_"
 

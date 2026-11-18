@@ -91,6 +91,15 @@ def test_translate_turns_the_table_and_a_stage_variable_into_placeholders() -> N
     )
 
 
+def test_translate_turns_the_athena_workgroup_into_its_placeholder() -> None:
+    """O ``workgroupName`` da conexão ``project.athena`` vira ``<ATHENA_WORKGROUP>``, que o
+    arquivo de valores preenche."""
+    text = "--workgroup '{proj.connection.project.athena.workgroupName}'"
+    assert render.translate_cli_variables(text) == "--workgroup '<ATHENA_WORKGROUP>'"
+    values = {"ATHENA_WORKGROUP": "workgroup-abc123-env456"}
+    assert render.fill_placeholders(text, values) == "--workgroup 'workgroup-abc123-env456'"
+
+
 def test_translate_leaves_what_is_not_a_cli_variable() -> None:
     """Uma variável de shell num comando e um template do Airflow não são variáveis da CLI."""
     text = "echo ${PYTHONPATH:-} {{ macros.time.gmtime() }} {{ params.SUBNET_AZ1 }}"
