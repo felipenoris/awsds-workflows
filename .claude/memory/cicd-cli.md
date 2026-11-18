@@ -30,6 +30,15 @@ this file keeps what they leave out and the facts in one place.
   `{proj.connection.default.s3_shared.s3Uri}` (`s3://<bucket>/<domínio>/<projeto>/shared/`), its
   `.bucket`, `{domain.id}` and `{domain.region}`; the subnets and the security group it does not
   expose, so they are stage variables.
+- **Any connection's property**, read in the 1.0.9's code on 2026-11-18 for AWS-DataScience's Stage
+  20 (decision 17 (b)): `helpers/context_resolver.py` resolves `{proj.connection.<connection>.<property>}`
+  over every connection of the project, matching a name with dots (`project.athena`) before the
+  property, from the flat dictionary `helpers/connections.py` builds; an `ATHENA` connection gives
+  `workgroupName` from `athenaProperties.workgroupName`. Every project's Tooling environment creates
+  `project.athena`, whose `workgroupName` is the project's workgroup (read with `datazone
+  list-connections` the same day in AWS-DataScience's deployment projects of Staging and Production
+  and in a Sandbox project), so `{proj.connection.project.athena.workgroupName}` names it in every
+  stage; `render` translates it to `<ATHENA_WORKGROUP>`, which the values file fills.
 - **The deployed workflow's name** is `<applicationName>_<project>_<workflowName>`, every character
   outside `[A-Za-z0-9_]` as `_`.
 - **`bundle --targets test`** writes `./artifacts/<applicationName>.zip` (1,648 bytes for

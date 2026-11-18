@@ -244,6 +244,19 @@ def test_a_cli_variable_outside_the_table_fails_the_project_rule(
     assert "sem tradução: {proj.name}" in findings[0].message
 
 
+def test_the_athena_workgroup_of_the_project_passes_the_project_rule(
+    tmp_path: Path,
+) -> None:
+    """O workgroup da conexão ``project.athena``, que a CLI resolve no ``deploy``, está na
+    tabela."""
+    task = {
+        "operator": "airflow.providers.standard.operators.bash.BashOperator",
+        "bash_command": "bash run.sh --workgroup '{proj.connection.project.athena.workgroupName}'",
+        "retries": 0,
+    }
+    assert lint_tasks(tmp_path, {"run": task}) == []
+
+
 @pytest.mark.parametrize(
     ("value", "description"),
     [
