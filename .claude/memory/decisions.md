@@ -680,6 +680,37 @@ fazer conforme sua recomendação"):
   unnamed stage item. The three requests PR #26 left unread, listed only in its body, are an item
   of `OPEN_QUESTIONS.md`.
 
+## The native notebook operator
+
+AWS-DataScience's Stage 6d decision 14 (b), the user's of 2026-10-10, refused the portal's older
+notebook task, which runs a notebook as a training job, and the `lint` refuses
+`SageMakerNotebookOperator` by name since 2026-10-16 ("The lint of an application"). The portal's
+newer native notebook task is another class,
+`airflow.providers.amazon.aws.operators.sagemaker_unified_studio_notebook.SageMakerUnifiedStudioNotebookOperator`,
+which calls DataZone's `StartNotebookRun` and never `CreateTrainingJob`, so the `operador` rule
+admitted it as a class of the Amazon provider. Stage 6d's step 4.7 measured it in a Sandbox
+workflow on 2026-11-21 (`environments.md`, "The AWS-DataScience lab"), and the stage's plan has
+Stage 8 step 5.6's lint learn the name after that measurement. Stage 6d decision 17, the user's of
+2026-11-17 at 23:34 UTC, denies `StartNotebookRun` to every session of the project role in Staging
+and Production since 2026-11-19, so no released workflow may carry a notebook task, and the lint
+refuses one in CI rather than at run time.
+
+The session of 2026-11-21 on branch `claude/lint-native-notebook-136853`, started by an
+AWS-DataScience session with these facts and the reason's three parts, wrote:
+
+- **The refusal by name**, in `_REFUSED_OPERATORS`: the task runs the notebook the project holds,
+  not the code the release carries; Staging and Production deny the run to every session of the
+  project role; the alternatives are `PythonOperator`, `BashOperator` or
+  `SageMakerProcessingOperator`. The reason names the targets, Staging and Production, by the
+  brief, the first time the guide does.
+- **The sensor of the same module passes.** The brief named another class only if it starts a
+  run. In the provider at 9.32.0, the worker's, and at 9.40.0, the latest release on 2026-11-21,
+  the module `sagemaker_unified_studio_notebook` holds the operator, the hook, the sensor
+  `SageMakerUnifiedStudioNotebookSensor`, which reads the run with `GetNotebookRun` and its
+  outputs in S3, and the trigger `SageMakerUnifiedStudioNotebookTrigger`, which waits with the
+  waiter `notebook_run_complete` over `GetNotebookRun`; only the operator calls
+  `StartNotebookRun`, and a trigger is no `operator` of a definition.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.

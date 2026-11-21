@@ -42,7 +42,8 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
 - um `bundle` com o catálogo ligado e o `deploy` que o importa noutro projeto
   ([Regras de autoria](#regras-de-autoria));
 - um `bundle` e um `deploy` com o item do modelo, e as tasks de transformação, de modelo e dos
-  operadores recusados pelo nome num worker ([Regras de autoria](#regras-de-autoria)).
+  operadores recusados pelo nome, salvo o do notebook nativo, num worker
+  ([Regras de autoria](#regras-de-autoria)).
 
 ## Instalação
 
@@ -218,13 +219,36 @@ No guia: [Regras de autoria](../awsds_workflows.html#regras-de-autoria).
   o `deploy` pede um bundle em todo stage, ou para com
   `No bundle file found in ./artifacts directory`, e grava o item a partir da pasta do bundle com
   o nome dele; sem a pasta, imprime `No files found for '<item>' in bundle` e segue.
+- **Laboratório, 2026-11-19.** Em Staging e Production, duas outras contas da organização, uma
+  política sem condição nega `datazone:StartNotebookRun` em `*` ao papel do projeto, e com ela a
+  toda sessão dele, a de um worker de workflow inclusive. A simulação da política como esse
+  papel, com a região do projeto no contexto, deu `explicitDeny` por essa política, e
+  `datazone:GetDomain`, o controle, `allowed`; nenhum run foi tentado.
+- **Código do provedor Amazon, lido em 2026-11-21**, no módulo
+  `sagemaker_unified_studio_notebook`, nas tags `providers-amazon/9.32.0` e
+  `providers-amazon/9.40.0`, sem execução. O `SageMakerUnifiedStudioNotebookOperator` chama o
+  `StartNotebookRun` do DataZone com o notebook, o domínio, o projeto, a computação, o tempo
+  limite e o gatilho `WORKFLOW`, com o nome do DAG, e consulta o run com `GetNotebookRun`, ou o
+  entrega a um trigger; o `SageMakerUnifiedStudioNotebookSensor` e o
+  `SageMakerUnifiedStudioNotebookTrigger` só consultam o run com `GetNotebookRun`. Entre as duas
+  tags, o operador muda só nos argumentos do trigger e na condição com que entrega o run a ele.
+- **Laboratório, 2026-11-21.** Um workflow salvo pelo portal com uma task de notebook leva o
+  `SageMakerUnifiedStudioNotebookOperator` com `notebook_identifier`, `domain_identifier`,
+  `owning_project_identifier`, `compute_configuration` (`sc.t3.medium`) e
+  `timeout_configuration` (60 minutos), sem parâmetro de rede. No run do workflow, o worker chamou
+  `StartNotebookRun` como o papel do projeto, na sessão `AmazonMWAAServerless`, pelo endpoint do
+  DataZone, com o gatilho `WORKFLOW` e sem rede, e depois `GetNotebookRun` a cada 10 segundos;
+  nenhuma chamada foi `CreateTrainingJob`. Cada tentativa da task iniciou um run, cuja computação
+  pôs uma interface de rede nas sub-redes privadas da VPC do projeto, e os dois runs terminaram
+  `FAILED` quando a conexão que o notebook abria para fora esgotou o tempo.
 - **Ainda não medido**: o `lint` no modo promovido e o `lint-plan` numa esteira, sobre a cópia
   renderizada e o plano de uma conta; o tempo de provisionamento e de encerramento de um job
   de processamento dentro dos 3.600 s da task, que decide a margem dos 2.820 s de
   `MaxRuntimeInSeconds`; um `bundle` com o catálogo ligado, o arquivo que ele grava e o
   `deploy` que o importa noutro projeto sem publicar; um `bundle` e um `deploy` com o item do
   modelo, e o código de saída de um `bundle` cuja cópia do modelo é recusada; e as tasks de
-  transformação e de modelo, e os operadores recusados pelo nome, num worker.
+  transformação e de modelo, e os operadores recusados pelo nome, salvo o do notebook nativo,
+  num worker.
 
 ## Uma task de processamento
 
