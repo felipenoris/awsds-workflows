@@ -442,6 +442,48 @@ def test_the_notebook_operator_is_refused_by_name(
     assert "SageMakerNotebookOperator: uma task de notebook" in findings[0].message
 
 
+def test_the_native_notebook_operator_is_refused_by_name(
+    tmp_path: Path,
+) -> None:
+    """``SageMakerUnifiedStudioNotebookOperator``, com os parâmetros com que o portal o escreve
+    numa task (laboratório, 2026-11-21), é recusado pelo nome, com o motivo: o notebook do
+    projeto no lugar do código da versão, a negação em Staging e Production e as alternativas."""
+    task = {
+        "operator": "airflow.providers.amazon.aws.operators.sagemaker_unified_studio_notebook."
+        "SageMakerUnifiedStudioNotebookOperator",
+        "notebook_identifier": "abcdefghijklmn",
+        "domain_identifier": "{domain.id}",
+        "owning_project_identifier": "{proj.id}",
+        "compute_configuration": {"instanceType": "sc.t3.medium"},
+        "timeout_configuration": {"runTimeoutInMinutes": 60},
+        "retries": 0,
+    }
+    findings = lint_tasks(tmp_path, {"run": task})
+    assert rules_of(findings) == ["operador"]
+    message = findings[0].message
+    assert message.startswith("task run: SageMakerUnifiedStudioNotebookOperator: ")
+    assert "roda o notebook que o projeto guarda, não o código que a versão leva" in message
+    assert "Staging e Production negam o run de notebook nativo (StartNotebookRun)" in message
+    assert message.endswith("use PythonOperator, BashOperator ou SageMakerProcessingOperator")
+
+
+def test_the_native_notebook_sensor_passes(
+    tmp_path: Path,
+) -> None:
+    """O sensor do mesmo módulo do provedor passa: ele lê o run com ``GetNotebookRun`` e não
+    inicia um, e a recusa é pelo nome."""
+    task = {
+        "operator": "airflow.providers.amazon.aws.sensors.sagemaker_unified_studio_notebook."
+        "SageMakerUnifiedStudioNotebookSensor",
+        "domain_identifier": "{domain.id}",
+        "owning_project_identifier": "{proj.id}",
+        "notebook_run_id": "abcdefghijklmn",
+        "notebook_identifier": "abcdefghijklmn",
+        "retries": 0,
+    }
+    assert lint_tasks(tmp_path, {"wait": task}) == []
+
+
 @pytest.mark.parametrize(
     ("operator", "reason"),
     [

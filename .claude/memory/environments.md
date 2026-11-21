@@ -145,6 +145,25 @@ step of the runbook was measured in October 2026 (its stage log
   processing job without isolation has run from a workflow; the `job` rule follows
   (`decisions.md`, "The `job` rule and a processing job without network isolation").
 
+- **The native notebook task in a workflow, 2026-11-21, and its deny in the targets, 2026-11-19**
+  (AWS-DataScience's Stage 6d step 4.7 and decision 17; its stage log, "Day 1: decision 6's
+  render and reading, the spaces, and 4.7's runs" and "Decision 17's deny in the targets,
+  applied"). A workflow the portal saved in a Sandbox project with a notebook task carries
+  `airflow.providers.amazon.aws.operators.sagemaker_unified_studio_notebook.SageMakerUnifiedStudioNotebookOperator`
+  with `notebook_identifier`, `domain_identifier`, `owning_project_identifier`,
+  `compute_configuration` `sc.t3.medium` and `timeout_configuration` 60 minutes, and no network
+  parameter. Its worker called `StartNotebookRun` at 03:47:54 UTC as the project role's session
+  `AmazonMWAAServerless` through the `datazone` endpoint, with trigger `WORKFLOW` and no network,
+  then `GetNotebookRun` every 10 seconds, and no `CreateTrainingJob`; each of the task's two
+  attempts started a run whose compute put an interface in the project VPC's private subnets with
+  the project's security group, and both runs ended `FAILED` when the notebook's connection out
+  timed out. In Staging and Production, the policy `awsds-<env>-notebook-run-deny`, one statement
+  `DenyTheProjectRoleANotebookRun` with `datazone:StartNotebookRun` on `*` and no condition, is
+  attached to the deployment project's role since 16:56 to 16:57 UTC on 2026-11-19;
+  `simulate-principal-policy` as that role with `aws:RequestedRegion=us-west-2` read
+  `explicitDeny` from it, and `datazone:GetDomain`, the control, `allowed`. No run was attempted
+  there. The lint's refusal follows (`decisions.md`, "The native notebook operator").
+
 - **The CI/CD CLI from a laptop** (2026-10-15 and 2026-10-16): `aws-smus-cicd-cli` 1.0.9 deployed
   and ran `houseprice-etl` between two projects of the account, from the user's Mac, with the
   credential exported from the SSO profile; what it did, and what the Glue job's runs read, is in

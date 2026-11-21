@@ -229,6 +229,21 @@ pacote repete.
   <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/operators/bedrock.py>,
   <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/hooks/sagemaker.py>
   e os mesmos caminhos na tag `providers-amazon/9.38.0`
+- O módulo `sagemaker_unified_studio_notebook` do `apache-airflow-providers-amazon`, o operador,
+  o sensor, o trigger e o hook, e o waiter `notebook_run_complete` de `waiters/datazone.json`, nas
+  tags `providers-amazon/9.32.0`, a do worker, `providers-amazon/9.36.0` e
+  `providers-amazon/9.40.0`, a última versão lançada, lidos no código pela API do GitHub em
+  2026-11-21 para a recusa do `SageMakerUnifiedStudioNotebookOperator`: o operador chama
+  `StartNotebookRun`, e o sensor, o trigger e o waiter chamam `GetNotebookRun`; o hook, o sensor
+  e o trigger são iguais nas três tags, e o operador muda só nos argumentos do trigger, na 9.36.0,
+  e no `should_defer`, na 9.40.0. A lista das tags, lida no mesmo dia, vai até
+  `providers-amazon/9.41.0rc1`:
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/operators/sagemaker_unified_studio_notebook.py>,
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/sensors/sagemaker_unified_studio_notebook.py>,
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/triggers/sagemaker_unified_studio_notebook.py>,
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/hooks/sagemaker_unified_studio_notebook.py>,
+  <https://github.com/apache/airflow/blob/providers-amazon/9.32.0/providers/amazon/src/airflow/providers/amazon/aws/waiters/datazone.json>
+  e os mesmos caminhos nas tags `providers-amazon/9.36.0` e `providers-amazon/9.40.0`
 
 ## Ferramentas Python
 

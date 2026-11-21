@@ -647,6 +647,7 @@ do provedor:
 | Operador | O motivo, na recusa |
 |---|---|
 | `SageMakerNotebookOperator` | uma task de notebook roda um job de treinamento cuja rede e chave a definição não controla; use `PythonOperator`, `BashOperator` ou `SageMakerProcessingOperator` |
+| `SageMakerUnifiedStudioNotebookOperator` | uma task de notebook roda o notebook que o projeto guarda, não o código que a versão leva, e Staging e Production negam o run de notebook nativo (`StartNotebookRun`) a toda sessão do papel do projeto; use `PythonOperator`, `BashOperator` ou `SageMakerProcessingOperator` |
 | `SageMakerRegisterModelVersionOperator` | cria o grupo em que registra (`CreateModelPackageGroup`) antes da versão, e sem a permissão de criar grupos falha mesmo num grupo que já existe; registre a versão com `boto3` numa task Python |
 | `SageMakerEndpointOperator` | cria o modelo e a configuração que o `config` traz sem conferir os nomes e, num endpoint que já existe, chama `UpdateEndpoint` sem as etiquetas; o `lint` não lê o pedido dele |
 | `SageMakerEndpointConfigOperator` | cria a configuração de um endpoint (`CreateEndpointConfig`), que só um endpoint usa, e o `lint` não lê o pedido dele |
@@ -654,14 +655,19 @@ do provedor:
 | `BedrockRaGOperator` | grava no log da task o prompt, a resposta e as citações, e chama o `RetrieveAndGenerate`, cujas chamadas `InvokeModel` nem todas levam o guardrail, e que a página da AWS diz para não permitir a um papel que exige um guardrail; recupere e chame o modelo com `boto3` numa task Python |
 | `BedrockRetrieveOperator` | grava no log da task a consulta e os trechos recuperados da base de conhecimento; recupere com `boto3` numa task Python |
 
-Os outros operadores do Bedrock passam, entre eles os que criam um guardrail, uma base de
+O `SageMakerUnifiedStudioNotebookOperator` é a task de notebook que o portal escreve num
+workflow, e o `SageMakerNotebookOperator`, a mais antiga. O sensor do notebook nativo,
+`SageMakerUnifiedStudioNotebookSensor`, passa, porque lê um run (`GetNotebookRun`) sem iniciar
+um. Os outros operadores do Bedrock passam, entre eles os que criam um guardrail, uma base de
 conhecimento ou uma fonte de dados. O log de uma task fica no grupo de logs do workflow, para quem
 pode lê-lo. A recusa vale em toda definição que o `lint` lê: numa aplicação, nas das pastas que o
 manifest copia; uma sonda fora delas, que o `bundle` não leva, é lida só quando passada sozinha.
 
 > [!NOTE]
-> **Estado**: os motivos foram lidos no código do provedor, nas versões 9.32.0 e 9.38.0, e na
-> página da AWS sobre guardrails; nenhum desses operadores rodou num worker
+> **Estado**: os motivos foram lidos no código do provedor, nas versões 9.32.0 e 9.38.0 (o do
+> notebook nativo, na 9.32.0 e na 9.40.0), e na página da AWS sobre guardrails. Só o
+> `SageMakerUnifiedStudioNotebookOperator` rodou num worker, no laboratório; a negação do
+> `StartNotebookRun` em Staging e Production foi conferida por uma simulação da política, sem run
 > ([as notas](awsds_workflows/lab_notes.html#regras-de-autoria)).
 
 #### O item do modelo
