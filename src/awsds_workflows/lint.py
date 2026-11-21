@@ -28,11 +28,12 @@ As regras, pelo nome que uma recusa traz:
   cada workflow promovido, e um exemplo roda por ``run``).
 - ``operador``: o ``operator`` é uma classe do provedor Amazon
   (``airflow.providers.amazon.aws.``) ou o ``PythonOperator`` ou ``BashOperator`` de
-  ``airflow.providers.standard.operators.``; são recusados pelo nome, com o motivo na recusa,
-  ``SageMakerNotebookOperator``, ``SageMakerRegisterModelVersionOperator``,
-  ``SageMakerEndpointOperator`` e ``SageMakerEndpointConfigOperator``, e os do Bedrock que gravam
-  no log da task o que enviam e o que recebem: ``BedrockInvokeModelOperator``,
-  ``BedrockRaGOperator`` e ``BedrockRetrieveOperator``.
+  ``airflow.providers.standard.operators.``; são recusados pelo nome, com o motivo na recusa, os
+  de notebook, ``SageMakerNotebookOperator`` e ``SageMakerUnifiedStudioNotebookOperator``,
+  ``SageMakerRegisterModelVersionOperator``, ``SageMakerEndpointOperator`` e
+  ``SageMakerEndpointConfigOperator``, e os do Bedrock que gravam no log da task o que enviam e o
+  que recebem: ``BedrockInvokeModelOperator``, ``BedrockRaGOperator`` e
+  ``BedrockRetrieveOperator``.
 - ``limites``: ``retries`` escrito em cada task, entre 0 e 3 (o serviço assume 1); ``retry_delay``
   até 300 s; ``execution_timeout`` e o ``timeout`` de um sensor até 3.600 s, o teto de uma task;
   o arquivo até 50.000 bytes (a cota de uma definição). As grafias ``retry_delay_sec`` e
@@ -155,10 +156,17 @@ _STANDARD_OPERATORS = "airflow.providers.standard.operators."
 _CORE_OPERATORS = frozenset({"PythonOperator", "BashOperator"})
 # Os operadores recusados pelo nome, com o motivo, lido no código do provedor Amazon 9.32.0, o do
 # worker, e igual na 9.38.0 nas chamadas e nos logs que os motivos citam (2026-11-17).
+# O do notebook nativo chama o StartNotebookRun do DataZone na 9.32.0 e na 9.40.0 (lidas em
+# 2026-11-21), e o portal o escreve numa task (laboratório, 2026-11-21); Staging e Production negam
+# o StartNotebookRun a toda sessão do papel do projeto desde 2026-11-19.
 _REFUSED_OPERATORS = {
     "SageMakerNotebookOperator": "uma task de notebook roda um job de treinamento cuja rede e "
     "chave a definição não controla; use PythonOperator, BashOperator ou "
     "SageMakerProcessingOperator",
+    "SageMakerUnifiedStudioNotebookOperator": "uma task de notebook roda o notebook que o "
+    "projeto guarda, não o código que a versão leva, e Staging e Production negam o run de "
+    "notebook nativo (StartNotebookRun) a toda sessão do papel do projeto; use PythonOperator, "
+    "BashOperator ou SageMakerProcessingOperator",
     "SageMakerRegisterModelVersionOperator": "cria o grupo em que registra "
     "(CreateModelPackageGroup) antes da versão, e sem a permissão de criar grupos falha mesmo "
     "num grupo que já existe; registre a versão com boto3 numa task Python",
