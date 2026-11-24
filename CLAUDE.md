@@ -666,12 +666,12 @@ its decision 17 denies the run to every session of the project role in Staging a
 since 2026-11-19 ("The native notebook operator" in `.claude/memory/decisions.md`). The sensor of
 the same module passes, since it starts no run.
 
-An AWS-DataScience session on branch `claude/lint-treino-modelo-isolamento` (2026-11-24) wrote
-that repository's Stage 11 step 7.5: by the user's decision 14 of 02:40 UTC ("The `treino` and
-`modelo` rules and a training job or a model without network isolation" in
-`.claude/memory/decisions.md`), the `treino` and `modelo` rules no longer require
-`EnableNetworkIsolation`, so no rule reads it. The lab's boundary refuses a training job or a
-model without isolation until that stage's applies, planned the same day
+An AWS-DataScience session on branch `claude/lint-treino-modelo-isolamento` (2026-11-24, PR #30,
+merged that day as `8b14f6d`) wrote that repository's Stage 11 step 7.5: by the user's decision 14
+of 02:40 UTC ("The `treino` and `modelo` rules and a training job or a model without network
+isolation" in `.claude/memory/decisions.md`), the `treino` and `modelo` rules no longer require
+`EnableNetworkIsolation`, so no rule reads it. The lab's boundary admits a training job or a model
+without isolation since that stage's applies, run the same day from 04:45 to 04:47 UTC
 (`.claude/memory/environments.md`, "The AWS-DataScience lab").
 
 What waits: the user's confirmation of the design choices listed in `.claude/memory/decisions.md`
@@ -687,7 +687,6 @@ copies, and the `houseprice-etl` run without `UpdateJob`; the `lint --promoted` 
 `lint-plan` on AWS-DataScience's pipeline, once it bumps the package's pin; a `bundle` with the
 catalog enabled and the `deploy` that imports it; the Stage 17 rules' tasks on a worker, and a
 `bundle` and a `deploy` with the model item; an application that writes one of the three requests
-the Stage 17 rules leave unread; a processing job without isolation run from a workflow; a
-training job or a model without isolation, admitted after AWS-DataScience's Stage 11 applies, and
-one run from a workflow. Each one is an item in
+the Stage 17 rules leave unread; a processing job, a training job or a model without isolation
+run from a workflow. Each one is an item in
 `.claude/memory/OPEN_QUESTIONS.md`.

@@ -18,9 +18,8 @@ Cada seção tem o nome da seção do guia a que se refere e abre com um link pa
   contêiner de um job e o patch da versão ([A imagem do job](#a-imagem-do-job));
 - no ambiente alvo, o caminho do job, do download da imagem à gravação da saída
   ([A rede](#a-rede));
-- um job de processamento sem isolamento rodado por um workflow, e o que o contêiner dele alcança;
-  e um job de treinamento ou um modelo sem isolamento, que o laboratório admite só depois da
-  mudança de 2026-11-24 ([Uma task de processamento](#uma-task-de-processamento));
+- um job de processamento, um job de treinamento ou um modelo sem isolamento num workflow, e o
+  que o contêiner dele alcança ([Uma task de processamento](#uma-task-de-processamento));
 - uma pasta gravada pelo próprio `package-job` num job
   ([A pasta de código com `package-job`](#a-pasta-de-codigo-com-package-job));
 - o `.tar.gz` do `prepare-offline` num job, e o custo por arquivo de uma entrada de código
@@ -261,11 +260,13 @@ No guia: [Uma task de processamento](../awsds_workflows.html#uma-task-de-process
   organização, das 16:03 às 16:04 UTC, admitiu a chamada de um job de processamento sem
   isolamento, recusou a de um job de treinamento sem ele e seguiu recusando o job de processamento
   fora da VPC, acima do teto de instância, sem a cifra entre contêineres e sem a chave do volume.
-- **Laboratório, 2026-11-24.** A mudança que tira do limite dos papéis de projeto e da política da
-  organização a exigência de `EnableNetworkIsolation: true` num job de treinamento, de ajuste de
-  hiperparâmetros e de AutoML e num modelo foi escrita, e os planos do Terraform, só de leitura,
-  leram a retirada da exigência. Ela não foi aplicada: até lá, o laboratório recusa um job de
-  treinamento e um modelo sem isolamento, que as regras `treino` e `modelo` aceitam.
+- **Laboratório, 2026-11-24.** O limite dos papéis de projeto e a política da organização deixaram
+  de exigir `EnableNetworkIsolation: true` num job de treinamento, de ajuste de hiperparâmetros e
+  de AutoML e num modelo: os planos do Terraform, só de leitura, leram só a retirada da exigência,
+  e os applies rodaram das 04:45 às 04:47 UTC. Um teste da política da organização, das 04:47 às
+  04:49 UTC, admitiu a chamada de um job de treinamento sem isolamento e seguiu recusando o job de
+  processamento fora da VPC, sem a cifra entre contêineres e sem a chave do volume, e os dois
+  acima do teto de instância.
 
 ### A pasta de código com `package-job`
 

@@ -145,14 +145,17 @@ step of the runbook was measured in October 2026 (its stage log
   processing job without isolation has run from a workflow; the `job` rule follows
   (`decisions.md`, "The `job` rule and a processing job without network isolation").
 
-- **A training, tuning or AutoML job and a model without network isolation are planned, not
-  applied** (AWS-DataScience's Stage 11 decision 14, 2026-11-24; `TM-38`): the module
-  `sagemaker-denies` loses `DenySageMakerJobsWithoutNetworkIsolation` at `v0.4.0`, and the
-  read-only plans of the persona sets, the `Workloads` SCP and the project boundaries read its
-  removal. Until the applies, which follow AWS-DataScience's PR #411, the lab refuses
-  `CreateTrainingJob`, `CreateHyperParameterTuningJob` and `CreateModel` without isolation. The
-  `treino` and `modelo` rules no longer read it (`decisions.md`, "The `treino` and `modelo` rules
-  and a training job or a model without network isolation").
+- **A training, tuning or AutoML job and a model without network isolation are admitted since
+  2026-11-24** (AWS-DataScience's Stage 11 decision 14; its stage log, "Step 7.4: decision 14's
+  applies and the battery"; `TM-38`): `sagemaker-denies` lost
+  `DenySageMakerJobsWithoutNetworkIsolation` at `v0.4.0`, applied in the persona sets (04:46:07
+  UTC), the `Workloads` SCP (04:46:26), Sandbox's project boundary (04:46:47) and the targets'
+  (04:47:00 and 04:47:15). The SCP battery in Production, 04:47:34 to 04:49:13 UTC, read
+  `CreateTrainingJob` without isolation `ALLOWED` at `reached-authorization`, and the processing
+  job off the VPC, without inter-container encryption or without the volume key, and both jobs
+  above the instance ceiling `DENY-SCP` as before. No training job or model without isolation has
+  run from a workflow; the `treino` and `modelo` rules no longer read it (`decisions.md`, "The
+  `treino` and `modelo` rules and a training job or a model without network isolation").
 
 - **The native notebook task in a workflow, 2026-11-21, and its deny in the targets, 2026-11-19**
   (AWS-DataScience's Stage 6d step 4.7 and decision 17; its stage log, "Day 1: decision 6's
