@@ -48,14 +48,13 @@ As regras, pelo nome que uma recusa traz:
   provisionamento e encerramento), um ``InstanceType`` da lista pedida, quando há uma, e, no modo
   promovido, ``VolumeKmsKeyId``; ``EnableNetworkIsolation`` fica a critério da task.
 - ``treino``: o ``config`` de um ``SageMakerTrainingOperator`` tem ``VpcConfig`` com ``Subnets``
-  e ``SecurityGroupIds``, ``EnableNetworkIsolation`` e ``EnableInterContainerTrafficEncryption``
-  verdadeiros, ``StoppingCondition.MaxRuntimeInSeconds`` até 2.820 s, um
-  ``ResourceConfig.InstanceType`` da lista pedida, quando há uma, e
-  ``OutputDataConfig.S3OutputPath``, com o ``S3Uri`` de cada canal de ``InputDataConfig`` no
-  bucket dele; a task leva ``action_if_job_exists: fail``, porque com o padrão do operador uma
-  nova tentativa com o mesmo nome inicia um segundo job; no modo promovido, também
-  ``ResourceConfig.VolumeKmsKeyId``, ``OutputDataConfig.KmsKeyId`` e a saída sob ``models/``
-  do bucket.
+  e ``SecurityGroupIds``, ``EnableInterContainerTrafficEncryption`` verdadeiro,
+  ``StoppingCondition.MaxRuntimeInSeconds`` até 2.820 s, um ``ResourceConfig.InstanceType`` da
+  lista pedida, quando há uma, e ``OutputDataConfig.S3OutputPath``, com o ``S3Uri`` de cada canal
+  de ``InputDataConfig`` no bucket dele; a task leva ``action_if_job_exists: fail``, porque com o
+  padrão do operador uma nova tentativa com o mesmo nome inicia um segundo job; no modo promovido,
+  também ``ResourceConfig.VolumeKmsKeyId``, ``OutputDataConfig.KmsKeyId`` e a saída sob
+  ``models/`` do bucket. ``EnableNetworkIsolation`` fica a critério da task.
 - ``transformacao``: o pedido do job de um ``SageMakerTransformOperator``, o ``Transform`` do
   ``config`` ou, sem ele, o ``config`` inteiro, como o operador o lê, tem um
   ``TransformResources.InstanceType`` da lista pedida, quando há uma,
@@ -63,8 +62,8 @@ As regras, pelo nome que uma recusa traz:
   leva ``action_if_job_exists: fail``.
 - ``modelo``: o pedido ``CreateModel`` que a definição escreve, o ``config`` de um
   ``SageMakerModelOperator`` ou o ``Model`` do ``config`` de um ``SageMakerTransformOperator``,
-  quando há um, tem ``VpcConfig`` com ``Subnets`` e ``SecurityGroupIds`` e
-  ``EnableNetworkIsolation`` verdadeiro.
+  quando há um, tem ``VpcConfig`` com ``Subnets`` e ``SecurityGroupIds``;
+  ``EnableNetworkIsolation`` fica a critério da task.
 - ``templates``: o primeiro nome de cada ``{{ }}`` é um dos que o serviço renderiza (``macros``,
   ``ti``, ``task_instance``, ``params``, ``ds``, ``ds_nodash``, ``ts``, ``ts_nodash``), e nenhum
   método é chamado sobre o que uma macro devolveu (laboratório, 2026-10-11).
@@ -854,9 +853,10 @@ def _check_training(
     promoted: bool,
     instance_types: Sequence[str],
 ) -> list[Finding]:
-    """[private] O ``config`` de um ``SageMakerTrainingOperator``: a rede, o isolamento, a cifra,
-    o teto de tempo, o tipo de instância, a saída e os canais no bucket dela, a nova tentativa que
-    falha e, no modo promovido, as duas chaves e a saída sob ``models/``."""
+    """[private] O ``config`` de um ``SageMakerTrainingOperator``: a rede, a cifra entre
+    contêineres, o teto de tempo, o tipo de instância, a saída e os canais no bucket dela, a nova
+    tentativa que falha e, no modo promovido, as duas chaves e a saída sob ``models/``. O
+    isolamento de rede não é lido: sem ele, o contêiner roda com as credenciais do papel do job."""
     if not _is_operator(task, "SageMakerTrainingOperator"):
         return []
     path = definition.path
@@ -878,10 +878,9 @@ def _check_training(
         if not _is_nonempty_list(vpc.get(key)):
             message = f"task {task_name}: VpcConfig.{key} ausente ou vazio"
             findings.append(Finding(path, "treino", message))
-    for key in ("EnableNetworkIsolation", "EnableInterContainerTrafficEncryption"):
-        if config.get(key) is not True:
-            message = f"task {task_name}: {key} tem de ser true"
-            findings.append(Finding(path, "treino", message))
+    if config.get("EnableInterContainerTrafficEncryption") is not True:
+        message = f"task {task_name}: EnableInterContainerTrafficEncryption tem de ser true"
+        findings.append(Finding(path, "treino", message))
 
     runtime = _mapping_at(config, "StoppingCondition").get("MaxRuntimeInSeconds")
     if runtime is None:
@@ -1014,17 +1013,15 @@ def _check_model_request(
     where: str,
 ) -> list[Finding]:
     """[private] A rede de um pedido ``CreateModel``: ``VpcConfig`` com ``Subnets`` e
-    ``SecurityGroupIds`` e ``EnableNetworkIsolation`` verdadeiro; ``where`` é o caminho do pedido
-    no ``config``, vazio ou ``Model.``."""
+    ``SecurityGroupIds``; ``where`` é o caminho do pedido no ``config``, vazio ou ``Model.``. O
+    isolamento de rede não é lido: sem ele, o contêiner do modelo roda com as credenciais do papel
+    de execução."""
     findings: list[Finding] = []
     vpc = _mapping_at(model, "VpcConfig")
     for key in ("Subnets", "SecurityGroupIds"):
         if not _is_nonempty_list(vpc.get(key)):
             message = f"task {task_name}: {where}VpcConfig.{key} ausente ou vazio"
             findings.append(Finding(path, "modelo", message))
-    if model.get("EnableNetworkIsolation") is not True:
-        message = f"task {task_name}: {where}EnableNetworkIsolation tem de ser true"
-        findings.append(Finding(path, "modelo", message))
     return findings
 
 
