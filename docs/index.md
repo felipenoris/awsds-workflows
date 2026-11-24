@@ -619,9 +619,9 @@ As regras, pelo nome que a recusa traz:
 | `limites` | `retries` ausente, porque o serviço assume 1, ou fora de 0 a 3; `retry_delay` acima de 300 s; `execution_timeout` e o `timeout` de um sensor acima de 3.600 s; o arquivo acima de 50.000 bytes, a cota de uma definição; as grafias `retry_delay_sec` e `execution_timeout_secs` do dag-factory contam |
 | `imagem` | um `ImageUri` ou `TrainingImage` literal que não é `<conta>.dkr.ecr.<região>.amazonaws.com/<repositório>@sha256:<digest>`, ou de outro repositório que o de `--image-repository` e os de `--algorithm-repository`; na autoria, um placeholder passa |
 | `job` | o `config` de um `SageMakerProcessingOperator` sem `NetworkConfig.VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableInterContainerTrafficEncryption` verdadeiro, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, 13 minutos abaixo do teto da task para o provisionamento e o encerramento do job, uma margem escolhida e não medida; com um `InstanceType` fora de `--instance-type`; e, no modo promovido, sem `VolumeKmsKeyId`; `EnableNetworkIsolation` fica a critério da task ([Uma task de processamento](#uma-task-de-processamento)) |
-| `treino` | o `config` de um `SageMakerTrainingOperator` sem `VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableNetworkIsolation` e `EnableInterContainerTrafficEncryption` verdadeiros, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, com um `ResourceConfig.InstanceType` fora de `--instance-type`, sem `OutputDataConfig.S3OutputPath` ou com um canal de `InputDataConfig` noutro bucket que o dela; a task sem `action_if_job_exists: fail`, porque com o padrão do operador uma nova tentativa com o mesmo nome inicia um segundo job; e, no modo promovido, sem `ResourceConfig.VolumeKmsKeyId`, sem `OutputDataConfig.KmsKeyId` ou com a saída fora de `models/` do bucket |
+| `treino` | o `config` de um `SageMakerTrainingOperator` sem `VpcConfig` com `Subnets` e `SecurityGroupIds`, sem `EnableInterContainerTrafficEncryption` verdadeiro, sem `StoppingCondition.MaxRuntimeInSeconds` ou com ele acima de 2.820 s, com um `ResourceConfig.InstanceType` fora de `--instance-type`, sem `OutputDataConfig.S3OutputPath` ou com um canal de `InputDataConfig` noutro bucket que o dela; a task sem `action_if_job_exists: fail`, porque com o padrão do operador uma nova tentativa com o mesmo nome inicia um segundo job; e, no modo promovido, sem `ResourceConfig.VolumeKmsKeyId`, sem `OutputDataConfig.KmsKeyId` ou com a saída fora de `models/` do bucket; `EnableNetworkIsolation` fica a critério da task ([Uma task de processamento](#uma-task-de-processamento)) |
 | `transformacao` | o pedido do job de um `SageMakerTransformOperator`, o `Transform` do `config` ou, sem ele, o `config` inteiro, como o operador o lê, com um `TransformResources.InstanceType` fora de `--instance-type`, sem `TransformResources.VolumeKmsKeyId` ou sem `TransformOutput.KmsKeyId`, nos dois modos; a task sem `action_if_job_exists: fail`, como na regra `treino`; o `Model` do `config`, quando há um, passa pela regra `modelo` |
-| `modelo` | o pedido `CreateModel` que a definição escreve, o `config` de um `SageMakerModelOperator` ou o `Model` do `config` de um `SageMakerTransformOperator`, sem `VpcConfig` com `Subnets` e `SecurityGroupIds` ou sem `EnableNetworkIsolation` verdadeiro |
+| `modelo` | o pedido `CreateModel` que a definição escreve, o `config` de um `SageMakerModelOperator` ou o `Model` do `config` de um `SageMakerTransformOperator`, sem `VpcConfig` com `Subnets` e `SecurityGroupIds`; `EnableNetworkIsolation` fica a critério da task ([Uma task de processamento](#uma-task-de-processamento)) |
 | `templates` | um `{{ }}` cujo primeiro nome o serviço não renderiza, ou um método sobre o que uma macro devolveu ([Os templates](#os-templates)) |
 | `codigo` | a entrada de código do job, a de `LocalPath` `/opt/ml/processing/code` ou `InputName` `code`, fora das pastas da tag que o manifest copia em todos os stages, ou dos `--prefix` |
 | `glue` | o script de um `GlueJobOperator`, em `script_location` e em `Command.ScriptLocation`, ou um arquivo de `--extra-py-files`, `--extra-jars` e `--extra-files` fora delas; no modo promovido, um `GlueJobOperator` com `create_job_kwargs`, `script_location`, `iam_role_arn`, `update_config` ou `job_desc`, as chaves com que o operador cria ou atualiza o job, porque numa conta sem projeto o job é do Terraform e a task só o inicia pelo `job_name`; no `lint-plan`, o job do plano ([O plano do Terraform](#o-plano-do-terraform)) |
@@ -792,13 +792,17 @@ e o `KmsKeyId` da saída, a chave do projeto. Outro ambiente pode exigir outra l
 contêiner não tem rede nem credenciais da AWS, e só lê e grava as entradas e as saídas que o
 SageMaker monta. Sem ele, o contêiner roda nas sub-redes do projeto com as credenciais do papel do
 job, o do projeto, e alcança o que a rede do projeto alcança: os endpoints da VPC e, no
-laboratório, os nomes que o proxy libera. O limite do laboratório não exige o isolamento num job de
-processamento, e o exige num job de treinamento e num modelo. A
+laboratório, os nomes que o proxy libera. Um job de treinamento e um modelo levam o campo no topo
+do pedido, `EnableNetworkIsolation`, e o `lint` também o deixa a critério da task. O limite do
+laboratório não exige o isolamento num job de processamento, e o exige num job de treinamento e
+num modelo até a mudança de 2026-11-24 ser aplicada. A
 [definição de exemplo](#uma-definicao-de-exemplo) o mantém, porque o job só lê as suas entradas.
 
 > [!NOTE]
 > **Estado**: a política da organização foi testada no laboratório sem a exigência do isolamento num
-> job de processamento; um job sem isolamento ainda não rodou num workflow
+> job de processamento; um job sem isolamento ainda não rodou num workflow. A mudança que tira a
+> exigência de um job de treinamento e de um modelo foi escrita e não foi aplicada: até lá, o
+> laboratório recusa o pedido sem isolamento que o `lint` aceita
 > ([as notas](awsds_workflows/lab_notes.html#uma-task-de-processamento)).
 
 **As entradas e as saídas ficam em `/opt/ml/processing/`.** O SageMaker baixa cada
