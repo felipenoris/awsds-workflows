@@ -1785,17 +1785,31 @@ def test_a_training_task_without_the_vpc_fails_the_training_rule(
     assert f"VpcConfig.{key} ausente ou vazio" in findings[0].message
 
 
-@pytest.mark.parametrize("key", ["EnableNetworkIsolation", "EnableInterContainerTrafficEncryption"])
-def test_a_training_task_without_isolation_or_encryption_fails_the_training_rule(
+def test_a_training_task_without_encryption_fails_the_training_rule(
     tmp_path: Path,
-    key: str,
 ) -> None:
-    """O isolamento de rede e a cifra entre contêineres são ``true``, no topo do ``config``."""
+    """A cifra entre contêineres é ``true``, no topo do ``config``."""
     task = training_task()
-    task["config"][key] = False
+    task["config"]["EnableInterContainerTrafficEncryption"] = False
     findings = lint_tasks(tmp_path, {"train": task})
     assert rules_of(findings) == ["treino"]
-    assert f"{key} tem de ser true" in findings[0].message
+    assert "EnableInterContainerTrafficEncryption tem de ser true" in findings[0].message
+
+
+@pytest.mark.parametrize("value", [False, None])
+def test_a_training_task_without_isolation_passes_the_training_rule(
+    tmp_path: Path,
+    value: Any,
+) -> None:
+    """O isolamento de rede fica a critério da task: uma task de treinamento com
+    ``EnableNetworkIsolation`` falso, ou sem ele, passa."""
+    task = training_task()
+    config = task["config"]
+    if value is None:
+        del config["EnableNetworkIsolation"]
+    else:
+        config["EnableNetworkIsolation"] = value
+    assert lint_tasks(tmp_path, {"train": task}) == []
 
 
 def test_a_training_task_above_the_task_ceiling_fails_the_training_rule(
@@ -2026,36 +2040,37 @@ def test_a_promoted_transform_task_passes_with_its_keys_and_fails_without_them(
     assert "TransformResources.VolumeKmsKeyId ausente" in findings[0].message
 
 
-@pytest.mark.parametrize(
-    ("change", "expected"),
-    [
-        (
-            lambda m: m.pop("VpcConfig"),
-            [
-                "Model.VpcConfig.Subnets ausente ou vazio",
-                "Model.VpcConfig.SecurityGroupIds ausente ou vazio",
-            ],
-        ),
-        (
-            lambda m: m.update(EnableNetworkIsolation=False),
-            ["Model.EnableNetworkIsolation tem de ser true"],
-        ),
-    ],
-)
 def test_a_transform_model_without_its_network_fails_the_model_rule(
     tmp_path: Path,
-    change: Any,
-    expected: list[str],
 ) -> None:
-    """O ``Model`` do ``config``, que o operador cria antes do job, tem ``VpcConfig`` e o
-    isolamento de rede."""
+    """O ``Model`` do ``config``, que o operador cria antes do job, tem ``VpcConfig``."""
     model = model_request()
-    change(model)
+    del model["VpcConfig"]
     task = transform_task()
     task["config"] = {"Model": model, "Transform": transform_request()}
     findings = lint_tasks(tmp_path, {"score": task})
-    assert rules_of(findings) == ["modelo"] * len(expected)
-    assert [finding.message for finding in findings] == [f"task score: {e}" for e in expected]
+    assert rules_of(findings) == ["modelo", "modelo"]
+    assert [finding.message for finding in findings] == [
+        "task score: Model.VpcConfig.Subnets ausente ou vazio",
+        "task score: Model.VpcConfig.SecurityGroupIds ausente ou vazio",
+    ]
+
+
+@pytest.mark.parametrize("value", [False, None])
+def test_a_transform_model_without_isolation_passes_the_model_rule(
+    tmp_path: Path,
+    value: Any,
+) -> None:
+    """O isolamento de rede do ``Model`` do ``config`` fica a critério da task: com
+    ``EnableNetworkIsolation`` falso, ou sem ele, a task passa."""
+    model = model_request()
+    if value is None:
+        del model["EnableNetworkIsolation"]
+    else:
+        model["EnableNetworkIsolation"] = value
+    task = transform_task()
+    task["config"] = {"Model": model, "Transform": transform_request()}
+    assert lint_tasks(tmp_path, {"score": task}) == []
 
 
 def test_a_model_task_passes(
@@ -2084,11 +2099,6 @@ def test_a_model_task_without_config_fails_the_model_rule(
             lambda m: m["VpcConfig"].pop("SecurityGroupIds"),
             "VpcConfig.SecurityGroupIds ausente ou vazio",
         ),
-        (lambda m: m.pop("EnableNetworkIsolation"), "EnableNetworkIsolation tem de ser true"),
-        (
-            lambda m: m.update(EnableNetworkIsolation="true"),
-            "EnableNetworkIsolation tem de ser true",
-        ),
     ],
 )
 def test_a_model_task_without_its_network_fails_the_model_rule(
@@ -2097,9 +2107,25 @@ def test_a_model_task_without_its_network_fails_the_model_rule(
     expected: str,
 ) -> None:
     """O ``config`` de um ``SageMakerModelOperator`` tem ``VpcConfig`` com ``Subnets`` e
-    ``SecurityGroupIds`` e ``EnableNetworkIsolation`` ``true``, o booleano."""
+    ``SecurityGroupIds``."""
     task = model_task()
     change(task["config"])
     findings = lint_tasks(tmp_path, {"model": task})
     assert rules_of(findings) == ["modelo"]
     assert findings[0].message == f"task model: {expected}"
+
+
+@pytest.mark.parametrize("value", [False, None])
+def test_a_model_task_without_isolation_passes_the_model_rule(
+    tmp_path: Path,
+    value: Any,
+) -> None:
+    """O isolamento de rede fica a critério da task: um ``SageMakerModelOperator`` com
+    ``EnableNetworkIsolation`` falso, ou sem ele, passa."""
+    task = model_task()
+    config = task["config"]
+    if value is None:
+        del config["EnableNetworkIsolation"]
+    else:
+        config["EnableNetworkIsolation"] = value
+    assert lint_tasks(tmp_path, {"model": task}) == []

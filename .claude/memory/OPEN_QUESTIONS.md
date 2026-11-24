@@ -154,6 +154,14 @@ nomeia esse lugar.
   `environments.md`, "The AWS-DataScience lab"). Não medidos: um job assim rodado por um workflow,
   com as credenciais do papel do projeto no contêiner, e o que ele alcança da rede do projeto.
   Fecha com a etapa 4.5 do estágio 20 do AWS-DataScience.
+- **Um job de treinamento e um modelo sem isolamento.** As regras `treino` e `modelo` os aceitam
+  desde a etapa 7.5 do estágio 11 do AWS-DataScience, de 2026-11-24, e o limite do laboratório os
+  recusa até os applies da decisão 14 daquele estágio, planejados no mesmo dia (`decisions.md`,
+  "The `treino` and `modelo` rules and a training job or a model without network isolation";
+  `environments.md`, "The AWS-DataScience lab"). Não medidos: a chamada admitida depois dos
+  applies, que a verificação xi daquele estágio lê pela bateria, e uma task de treinamento ou de
+  modelo sem isolamento num workflow. Fecha com a etapa 7.4 daquele estágio e uma task assim num
+  worker.
 - **Um `python_callable` pontuado para dentro do pacote** (`pacote.modulo.funcao`) não foi medido;
   a documentação recomenda um módulo de entrada na raiz. Fecha com uma task que o use.
 - **A distribuição.** O pacote é instalado por git, porque o nome está livre no PyPI. Quando houver

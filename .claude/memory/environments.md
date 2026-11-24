@@ -145,6 +145,15 @@ step of the runbook was measured in October 2026 (its stage log
   processing job without isolation has run from a workflow; the `job` rule follows
   (`decisions.md`, "The `job` rule and a processing job without network isolation").
 
+- **A training, tuning or AutoML job and a model without network isolation are planned, not
+  applied** (AWS-DataScience's Stage 11 decision 14, 2026-11-24; `TM-38`): the module
+  `sagemaker-denies` loses `DenySageMakerJobsWithoutNetworkIsolation` at `v0.4.0`, and the
+  read-only plans of the persona sets, the `Workloads` SCP and the project boundaries read its
+  removal. Until the applies, which follow AWS-DataScience's PR #411, the lab refuses
+  `CreateTrainingJob`, `CreateHyperParameterTuningJob` and `CreateModel` without isolation. The
+  `treino` and `modelo` rules no longer read it (`decisions.md`, "The `treino` and `modelo` rules
+  and a training job or a model without network isolation").
+
 - **The native notebook task in a workflow, 2026-11-21, and its deny in the targets, 2026-11-19**
   (AWS-DataScience's Stage 6d step 4.7 and decision 17; its stage log, "Day 1: decision 6's
   render and reading, the spaces, and 4.7's runs" and "Decision 17's deny in the targets,

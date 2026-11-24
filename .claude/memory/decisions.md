@@ -711,6 +711,25 @@ AWS-DataScience session with these facts and the reason's three parts, wrote:
   waiter `notebook_run_complete` over `GetNotebookRun`; only the operator calls
   `StartNotebookRun`, and a trigger is no `operator` of a definition.
 
+## The `treino` and `modelo` rules and a training job or a model without network isolation
+
+AWS-DataScience's Stage 11 decision 14, the user's of 2026-11-24 at 02:40 UTC ("Retirar em
+tudo"), removes `DenySageMakerJobsWithoutNetworkIsolation` in Sandbox, Staging and Production, so
+that a training, tuning or AutoML job and a model run as their execution role in the project's
+subnets and reach what a space of the project reaches, as Stage 20 decision 13 gave a processing
+job (`TM-38`). Its module tags, `sagemaker-denies-v0.4.0` and `sagemaker-prereqs-v0.16.0`, and its
+read-only plans are of 2026-11-24 (AWS-DataScience's PR #411); the applies follow that PR's merge,
+and until then the lab's boundary refuses a training job or a model without isolation. Its step
+7.5 hands this package the `treino` and `modelo` rules, and the user authorized the push and the
+pull request on 2026-11-24 at 03:32 UTC ("Autorizo push e PR"):
+
+- **No rule reads `EnableNetworkIsolation`.** A training task, a `SageMakerModelOperator` and the
+  `Model` of a `SageMakerTransformOperator` pass with it false or absent, as a processing task
+  does since 2026-11-17. `treino` keeps the VPC, the inter-container encryption and the rest of
+  its list; `modelo` keeps the VPC.
+- **Until the applies, the lint passes a training or model request the lab's boundary refuses**;
+  the refusal shows in the task's log at run time.
+
 ## Design choices of the first session
 
 Taken by Claude on 2026-10-11 and named in the first PR; each waits on the user's confirmation.
