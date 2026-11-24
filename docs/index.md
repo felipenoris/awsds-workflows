@@ -794,15 +794,14 @@ SageMaker monta. Sem ele, o contêiner roda nas sub-redes do projeto com as cred
 job, o do projeto, e alcança o que a rede do projeto alcança: os endpoints da VPC e, no
 laboratório, os nomes que o proxy libera. Um job de treinamento e um modelo levam o campo no topo
 do pedido, `EnableNetworkIsolation`, e o `lint` também o deixa a critério da task. O limite do
-laboratório não exige o isolamento num job de processamento, e o exige num job de treinamento e
-num modelo até a mudança de 2026-11-24 ser aplicada. A
+laboratório não exige o isolamento num job de processamento desde 2026-11-17, nem num job de
+treinamento e num modelo desde 2026-11-24. A
 [definição de exemplo](#uma-definicao-de-exemplo) o mantém, porque o job só lê as suas entradas.
 
 > [!NOTE]
 > **Estado**: a política da organização foi testada no laboratório sem a exigência do isolamento num
-> job de processamento; um job sem isolamento ainda não rodou num workflow. A mudança que tira a
-> exigência de um job de treinamento e de um modelo foi escrita e não foi aplicada: até lá, o
-> laboratório recusa o pedido sem isolamento que o `lint` aceita
+> job de processamento, em 2026-11-17, e num job de treinamento, em 2026-11-24; nenhum job sem
+> isolamento rodou ainda num workflow
 > ([as notas](awsds_workflows/lab_notes.html#uma-task-de-processamento)).
 
 **As entradas e as saídas ficam em `/opt/ml/processing/`.** O SageMaker baixa cada
